@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from "react";
-import { StarPuffUser, PetConfig, PetType } from "../types";
-import { playSound } from "./AudioSynth";
+import { StarPuffUser, PetConfig, PetType } from "../../types";
+import { playSound } from "../../audio/AudioSynth";
 import { Sparkles, Users, Plus, Star, Heart, CheckCircle2, UserCheck, RefreshCw } from "lucide-react";
 
 interface MultiPetSelectorProps {

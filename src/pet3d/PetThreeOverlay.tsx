@@ -4,7 +4,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { PetConfig } from "../types";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../audio/AudioSynth";
 
 interface PetThreeOverlayProps {
   dragOffset: React.MutableRefObject<{ x: number, y: number }>;

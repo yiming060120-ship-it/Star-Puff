@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { PetConfig, StarPuffUser, StoreItem } from "../types";
 import { motion, AnimatePresence } from "motion/react";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../audio/AudioSynth";
 import {
   Sparkles,
   RefreshCw,
@@ -94,7 +94,7 @@ export default function CelestialV26Suite({
 
   // Autoplay age morphing if reversing.
   useEffect(() => {
-    let t: NodeJS.Timeout;
+    let t: ReturnType<typeof setInterval> | undefined;
     if (isTimeReversing) {
       t = setInterval(() => {
         setAgeStage(current => {
@@ -105,7 +105,7 @@ export default function CelestialV26Suite({
         });
       }, 1500);
     }
-    return () => clearInterval(t);
+    return () => { if (t !== undefined) clearInterval(t); };
   }, [isTimeReversing]);
 
   const generateGrowthStory = async () => {

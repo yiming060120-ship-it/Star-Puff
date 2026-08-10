@@ -9,7 +9,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { PetConfig, Pet3DModelConfig, PetType } from "../types";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../audio/AudioSynth";
 import { 
   Upload, Camera, HelpCircle, AlertCircle, Cpu, Zap, Rotate3d, 
   Compass, RefreshCw, ZoomIn, Eye, Heart, Check, Download, Layers, ShieldCheck

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { PetConfig, PetType } from "../types";
+import { PetConfig, PetType } from "../../types";
 import { Sparkles, Upload, Flame, Paintbrush, Heart, Music, Check } from "lucide-react";
 import { motion } from "motion/react";
 

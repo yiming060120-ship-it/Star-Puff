@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Sparkles, Flower, Star, Heart, Edit3, Calendar, PlusCircle, CheckCircle2, Eye, Award } from "lucide-react";
-import { PetConfig } from "../types";
-import { playSound } from "./AudioSynth";
+import { PetConfig } from "../../types";
+import { playSound } from "../../audio/AudioSynth";
 
 interface MemorialZoneProps {
   activePet: PetConfig | null;

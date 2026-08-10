@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Camera, RotateCcw, Sparkles, Download, Video, VideoOff, Layers, CheckCircle2, X } from "lucide-react";
 import { PetConfig } from "../types";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../audio/AudioSynth";
 
 interface ArCameraSimulationProps {
   isOpen: boolean;

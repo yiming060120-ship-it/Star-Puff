@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Sparkles, Send, Coins, Compass, Heart, HeartOff, User, MessageCircle, HelpCircle } from "lucide-react";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../../audio/AudioSynth";
 
 interface WishingWellProps {
   stardustCoins: number;

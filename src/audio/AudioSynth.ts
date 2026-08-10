@@ -68,6 +68,12 @@ export function playSound(type: SoundType) {
     osc.connect(gain);
     gain.connect(ctx.destination);
 
+    // 播放结束后主动断开主链路节点，避免高频触发时已停止节点在音频图中堆积
+    osc.onended = () => {
+      try { osc.disconnect(); } catch { /* already disconnected */ }
+      try { gain.disconnect(); } catch { /* already disconnected */ }
+    };
+
     const now = ctx.currentTime;
 
     switch (type) {

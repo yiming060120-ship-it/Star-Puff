@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../../audio/AudioSynth";
 import { Bell, ShieldCheck, Volume2, Moon, Clock, Sparkles } from "lucide-react";
 
 interface NotificationConfig {

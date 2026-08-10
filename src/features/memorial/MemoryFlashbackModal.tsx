@@ -4,8 +4,8 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { PetConfig } from "../types";
-import { playSound } from "./AudioSynth";
+import { PetConfig } from "../../types";
+import { playSound } from "../../audio/AudioSynth";
 import { Camera, Sparkles, Heart, Gift, BookOpen, Download } from "lucide-react";
 
 export interface MemorySegment {

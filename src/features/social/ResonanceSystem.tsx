@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Sparkles, Heart, RefreshCw, Compass, Users, CheckCircle2, UserCheck, Flame } from "lucide-react";
-import { PetConfig } from "../types";
-import { playSound } from "./AudioSynth";
+import { PetConfig } from "../../types";
+import { playSound } from "../../audio/AudioSynth";
 
 interface ResonanceSystemProps {
   activePet: PetConfig | null;

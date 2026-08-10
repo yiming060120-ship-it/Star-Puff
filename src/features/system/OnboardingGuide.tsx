@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../../audio/AudioSynth";
 import { Sparkles, ArrowRight, X, Compass, Cookie, Smile, Star, Trophy, Heart } from "lucide-react";
 
 interface OnboardingGuideProps {

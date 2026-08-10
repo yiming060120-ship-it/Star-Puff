@@ -4,10 +4,10 @@
  */
 
 import React, { useState } from "react";
-import { PetConfig } from "../types";
+import { PetConfig } from "../../types";
 import { PET_MEMORIES, MemorySegment } from "./MemoryFlashbackModal";
 import { Lock, Eye, BookOpen, Clock, Heart, Award } from "lucide-react";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../../audio/AudioSynth";
 
 interface MemoryAlbumProps {
   petConfig: PetConfig;

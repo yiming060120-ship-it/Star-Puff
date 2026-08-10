@@ -13,26 +13,29 @@ import {
   PetWhisper,
   CommunityPost
 } from "./types";
-import StardustCeremony from "./components/StardustCeremony";
-import HomeCanvas from "./components/HomeCanvas";
+import StardustCeremony from "./features/memorial/StardustCeremony";
+import HomeCanvas from "./scenes/HomeCanvas";
 // @ts-ignore
 import puffCatImage from "./assets/images/puff_cat_1779553092843.png";
-import NebulaGateCanvas from "./components/NebulaGateCanvas";
-import MemoryFlashbackModal, { PET_MEMORIES } from "./components/MemoryFlashbackModal";
-import MemoryAlbum from "./components/MemoryAlbum";
-import Pet3DReconstruction from "./components/Pet3DReconstruction";
-import OnboardingGuide from "./components/OnboardingGuide";
-import CheckInCalendar from "./components/CheckInCalendar";
-import AnniversaryManager from "./components/AnniversaryManager";
-import PetMemoryTimeline from "./components/PetMemoryTimeline";
-import MultiPetSelector from "./components/MultiPetSelector";
-import ArCameraSimulation from "./components/ArCameraSimulation";
-import WishingWell from "./components/WishingWell";
-import CelestialV26Suite from "./components/CelestialV26Suite";
-import MemorialZone from "./components/MemorialZone";
-import ResonanceSystem from "./components/ResonanceSystem";
-import NotificationSettings from "./components/NotificationSettings";
-import { playSound } from "./components/AudioSynth";
+import NebulaGateCanvas from "./scenes/NebulaGateCanvas";
+import MemoryFlashbackModal, { PET_MEMORIES } from "./features/memorial/MemoryFlashbackModal";
+import MemoryAlbum from "./features/memorial/MemoryAlbum";
+import Pet3DReconstruction from "./pet3d/Pet3DReconstruction";
+import OnboardingGuide from "./features/system/OnboardingGuide";
+import CheckInCalendar from "./features/system/CheckInCalendar";
+import AnniversaryManager from "./features/memorial/AnniversaryManager";
+import PetMemoryTimeline from "./features/memorial/PetMemoryTimeline";
+import MultiPetSelector from "./features/system/MultiPetSelector";
+import ArCameraSimulation from "./pet3d/ArCameraSimulation";
+import WishingWell from "./features/social/WishingWell";
+import CelestialV26Suite from "./scenes/CelestialV26Suite";
+import MemorialZone from "./features/memorial/MemorialZone";
+import ResonanceSystem from "./features/social/ResonanceSystem";
+import NotificationSettings from "./features/system/NotificationSettings";
+import { playSound } from "./audio/AudioSynth";
+import { localDateString } from "./utils/date";
+import { sendChatMessage, generateWhispers } from "./api";
+import ErrorBoundary from "./components/ErrorBoundary";
 import {
   Sparkles,
   Heart,
@@ -59,6 +62,7 @@ import {
 
 // Seed constant items
 export const DEFAULT_KITTEN: PetConfig = {
+  id: "pet_tianle_default",
   name: "天乐",
   type: "猫",
   ownerName: "守护者",
@@ -254,13 +258,16 @@ export default function App() {
     };
 
     if (parsed) {
+      // 若上次会话中断于上帝演示模式，优先恢复被覆盖前的真实经济字段
+      let ecoBackup: Partial<StarPuffUser> = {};
+      try {
+        const rawBackup = localStorage.getItem("starpuff_economy_backup");
+        if (rawBackup) ecoBackup = JSON.parse(rawBackup);
+      } catch (e) {}
       return {
         ...defaultVal,
         ...parsed,
-        membership: "vip_year",
-        unlimitedTalks: true,
-        dialogsRemaining: 999,
-        dialogsMax: 999,
+        ...ecoBackup,
         allPets: parsed.allPets || (parsed.activePet ? [parsed.activePet] : []),
         checkInCalendar: parsed.checkInCalendar || [],
         onboardingCompleted: parsed.onboardingCompleted ?? false
@@ -273,26 +280,55 @@ export default function App() {
   const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">("god");
   const [isArCameraOpen, setIsArCameraOpen] = useState(false);
 
+  // 演示模式（上帝/访客）的真实经济快照，防止演示覆盖写穿持久存档
+  const economyBackupRef = useRef<Partial<StarPuffUser> | null>(null);
+  const ECONOMY_BACKUP_KEY = "starpuff_economy_backup";
+
+  const loadEconomyBackup = (): Partial<StarPuffUser> | null => {
+    if (economyBackupRef.current) return economyBackupRef.current;
+    try {
+      const raw = localStorage.getItem(ECONOMY_BACKUP_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  };
+
   // Sync state override on playMode modification
   useEffect(() => {
     if (systemPlayMode === "god") {
-      setUser(prev => ({
-        ...prev,
-        membership: "vip_year",
-        unlimitedTalks: true,
-        dialogsRemaining: 999,
-        dialogsMax: 999,
-        stardustCoins: Math.max(prev.stardustCoins, 99999)
-      }));
+      setUser(prev => {
+        // 已有备份（上次会话中断于上帝模式）则沿用，否则快照当前真实经济字段
+        let backup = loadEconomyBackup();
+        if (!backup) {
+          backup = {
+            membership: prev.membership,
+            unlimitedTalks: prev.unlimitedTalks,
+            dialogsRemaining: prev.dialogsRemaining,
+            dialogsMax: prev.dialogsMax,
+            stardustCoins: prev.stardustCoins
+          };
+          try { localStorage.setItem(ECONOMY_BACKUP_KEY, JSON.stringify(backup)); } catch (e) {}
+        }
+        economyBackupRef.current = backup;
+        return {
+          ...prev,
+          membership: "vip_year",
+          unlimitedTalks: true,
+          dialogsRemaining: 999,
+          dialogsMax: 999,
+          stardustCoins: Math.max(prev.stardustCoins, 99999)
+        };
+      });
     } else {
-      setUser(prev => ({
-        ...prev,
-        membership: "free",
-        unlimitedTalks: false,
-        dialogsRemaining: 3,
-        dialogsMax: 5,
-        stardustCoins: 15
-      }));
+      setUser(prev => {
+        const backup = loadEconomyBackup();
+        if (!backup) return prev;
+        economyBackupRef.current = null;
+        try { localStorage.removeItem(ECONOMY_BACKUP_KEY); } catch (e) {}
+        // 恢复真实经济/会员字段，保留演示期间获得的其他进度（宠物、装扮等）
+        return { ...prev, ...backup };
+      });
     }
   }, [systemPlayMode]);
 
@@ -332,22 +368,28 @@ export default function App() {
     return COMM_PRES_POSTS;
   });
 
-  // Daily Tasks state tracker
+  // Daily Tasks state tracker（按本地日期每日重置进度）
   const [tasks, setTasks] = useState<TaskItem[]>(() => {
-    const local = localStorage.getItem("starpuff_tasks");
-    if (local) {
-      try {
-        return JSON.parse(local);
-      } catch (e) {}
-    }
-    return [
-      { id: "task_login", name: "登录星宿家园", reward: 5, maxTimes: 1, completedTimes: 1, description: "每日首次打开程序" },
+    const seed: TaskItem[] = [
+      { id: "task_login", name: "登录星宿家园", reward: 5, maxTimes: 1, completedTimes: 0, description: "每日首次打开程序" },
       { id: "task_interact", name: "点击默影互动", reward: 1, maxTimes: 3, completedTimes: 0, description: "点击家园主屏的2D像素宠物" },
       { id: "task_share", name: "分享治愈耳语给旁人", reward: 15, maxTimes: 1, completedTimes: 0, description: "一键分享耳语故事" },
       { id: "task_explore", name: "星云宇宙停留30秒", reward: 20, maxTimes: 1, completedTimes: 0, description: "漫游星云之门并触发碰撞事件" },
       { id: "task_like", name: "给他人耳语/社群点赞", reward: 1, maxTimes: 10, completedTimes: 0, description: "在看星的人社区浏览点赞" },
       { id: "task_receive_gift", name: "收到「一颗星尘」礼物", reward: 2, maxTimes: 5, completedTimes: 0, description: "模拟其他用户送给你装饰礼物" }
     ];
+    try {
+      const local = localStorage.getItem("starpuff_tasks");
+      if (!local) return seed;
+      const parsed = JSON.parse(local);
+      if (!Array.isArray(parsed) || parsed.length === 0) return seed;
+      const tasksDate = localStorage.getItem("starpuff_tasks_date");
+      if (tasksDate === localDateString()) return parsed;
+      // 跨天：重置所有每日任务进度（含历史无日期标记的旧存档）
+      return parsed.map((t: TaskItem) => ({ ...t, completedTimes: 0 }));
+    } catch (e) {
+      return seed;
+    }
   });
 
   // Food Inventory
@@ -394,9 +436,14 @@ export default function App() {
     ];
   });
 
-  // Track and save chat history
+  // Track and save chat history（防抖：避免长记录高频全量序列化阻塞主线程）
   useEffect(() => {
-    localStorage.setItem("starpuff_chat_history_v2", JSON.stringify(chatMessages));
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem("starpuff_chat_history_v2", JSON.stringify(chatMessages));
+      } catch (e) {}
+    }, 400);
+    return () => clearTimeout(timer);
   }, [chatMessages]);
 
   // Dynamic initialization for chat welcome when pet swaps
@@ -483,27 +530,20 @@ export default function App() {
 
     // Invoke API call
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: userMsgText,
-          chatHistory: updatedMessages.map(msg => ({
-            sender: msg.sender,
-            text: msg.text
-          })),
-          ownerName: user.ownerName,
-          petName: user.activePet?.name || "天乐",
-          petType: user.activePet?.type || "猫",
-          breed: user.activePet?.breed || "英短乳白",
-          lore: user.activePet?.model3d?.loreParagraph || "",
-          personality: user.activePet?.personalityTags?.join(",") || "温柔粘人",
-        })
+      const data = await sendChatMessage({
+        message: userMsgText,
+        chatHistory: updatedMessages.map(msg => ({
+          sender: msg.sender,
+          text: msg.text
+        })),
+        ownerName: user.ownerName,
+        petName: user.activePet?.name || "天乐",
+        petType: user.activePet?.type || "猫",
+        breed: user.activePet?.breed || "英短乳白",
+        lore: user.activePet?.model3d?.loreParagraph || "",
+        personality: user.activePet?.personalityTags?.join(",") || "温柔粘人",
       });
 
-      const data = await response.json();
       if (data.success && data.text) {
         setChatMessages(prev => [
           ...prev,
@@ -613,6 +653,7 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem("starpuff_tasks", JSON.stringify(tasks));
+    localStorage.setItem("starpuff_tasks_date", localDateString());
   }, [tasks]);
 
   useEffect(() => {
@@ -663,6 +704,7 @@ export default function App() {
     setUser(prev => {
       const updatedPet = {
         ...config,
+        id: config.id ?? `pet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, // 稳定 id 作为状态存储 key
         personalityTags: ["温柔精灵", "贴心小棉袄"],
         moodLevel: 95,
         happiness: 90,
@@ -702,11 +744,14 @@ export default function App() {
 
   const handleAddPet = (newPet: PetConfig) => {
     setUser(prev => {
-      const nextPets = prev.allPets ? [...prev.allPets, newPet] : [newPet];
+      const petWithId = newPet.id
+        ? newPet
+        : { ...newPet, id: `pet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` };
+      const nextPets = prev.allPets ? [...prev.allPets, petWithId] : [petWithId];
       return {
         ...prev,
         allPets: nextPets,
-        activePet: newPet
+        activePet: petWithId
       };
     });
   };
@@ -794,20 +839,15 @@ export default function App() {
     playSound("bubble");
 
     try {
-      const response = await fetch("/api/whisper", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerName: user.ownerName,
-          petName: user.activePet.name,
-          petType: user.activePet.type,
-          activeLevel: user.membership === "free" ? 6 : 12,
-          recentEvents: user.historyLogs,
-          isVip: user.membership !== "free",
-        }),
+      const data = await generateWhispers({
+        ownerName: user.ownerName,
+        petName: user.activePet.name,
+        petType: user.activePet.type,
+        activeLevel: user.membership === "free" ? 6 : 12,
+        recentEvents: user.historyLogs,
+        isVip: user.membership !== "free",
       });
 
-      const data = await response.json();
       if (data.success && data.whispers && data.whispers.length > 0) {
         // Mix custom illustration pixel cards depending on nature of event
         const presetCoverImages = [
@@ -818,7 +858,7 @@ export default function App() {
 
         const newlyReceived: PetWhisper[] = data.whispers.map((txt: string, index: number) => ({
           id: `w_gen_${Date.now()}_${index}`,
-          date: new Date().toISOString().split("T")[0],
+          date: localDateString(),
           content: txt,
           coverImage: presetCoverImages[index % presetCoverImages.length],
           likes: 0,
@@ -848,7 +888,7 @@ export default function App() {
       // Fallback
       const mockWhisper: PetWhisper = {
         id: `w_fallback_${Date.now()}`,
-        date: new Date().toISOString().split("T")[0],
+        date: localDateString(),
         content: `${user.ownerName}，不要为我难过。我昨天又在星尘小镇睡了个温暖的午觉，梦里满是你在夕阳下拉着我散步的香甜味道。我已经学会了在大世界踏波浪，所有的别的小动物都在羡慕我身上的微光呢。要替我好好吃饭、开心大笑！`,
         coverImage: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=300",
         likes: 3,
@@ -1191,6 +1231,7 @@ export default function App() {
       <div className="absolute bottom-10 right-20 w-80 h-80 rounded-full blur-[120px] bg-[#F27D26]/10 pointer-events-none" />
 
       {/* Main mockup device container */}
+      <ErrorBoundary>
       <div className="w-full max-w-5xl bg-[#090715]/95 border border-white/10 rounded-2xl flex flex-col min-h-[780px] shadow-[0_0_50px_rgba(123,97,255,0.15)] relative overflow-hidden backdrop-blur-xl shrink-0">
         
         {/* TOP STATUS ROW */}
@@ -1273,7 +1314,8 @@ export default function App() {
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
-              <BookOpen className="w-4.5 h-4.5 text-yellow-400" />
+              <BookOpen className="w-4.5 h-4.5 text-yellow-400"       />
+            </ErrorBoundary>
             </div>
             <span className="text-[10px] font-bold tracking-tighter font-sans">系统指引</span>
           </button>
@@ -1285,7 +1327,8 @@ export default function App() {
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
-              <div className={`w-3.5 h-3.5 bg-orange-400 rounded-sm shadow-[0_0_10px_#F27D26] ${activeTab === "home" ? "scale-125 rotate-45" : ""}`} />
+              <div className={`w-3.5 h-3.5 bg-orange-400 rounded-sm shadow-[0_0_10px_#F27D26] ${activeTab === "home" ? "scale-125 rotate-45" : ""}`}       />
+            </ErrorBoundary>
             </div>
             <span className="text-[10px] font-bold tracking-tighter font-sans">星尘家园</span>
           </button>
@@ -1297,7 +1340,8 @@ export default function App() {
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
-              <div className={`w-4 h-4 flex items-center justify-center border-2 rotate-45 ${activeTab === "galaxy" ? "border-indigo-400 w-4 h-4 font-bold text-white bg-indigo-500/20" : "border-white/50"}`} />
+              <div className={`w-4 h-4 flex items-center justify-center border-2 rotate-45 ${activeTab === "galaxy" ? "border-indigo-400 w-4 h-4 font-bold text-white bg-indigo-500/20" : "border-white/50"}`}       />
+            </ErrorBoundary>
             </div>
             <span className="text-[10px] font-bold tracking-tighter font-sans">星云之门</span>
           </button>
@@ -2545,6 +2589,7 @@ export default function App() {
           setActiveTab(tab);
         }}
       />
+      </ErrorBoundary>
 
     </div>
   );

@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from "react";
-import { PetConfig } from "../types";
-import { playSound } from "./AudioSynth";
+import { PetConfig } from "../../types";
+import { playSound } from "../../audio/AudioSynth";
 import { Star, Smile, Upload, Plus, Trash2, Heart, Award, ArrowRight, BookOpen } from "lucide-react";
 
 interface TimelineLog {

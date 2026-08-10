@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Sprout, Droplets, Store, BookOpen, Shell, Map as MapIcon, Crown, Clock, Zap, Coffee, Flame, Moon, Sun, Book, ArrowRight, Compass, Shield, Scissors } from 'lucide-react';
-import { playSound } from './AudioSynth';
+import { playSound } from '../audio/AudioSynth';
 
 interface SceneInteractiveUIProps {
   sceneId: string;

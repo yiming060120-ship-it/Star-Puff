@@ -19,6 +19,7 @@ export interface Pet3DModelConfig {
 }
 
 export interface PetConfig {
+  id?: string; // Stable unique id (e.g. "pet_1723..."); used as storage key. Falls back to name for legacy data.
   name: string;
   type: PetType;
   ownerName: string;

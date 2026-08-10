@@ -4,7 +4,8 @@
  */
 
 import React, { useState } from "react";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../../audio/AudioSynth";
+import { localDateString } from "../../utils/date";
 import { Calendar, CheckCircle, Award, Star, ArrowRight, Zap, Gift } from "lucide-react";
 
 interface CheckInCalendarProps {
@@ -25,7 +26,7 @@ const CHECK_IN_ROSTER = [
 ];
 
 export default function CheckInCalendar({ checkInCalendar = [], onCheckIn, triggerToast, lastCheckInDate }: CheckInCalendarProps) {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = localDateString(); // 本地时区日期，避免 UTC 穿越导致重复/无法签到
   const hasCheckedInToday = checkInCalendar.includes(todayStr) || lastCheckInDate === todayStr;
 
   // Let's compute current continuous streak index

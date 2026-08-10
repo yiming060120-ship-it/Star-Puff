@@ -7,9 +7,10 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+// 3D 重建接口需承载 base64 图片，默认 100kb 限制会直接 413
+app.use(express.json({ limit: "15mb" }));
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Initialize Gemini client lazily to avoid crashing on startup if the key is empty
 let aiClient: GoogleGenAI | null = null;
@@ -131,7 +132,7 @@ app.post("/api/whisper", async (req, res) => {
     console.error("Gemini Whisper generation error:", error);
     return res.status(500).json({
       success: false,
-      error: error.message || "Unknown AI Whisper processing error",
+      error: "AI 耳语生成服务暂时不可用", // 内部细节仅保留在服务端日志
     });
   }
 });
@@ -239,7 +240,7 @@ app.post("/api/chat", async (req, res) => {
     console.error("Gemini Pet Chat Companion error:", error);
     return res.status(500).json({
       success: false,
-      error: error.message || "Unknown AI Chat processing error",
+      error: "AI 对话服务暂时不可用", // 内部细节仅保留在服务端日志
     });
   }
 });
@@ -393,9 +394,8 @@ app.post("/api/reconstruct-3d", async (req, res) => {
 
     const response = await client.models.generateContent({
       model: "gemini-3.5-flash",
-      contents: {
-        parts: [imageContentPart, promptTextPart]
-      },
+      // 多模态请求必须包在 Content 数组中，裸 { parts } 在 SDK 升级后会静默失败
+      contents: [{ role: "user", parts: [imageContentPart, promptTextPart] }],
       config: {
         responseMimeType: "application/json"
       }
@@ -431,7 +431,7 @@ app.post("/api/reconstruct-3d", async (req, res) => {
         sourceImage: base64Image,
         ...simConfig
       },
-      warning: error.message
+      warning: "Gemini 视觉重建失败，已切换本地高保真引擎" // 不向客户端泄露内部错误细节
     });
   }
 });
@@ -496,7 +496,8 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    // 正则写法同时兼容 Express 4 与 Express 5（后者已移除 "*" 通配符语法）
+    app.get(/.*/, (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

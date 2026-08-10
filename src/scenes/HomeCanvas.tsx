@@ -15,8 +15,8 @@ function PetModel() {
 
 import React, { useEffect, useRef, useState, Suspense } from "react";
 import { PetConfig } from "../types";
-import { playSound } from "./AudioSynth";
-import { PetThreeOverlay } from "./PetThreeOverlay";
+import { playSound } from "../audio/AudioSynth";
+import { PetThreeOverlay } from "../pet3d/PetThreeOverlay";
 
 export function adjustBrightness(hex: string, percent: number): string {
   if (!hex || hex[0] !== '#') return hex || '#ffffff';
@@ -109,68 +109,29 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   })();
 
   // Pet Emotion System indicators (心情, 能量, 亲密) with LocalStorage persistence
-  const [moodIndex, setMoodIndex] = useState<number>(() => {
-    try {
-      const v = localStorage.getItem(`star_puff_mood_${petConfig.name}`);
-      return v ? parseInt(v, 10) : 75;
-    } catch {
-      return 75;
-    }
-  });
+  // 存储 key 使用稳定 id（避免同名宠物互相覆盖、改名后数据成孤儿），并兼容旧的 name key
+  const petStorageKey = petConfig.id ?? petConfig.name;
 
-  const [energyIndex, setEnergyIndex] = useState<number>(() => {
+  const readPetStat = (key: string, fallback: number): number => {
     try {
-      const v = localStorage.getItem(`star_puff_energy_${petConfig.name}`);
-      return v ? parseInt(v, 10) : 85;
+      const v =
+        localStorage.getItem(`star_puff_${key}_${petStorageKey}`) ??
+        (petStorageKey !== petConfig.name
+          ? localStorage.getItem(`star_puff_${key}_${petConfig.name}`) // legacy name-key migration
+          : null);
+      return v ? parseInt(v, 10) : fallback;
     } catch {
-      return 85;
+      return fallback;
     }
-  });
+  };
 
-  const [hungerIndex, setHungerIndex] = useState<number>(() => {
-    try {
-      const v = localStorage.getItem(`star_puff_hunger_${petConfig.name}`);
-      return v ? parseInt(v, 10) : (petConfig.statusHunger ?? 80);
-    } catch {
-      return petConfig.statusHunger ?? 80;
-    }
-  });
-
-  const [cleanIndex, setCleanIndex] = useState<number>(() => {
-    try {
-      const v = localStorage.getItem(`star_puff_clean_${petConfig.name}`);
-      return v ? parseInt(v, 10) : (petConfig.statusCleanliness ?? 95);
-    } catch {
-      return petConfig.statusCleanliness ?? 95;
-    }
-  });
-
-  const [petLevel, setPetLevel] = useState<number>(() => {
-    try {
-      const v = localStorage.getItem(`star_puff_level_${petConfig.name}`);
-      return v ? parseInt(v, 10) : (petConfig.level ?? 1);
-    } catch {
-      return petConfig.level ?? 1;
-    }
-  });
-
-  const [petExp, setPetExp] = useState<number>(() => {
-    try {
-      const v = localStorage.getItem(`star_puff_exp_${petConfig.name}`);
-      return v ? parseInt(v, 10) : (petConfig.exp ?? 0);
-    } catch {
-      return petConfig.exp ?? 0;
-    }
-  });
-
-  const [intimacyIndex, setIntimacyIndex] = useState<number>(() => {
-    try {
-      const v = localStorage.getItem(`star_puff_intimacy_${petConfig.name}`);
-      return v ? parseInt(v, 10) : 55;
-    } catch {
-      return 55;
-    }
-  });
+  const [moodIndex, setMoodIndex] = useState<number>(() => readPetStat("mood", 75));
+  const [energyIndex, setEnergyIndex] = useState<number>(() => readPetStat("energy", 85));
+  const [hungerIndex, setHungerIndex] = useState<number>(() => readPetStat("hunger", petConfig.statusHunger ?? 80));
+  const [cleanIndex, setCleanIndex] = useState<number>(() => readPetStat("clean", petConfig.statusCleanliness ?? 95));
+  const [petLevel, setPetLevel] = useState<number>(() => readPetStat("level", petConfig.level ?? 1));
+  const [petExp, setPetExp] = useState<number>(() => readPetStat("exp", petConfig.exp ?? 0));
+  const [intimacyIndex, setIntimacyIndex] = useState<number>(() => readPetStat("intimacy", 55));
 
   const [autoWeatherCycle, setAutoWeatherCycle] = useState<boolean>(true);
   const [timeToNextWeather, setTimeToNextWeather] = useState<number>(45); // seconds countdown
@@ -189,20 +150,20 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const autoWeatherCycleRef = useRef<boolean>(autoWeatherCycle);
   autoWeatherCycleRef.current = autoWeatherCycle;
 
-  // Persist Pet mood/energy statistics
+  // Persist Pet mood/energy statistics（以稳定 id 为 key）
   useEffect(() => {
     try {
-      localStorage.setItem(`star_puff_mood_${petConfig.name}`, moodIndex.toString());
-      localStorage.setItem(`star_puff_energy_${petConfig.name}`, energyIndex.toString());
-      localStorage.setItem(`star_puff_hunger_${petConfig.name}`, hungerIndex.toString());
-      localStorage.setItem(`star_puff_clean_${petConfig.name}`, cleanIndex.toString());
-      localStorage.setItem(`star_puff_level_${petConfig.name}`, petLevel.toString());
-      localStorage.setItem(`star_puff_exp_${petConfig.name}`, petExp.toString());
-      localStorage.setItem(`star_puff_intimacy_${petConfig.name}`, intimacyIndex.toString());
+      localStorage.setItem(`star_puff_mood_${petStorageKey}`, moodIndex.toString());
+      localStorage.setItem(`star_puff_energy_${petStorageKey}`, energyIndex.toString());
+      localStorage.setItem(`star_puff_hunger_${petStorageKey}`, hungerIndex.toString());
+      localStorage.setItem(`star_puff_clean_${petStorageKey}`, cleanIndex.toString());
+      localStorage.setItem(`star_puff_level_${petStorageKey}`, petLevel.toString());
+      localStorage.setItem(`star_puff_exp_${petStorageKey}`, petExp.toString());
+      localStorage.setItem(`star_puff_intimacy_${petStorageKey}`, intimacyIndex.toString());
     } catch (e) {
       console.warn("Storage write error", e);
     }
-  }, [moodIndex, energyIndex, hungerIndex, cleanIndex, petLevel, petExp, intimacyIndex, petConfig.name]);
+  }, [moodIndex, energyIndex, hungerIndex, cleanIndex, petLevel, petExp, intimacyIndex, petStorageKey]);
 
   // Automated Real-world Weather & Climate evolution wheel
   useEffect(() => {
@@ -390,7 +351,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   // Dynamic gesture recognizer state refs
   const touchPartAnimation = useRef<"head" | "back" | "stomach" | "paws" | "tail" | null>(null);
   const touchPartProgress = useRef<number>(0);
-  const gestureAction = useRef<"click" | "double-click" | "long-press" | "slide-left" | "slide-right" | "pinch" | "spread" | null>(null);
+  const gestureAction = useRef<"click" | "double-click" | "long-press" | "long-press-3s" | "slide-left" | "slide-right" | "pinch" | "spread" | null>(null);
   const gestureProgress = useRef<number>(0);
   const lickOverlayFrames = useRef<number>(0);
   const gestureScaleMultiplier = useRef<number>(1.0);
@@ -3071,8 +3032,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         ctx.rotate(rotateAmt);
 
         // Soft ambient glow background behind realistic kitten representing warm stardust
+        // 注：此分支仅在 renderMode === "shaded" 时进入，光晕取固定值
         ctx.shadowColor = petConfig.primaryColor;
-        ctx.shadowBlur = renderMode === "realistic-stardust" ? 35 : 24;
+        ctx.shadowBlur = 24;
 
         // Render the image
         const targetWidth = 150;
@@ -3840,12 +3802,6 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         {/* Top toolbar over canvas */}
         <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between bg-black/40 z-20 backdrop-blur-md relative">
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setShowGuide(true); playSound("click"); }}
-              className="text-[10px] text-gray-400 font-mono flex items-center gap-1 hover:text-white transition-colors border border-white/10 px-2 py-0.5 rounded-full hover:bg-white/5"
-            >
-              📖 手册
-            </button>
             <span className="md:hidden text-[10px] font-mono text-pink-300 ml-2 animate-pulse flex items-center gap-1">
               <span className="w-1.5 h-1.5 bg-pink-400 rounded-full" />
               单击唤醒
@@ -3869,9 +3825,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             </button>
             <span className="text-gray-500 mx-2">|</span>
             <span className="text-gray-500 font-mono tracking-widest uppercase mr-2">Styles:</span>
-            {(!useReal3D ? (petConfig.model3d 
-              ? ["shaded", "wireframe", "rig", "xray", "model3d", "voxel", "realistic-stardust"] 
-              : ["shaded", "wireframe", "rig", "xray", "voxel", "realistic-stardust"]
+            {(!useReal3D ? (petConfig.model3d
+              ? (["shaded", "wireframe", "rig", "xray", "model3d", "voxel", "realistic-stardust"] as RenderingMode[])
+              : (["shaded", "wireframe", "rig", "xray", "voxel", "realistic-stardust"] as RenderingMode[])
             ) : [] as RenderingMode[]).map((mode) => (
               <button
                 key={mode}

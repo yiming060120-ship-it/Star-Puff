@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { PetConfig, PetType } from "../types";
-import { playSound } from "./AudioSynth";
+import { playSound } from "../audio/AudioSynth";
 import { Compass, Sparkles, Trophy, ChevronLeft, Image as ImageIcon, Info } from "lucide-react";
 import { SCENE_DESIGNS } from "../data/sceneDesigns";
 import { SceneInteractiveUI } from "./SceneInteractiveUI";

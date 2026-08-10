@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from "react";
-import { PetConfig } from "../types";
-import { playSound } from "./AudioSynth";
+import { PetConfig } from "../../types";
+import { playSound } from "../../audio/AudioSynth";
 import { Calendar, Heart, Trash2, Plus, AlertCircle, Award, Sparkles, Smile, CloudRain } from "lucide-react";
 
 interface CustomAnniversary {
