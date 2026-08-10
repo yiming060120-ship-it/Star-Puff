@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: 喵汪星云 (StarPuff)",
+  "description": "国内首款2D像素星云风、逝宠纪念AI社交治愈类微信小程序（全栈模拟），包含粒子星尘家园、星云之门地标游走、AI每日治愈耳语、星尘币虚拟经济与权限体系、以及看星的人公共社群板块。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
