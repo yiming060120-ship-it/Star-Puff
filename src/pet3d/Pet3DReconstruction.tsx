@@ -1115,7 +1115,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     });
     const maxParticles = 100;
     const positions = new Float32Array(maxParticles * 3);
-    const velocities = [];
+    const velocities: THREE.Vector3[] = [];
     const lifetimes = new Float32Array(maxParticles);
     
     for (let i = 0; i < maxParticles; i++) {
