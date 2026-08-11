@@ -1315,7 +1315,6 @@ export default function App() {
           >
             <div className="w-6 h-6 flex items-center justify-center">
               <BookOpen className="w-4.5 h-4.5 text-yellow-400"       />
-            </ErrorBoundary>
             </div>
             <span className="text-[10px] font-bold tracking-tighter font-sans">系统指引</span>
           </button>
@@ -1328,7 +1327,6 @@ export default function App() {
           >
             <div className="w-6 h-6 flex items-center justify-center">
               <div className={`w-3.5 h-3.5 bg-orange-400 rounded-sm shadow-[0_0_10px_#F27D26] ${activeTab === "home" ? "scale-125 rotate-45" : ""}`}       />
-            </ErrorBoundary>
             </div>
             <span className="text-[10px] font-bold tracking-tighter font-sans">星尘家园</span>
           </button>
@@ -1341,7 +1339,6 @@ export default function App() {
           >
             <div className="w-6 h-6 flex items-center justify-center">
               <div className={`w-4 h-4 flex items-center justify-center border-2 rotate-45 ${activeTab === "galaxy" ? "border-indigo-400 w-4 h-4 font-bold text-white bg-indigo-500/20" : "border-white/50"}`}       />
-            </ErrorBoundary>
             </div>
             <span className="text-[10px] font-bold tracking-tighter font-sans">星云之门</span>
           </button>

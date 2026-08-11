@@ -225,7 +225,6 @@ export function PetThreeOverlay({ dragOffset, isJumping, activeGestureRef, petCo
     setGltfLoadProgress(0);
 
     let catModel: THREE.Group | null = null;
-    let mixer: THREE.AnimationMixer | null = null;
     let clickReactionTime = 0;
 
     const imageUrl = petConfig.model3d?.sourceImage;
@@ -416,10 +415,6 @@ export function PetThreeOverlay({ dragOffset, isJumping, activeGestureRef, petCo
       if (envStardust) {
         envStardust.rotation.y += dt * 0.05;
         envStardust.rotation.x = Math.sin(t * 0.1) * 0.1;
-      }
-
-      if (mixer) {
-        mixer.update(dt);
       }
 
       // Read gesture states from refs
