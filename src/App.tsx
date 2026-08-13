@@ -37,6 +37,17 @@ import { localDateString } from "./utils/date";
 import { sendChatMessage, generateWhispers } from "./api";
 import { useMicrotransaction, applyGrantToUser, type PurchaseFlowState } from "./hooks/useMicrotransaction";
 import type { GrantPayload } from "./api";
+import {
+  getCompanionState,
+  calcCurrentEnergy,
+  pickPhrase,
+  getPhrasesForState,
+  findEnergyFood,
+  PHRASES,
+  ENERGY_FOODS,
+  VIP_DAILY_RECOVERY,
+  LOGIN_DAILY_BONUS,
+} from "./data/companionEnergy";
 import ErrorBoundary from "./components/ErrorBoundary";
 import {
   Sparkles,
@@ -82,6 +93,9 @@ export const DEFAULT_KITTEN: PetConfig = {
   statusHunger: 80,
   statusCleanliness: 95,
   statusEnergy: 90,
+  companionEnergy: 90,
+  companionEnergyUpdatedAt: Date.now(),
+  isSleeping: false,
   level: 1,
   exp: 0,
   favoriteSnacks: ["猫条", "冻干生肉", "星光小鱼干"],
@@ -308,6 +322,189 @@ export default function App() {
 
   const { runPurchase } = useMicrotransaction(steamId, handleGranted);
 
+  // ---- 陪伴能量系统（心寒话术）----
+
+  // 当前活跃宠物的陪伴能量快照（从 user.activePet 派生，用于 UI 即时刷新）
+  const [energyTick, setEnergyTick] = useState(0); // 用于周期性触发重算
+  // 累计喂食次数（用于触发「深度羁绊」暖心文案）
+  const [feedCount, setFeedCount] = useState<number>(() => {
+    const local = localStorage.getItem("starpuff_feed_count");
+    return local ? Number(local) : 0;
+  });
+  /** 触发深度羁绊文案所需的累计喂食次数阈值 */
+  const DEEP_BOND_THRESHOLD = 10;
+
+  /** 从 user.activePet 计算当前陪伴能量（应用衰减） */
+  const currentCompanionEnergy = (() => {
+    const pet = user.activePet;
+    if (!pet) return 100;
+    const base = pet.companionEnergy ?? pet.statusEnergy ?? 90;
+    const updatedAt = pet.companionEnergyUpdatedAt ?? Date.now();
+    // 免疫期内不衰减
+    const immuneUntil = pet.companionEnergyImmuneUntil ?? 0;
+    if (Date.now() < immuneUntil) return Math.max(0, base);
+    return calcCurrentEnergy(base, updatedAt);
+  })();
+
+  const companionState = getCompanionState(currentCompanionEnergy);
+
+  /** 更新活跃宠物的陪伴能量（写回 user 状态并刷新时间戳） */
+  const updateCompanionEnergy = (nextEnergy: number, opts?: { immuneUntil?: number }) => {
+    setUser(prev => {
+      if (!prev.activePet) return prev;
+      const updatedPet: PetConfig = {
+        ...prev.activePet,
+        companionEnergy: Math.max(0, Math.min(100, nextEnergy)),
+        companionEnergyUpdatedAt: Date.now(),
+        companionEnergyImmuneUntil: opts?.immuneUntil ?? prev.activePet.companionEnergyImmuneUntil ?? 0,
+        isSleeping: nextEnergy <= 0,
+      };
+      // 同步 allPets 列表中的该宠物
+      const allPets = prev.allPets?.map(p =>
+        p.id === updatedPet.id ? updatedPet : p
+      ) ?? (prev.activePet ? [updatedPet] : []);
+      return { ...prev, activePet: updatedPet, allPets };
+    });
+  };
+
+  /** 喂食恢复能量（使用星尘币购买的能量道具） */
+  const handleFeedEnergy = (foodId: string) => {
+    const food = findEnergyFood(foodId);
+    if (!food) return;
+
+    if (user.stardustCoins < food.price) {
+      triggerToast(`⚠️【星尘币不足】${food.name} 需要 ${food.price} 星尘币，您当前只有 ${user.stardustCoins} 币。`);
+      playSound("beep");
+      return;
+    }
+
+    // 沉睡状态只能用唤醒剂
+    if (companionState.state === "sleeping" && food.id !== "energy_revive") {
+      triggerToast("😴 星宠正在沉睡，只能用「星尘唤醒剂」唤醒它哦。");
+      playSound("beep");
+      return;
+    }
+
+    // 扣币
+    setUser(prev => ({ ...prev, stardustCoins: prev.stardustCoins - food.price }));
+
+    // 恢复能量
+    const nextEnergy = Math.min(100, currentCompanionEnergy + food.energyRestore);
+    updateCompanionEnergy(nextEnergy, {
+      immuneUntil: food.decayImmuneDays
+        ? Date.now() + food.decayImmuneDays * 24 * 60 * 60 * 1000
+        : 0,
+    });
+
+    // 累计喂食次数并持久化
+    const nextFeedCount = feedCount + 1;
+    setFeedCount(nextFeedCount);
+    try {
+      localStorage.setItem("starpuff_feed_count", String(nextFeedCount));
+    } catch (e) {}
+
+    // 反馈文案
+    if (food.id === "energy_revive") {
+      const revivePhrase = pickPhrase(PHRASES.revive);
+      triggerToast(`✨ 星尘唤醒剂生效！${user.activePet?.name} 睁开了眼睛：「${revivePhrase}」`);
+    } else if (nextFeedCount >= DEEP_BOND_THRESHOLD && nextFeedCount % 5 === 0) {
+      // 深度羁绊：喂食很多次后，触发更深情暖心的文案（每 5 次触发一次，避免过频）
+      const deepPhrase = pickPhrase(PHRASES.deepBond);
+      triggerToast(`${food.icon} ${user.activePet?.name} 依偎着你，轻声说：「${deepPhrase}」`);
+      playSound("chime");
+      setConfettiTrigger(prev => prev + 2);
+      return;
+    } else {
+      const recoverPhrase = pickPhrase(PHRASES.recovery);
+      triggerToast(`${food.icon} 喂食了【${food.name}】，${user.activePet?.name}：「${recoverPhrase}」`);
+    }
+    playSound("success");
+    setConfettiTrigger(prev => prev + 1);
+  };
+
+  // 周期性刷新能量（每 30 秒重算一次，让 UI 反映时间流逝）
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setEnergyTick(t => t + 1);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 每日登录能量奖励 & 月卡自动恢复（挂载时结算一次）
+  useEffect(() => {
+    if (!user.activePet) return;
+    const today = localDateString();
+    let bonus = 0;
+
+    // 首次迁移：旧存档没有 companionEnergyUpdatedAt 时初始化时间戳（否则永不衰减）
+    if (!user.activePet.companionEnergyUpdatedAt) {
+      setUser(prev => {
+        if (!prev.activePet) return prev;
+        const updatedPet: PetConfig = {
+          ...prev.activePet,
+          companionEnergy: prev.activePet.companionEnergy ?? prev.activePet.statusEnergy ?? 90,
+          companionEnergyUpdatedAt: Date.now(),
+        };
+        const allPets = prev.allPets?.map(p => p.id === updatedPet.id ? updatedPet : p) ?? [updatedPet];
+        return { ...prev, activePet: updatedPet, allPets };
+      });
+      return;
+    }
+
+    // 每日登录送 10 点
+    if (user.activePet.lastEnergyLoginBonusDate !== today) {
+      bonus += LOGIN_DAILY_BONUS;
+    }
+    // 月卡自动恢复 30 点
+    if (user.membership !== "free" && user.activePet.lastVipRecoveryDate !== today) {
+      bonus += VIP_DAILY_RECOVERY;
+    }
+
+    if (bonus > 0) {
+      const next = Math.min(100, currentCompanionEnergy + bonus);
+      setUser(prev => {
+        if (!prev.activePet) return prev;
+        const updatedPet: PetConfig = {
+          ...prev.activePet,
+          companionEnergy: next,
+          companionEnergyUpdatedAt: Date.now(),
+          lastEnergyLoginBonusDate: today,
+          lastVipRecoveryDate: prev.membership !== "free" ? today : prev.activePet?.lastVipRecoveryDate,
+        };
+        const allPets = prev.allPets?.map(p => p.id === updatedPet.id ? updatedPet : p) ?? [updatedPet];
+        return { ...prev, activePet: updatedPet, allPets };
+      });
+      if (user.membership !== "free") {
+        triggerToast(`🌅 每日登录 +${LOGIN_DAILY_BONUS} 能量，月卡自动恢复 +${VIP_DAILY_RECOVERY} 能量！`);
+      } else {
+        triggerToast(`🌅 每日登录赠送 +${LOGIN_DAILY_BONUS} 陪伴能量！`);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 监测能量状态：沉睡弹沉睡窗、心寒告别(<20)弹低能量窗、委屈(20-50)弹委屈窗
+  useEffect(() => {
+    if (!user.activePet) return;
+    if (companionState.state === "sleeping" && !isSleepModalOpen) {
+      // 进入沉睡时标记宠物 isSleeping
+      if (!user.activePet.isSleeping) {
+        updateCompanionEnergy(0);
+      }
+      setIsSleepModalOpen(true);
+      setIsLowEnergyModalOpen(false);
+      setIsHurtModalOpen(false);
+    } else if (companionState.state === "farewell" && !isSleepModalOpen && !isLowEnergyModalOpen) {
+      // 心寒告别（0-19）弹低能量提醒
+      setIsLowEnergyModalOpen(true);
+      setIsHurtModalOpen(false);
+    } else if (companionState.state === "distant" && !isSleepModalOpen && !isLowEnergyModalOpen && !isHurtModalOpen) {
+      // 失落疏离（20-49）弹委屈提醒（女性向：好虚弱，连尾巴都摇不动）
+      setIsHurtModalOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companionState.state, energyTick]);
+
   // V2.0 God mode vs Guest mode control states
   const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">("god");
   const [isArCameraOpen, setIsArCameraOpen] = useState(false);
@@ -441,6 +638,10 @@ export default function App() {
 
   // VIP Dialog Modal
   const [isVipModalOpen, setIsVipModalOpen] = useState(false);
+  // 沉睡弹窗 / 低能量弹窗 / 委屈提醒弹窗
+  const [isSleepModalOpen, setIsSleepModalOpen] = useState(false);
+  const [isLowEnergyModalOpen, setIsLowEnergyModalOpen] = useState(false);
+  const [isHurtModalOpen, setIsHurtModalOpen] = useState(false);
   // Re-generate Whisper loading state
   const [isGeneratingWhisper, setIsGeneratingWhisper] = useState(false);
   
@@ -513,6 +714,39 @@ export default function App() {
   const handleSendChatMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!chatInput.trim() || isChatTyping) return;
+
+    // 陪伴能量状态拦截：沉睡/低能量时无法正常对话
+    if (companionState.state === "sleeping") {
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: `chat_${Date.now()}_sleep`,
+          sender: "pet" as const,
+          text: "......",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+      triggerToast("😴 星宠正在沉睡，无法回应。请用「星尘唤醒剂」唤醒它。");
+      playSound("beep");
+      return;
+    }
+
+    if (!companionState.canInteract) {
+      // 失落疏离/心寒告别：拒绝正常互动，只流露状态话术
+      const phrase = pickPhrase(getPhrasesForState(companionState.state));
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: `chat_${Date.now()}_low`,
+          sender: "pet" as const,
+          text: phrase,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+      triggerToast(`💔 ${user.activePet?.name} 陪伴能量不足，正在疏离中...喂食可以重新温暖它。`);
+      playSound("chime");
+      return;
+    }
 
     // Bondi and budget locks
     if (!user.unlimitedTalks && user.dialogsRemaining <= 0) {
@@ -865,6 +1099,26 @@ export default function App() {
       triggerToast("❌ 抱歉，需要先在主页完成宠物升星仪式！");
       return;
     }
+
+    // 低能量状态下，耳语变成「回忆杀」——不再调用 AI，直接用本地催泪文案
+    if (companionState.memoryFlashback) {
+      setIsGeneratingWhisper(true);
+      const text = pickPhrase(PHRASES.lowEnergyWhispers);
+      const whisper: PetWhisper = {
+        id: `w_lowenergy_${Date.now()}`,
+        date: localDateString(),
+        content: text,
+        coverImage: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=300",
+        likes: 0,
+        hasLiked: false,
+        comments: [],
+      };
+      setWhispers(prev => [whisper, ...prev]);
+      triggerToast(`🥀 ${user.activePet.name} 的耳语变得微弱...这是一封带着伤感的心语信。`);
+      playSound("chime");
+      setIsGeneratingWhisper(false);
+      return;
+    }
     
     setIsGeneratingWhisper(true);
     triggerToast("💫 正在调用文心AI引擎生成陪伴耳语并抓取 Astrocade 像素插画...");
@@ -937,6 +1191,19 @@ export default function App() {
   // Home Screen interactive click Handler
   const handleHomePetClick = () => {
     if (!user.activePet) return;
+
+    // 陪伴能量状态拦截
+    if (companionState.state === "sleeping") {
+      triggerToast("😴 星宠陷入沉睡，星尘正在飘散...请用「星尘唤醒剂」唤醒它。");
+      playSound("beep");
+      return;
+    }
+    if (!companionState.canInteract) {
+      const phrase = pickPhrase(getPhrasesForState(companionState.state));
+      triggerToast(`💔 ${phrase}`);
+      playSound("chime");
+      return;
+    }
 
     // Check dialog availability
     if (user.membership === "free" && user.dialogsRemaining <= 0) {
@@ -1870,6 +2137,59 @@ export default function App() {
                       </button>
                     </div>
 
+                    {/* COMPANION ENERGY FEEDING SECTION (心寒话术商业化核心) */}
+                    <div className="bg-gradient-to-b from-[#1c133a]/60 to-[#0d0a1f]/60 border border-[#ef476f]/25 rounded-xl p-4 space-y-3">
+                      {/* 能量条 */}
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[11px] font-bold uppercase tracking-widest text-[#ff8fa3] flex items-center gap-1.5">
+                          <Heart className="w-3.5 h-3.5 text-[#ef476f]" />
+                          陪伴能量 · 喂食维持羁绊
+                        </h4>
+                        <span className="text-[10px] font-mono" style={{ color: companionState.color }}>
+                          {companionState.uiText}
+                        </span>
+                      </div>
+                      <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/10">
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{
+                            width: `${currentCompanionEnergy}%`,
+                            background: companionState.color,
+                            boxShadow: `0 0 12px ${companionState.color}`,
+                          }}
+                        />
+                      </div>
+                      <p className="text-[9px] text-gray-400 leading-relaxed">
+                        当前能量 <span className="font-mono font-bold" style={{ color: companionState.color }}>{Math.round(currentCompanionEnergy)}/100</span>
+                        {companionState.state === "sleeping"
+                          ? " · 星宠已沉睡，必须用「星尘唤醒剂」唤醒"
+                          : ` · ${companionState.label}（${companionState.description}）`}
+                      </p>
+
+                      {/* 喂食道具 */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {ENERGY_FOODS.map((food) => (
+                          <button
+                            key={food.id}
+                            onClick={() => handleFeedEnergy(food.id)}
+                            disabled={user.stardustCoins < food.price}
+                            className={`bg-black/40 border rounded-lg p-2.5 text-center space-y-1 transition-all ${
+                              food.id === "energy_revive"
+                                ? "border-[#ef476f]/40 hover:border-[#ef476f]"
+                                : "border-slate-800 hover:border-[#ff8fa3]/50"
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                          >
+                            <div className="text-lg leading-none">{food.icon}</div>
+                            <div className="text-[10px] font-bold text-white">{food.name}</div>
+                            <div className="text-[8px] text-gray-400 leading-tight">{food.effect}</div>
+                            <div className="text-[10px] font-mono text-orange-300 flex items-center justify-center gap-0.5">
+                              <Coins className="w-3 h-3" />{food.price}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* OUTFITS SECTION */}
                     <div>
                       <h4 className="text-[11px] font-bold uppercase tracking-widest text-indigo-400 mb-3 flex items-center gap-1.5">
@@ -2565,6 +2885,103 @@ export default function App() {
 
             <div className="bg-black/25 p-3 rounded-lg text-[9px] text-slate-400 leading-relaxed border border-white/5 font-mono">
               ★ 家长须知：开通所得均属于对逝宠数字灵谱常态化运算的维护基金支持，我们将把5%款项定向捐赠予流浪动物关怀救助机构，陪伴并温暖更多生灵。
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- 沉睡弹窗（女性向版）--- */}
+      {isSleepModalOpen && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
+          <div className="bg-[#0a0718] border border-slate-700/60 rounded-2xl p-8 w-full max-w-md shadow-[0_0_60px_rgba(0,0,0,0.8)] text-center space-y-5">
+            <div className="text-5xl animate-pulse">💫</div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-300">星尘散尽，它陷入了沉睡</h3>
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                {user.activePet?.name} 缓缓闭上了眼睛，身体逐渐变得透明，星尘从身上慢慢飘散...最后一颗星尘飘起，它的轮廓越来越模糊了 🥺
+              </p>
+              <p className="text-[11px] text-[#ff8fa3] mt-3">用「星尘唤醒剂」，可以重新唤醒你们的羁绊哦 ✨</p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setIsSleepModalOpen(false);
+                  setActiveTab("store");
+                }}
+                className="w-full bg-gradient-to-r from-[#ef476f] to-[#b5179e] text-white font-bold text-sm py-2.5 rounded-lg hover:opacity-90 transition-opacity"
+              >
+                ✨ 唤醒它
+              </button>
+              <button
+                onClick={() => setIsSleepModalOpen(false)}
+                className="w-full bg-white/5 hover:bg-white/10 text-gray-400 text-xs py-2 rounded-lg transition-colors"
+              >
+                再等等
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- 低能量提醒弹窗（能量<20，女性向版）--- */}
+      {isLowEnergyModalOpen && companionState.state === "farewell" && (
+        <div className="fixed inset-0 bg-black/60 z-[55] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#0f0a25] border border-[#ef476f]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(239,71,111,0.3)] text-center space-y-4">
+            <div className="text-4xl">😿</div>
+            <div>
+              <h3 className="text-base font-bold text-white">你的星宠...快要没有能量了</h3>
+              <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                它好虚弱好虚弱，连尾巴都摇不动了呢...它说...好想再多陪你一会儿...可是...
+              </p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setIsLowEnergyModalOpen(false);
+                  setActiveTab("store");
+                }}
+                className="w-full bg-gradient-to-r from-[#ef476f] to-[#ff8fa3] text-white font-bold text-sm py-2.5 rounded-lg hover:opacity-90 transition-opacity"
+              >
+                🥹 立刻喂它
+              </button>
+              <button
+                onClick={() => setIsLowEnergyModalOpen(false)}
+                className="w-full bg-white/5 hover:bg-white/10 text-gray-500 text-xs py-2 rounded-lg transition-colors"
+              >
+                再等等
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- 委屈提醒弹窗（能量<50，女性向版）--- */}
+      {isHurtModalOpen && companionState.state === "distant" && (
+        <div className="fixed inset-0 bg-black/50 z-[54] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#0f0a25] border border-[#fca3cc]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(252,163,204,0.25)] text-center space-y-4">
+            <div className="text-4xl">🥺</div>
+            <div>
+              <h3 className="text-base font-bold text-white">你的星宠有点委屈了</h3>
+              <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                它已经好久没有吃东西了呢...肚子咕噜咕噜叫，可是又不敢说...要不要喂它点什么呀？
+              </p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setIsHurtModalOpen(false);
+                  setActiveTab("store");
+                }}
+                className="w-full bg-gradient-to-r from-[#fca3cc] to-[#ff8fa3] text-white font-bold text-sm py-2.5 rounded-lg hover:opacity-90 transition-opacity"
+              >
+                ✨ 去喂食
+              </button>
+              <button
+                onClick={() => setIsHurtModalOpen(false)}
+                className="w-full bg-white/5 hover:bg-white/10 text-gray-500 text-xs py-2 rounded-lg transition-colors"
+              >
+                再等等
+              </button>
             </div>
           </div>
         </div>

@@ -47,6 +47,20 @@ export interface PetConfig {
   statusEnergy?: number; // 0-100
   level?: number;
   exp?: number;
+
+  // V3 陪伴能量系统（心寒话术）
+  /** 陪伴能量值 0-100 */
+  companionEnergy?: number;
+  /** 上次能量更新时间戳（毫秒），用于计算衰减 */
+  companionEnergyUpdatedAt?: number;
+  /** 能量免疫截止时间戳（毫秒），时光结晶效果：此时间前不衰减 */
+  companionEnergyImmuneUntil?: number;
+  /** 是否已陷入沉睡 */
+  isSleeping?: boolean;
+  /** 是否已领取每日登录能量 */
+  lastEnergyLoginBonusDate?: string;
+  /** 是否已领取月卡每日自动恢复 */
+  lastVipRecoveryDate?: string;
 }
 
 export interface StarPuffUser {
