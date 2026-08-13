@@ -114,6 +114,8 @@ export interface ProductItem {
   priceInCents: number;
   currency?: string;
   category?: string;
+  coins?: number;
+  tier?: "vip_month" | "vip_year";
 }
 
 export interface MtxApiResponse<T = unknown> {
@@ -177,6 +179,47 @@ export async function verifyUser(steamId: string): Promise<MtxApiResponse<{ isRe
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ steamId }),
+  });
+  return res.json();
+}
+
+// ---- 发放与对账 ----
+
+export interface GrantPayload {
+  kind: "stardust_coins" | "membership";
+  amount: number;
+  membershipLevel?: "vip_month" | "vip_year";
+}
+
+export interface GrantResult {
+  orderId: string;
+  steamId: string;
+  itemId: number;
+  payload: GrantPayload;
+  grantedAt: string;
+}
+
+/** 发放权益（Finalize 成功后调用） */
+export async function grantItems(params: {
+  orderId: string;
+  steamId: string;
+  itemId: number;
+  quantity?: number;
+}): Promise<MtxApiResponse<GrantResult>> {
+  const res = await fetch("/api/mtx/grant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
+/** 回收权益（退款/拒付时调用） */
+export async function revokeGrant(orderId: string): Promise<MtxApiResponse<{ orderId: string; type: string; payload: GrantPayload }>> {
+  const res = await fetch("/api/mtx/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orderId }),
   });
   return res.json();
 }

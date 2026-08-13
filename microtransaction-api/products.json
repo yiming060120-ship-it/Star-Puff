@@ -1,42 +1,65 @@
 [
   {
     "id": 100,
-    "name": "星尘币 ×100",
-    "description": "100 枚星尘币，可在星云商店购买装扮和礼物",
-    "priceInCents": 600,
-    "currency": "CNY",
-    "category": "stardust_coins"
+    "name": "星尘币 ×600",
+    "description": "首充特惠：600 枚星尘币",
+    "priceInCents": 99,
+    "currency": "USD",
+    "category": "stardust_coins",
+    "coins": 600
   },
   {
     "id": 101,
-    "name": "星尘币 ×500",
-    "description": "500 枚星尘币 + 赠送 50 枚",
-    "priceInCents": 2500,
-    "currency": "CNY",
-    "category": "stardust_coins"
+    "name": "星尘币 ×1000",
+    "description": "1000 枚星尘币（含 100 加赠）",
+    "priceInCents": 299,
+    "currency": "USD",
+    "category": "stardust_coins",
+    "coins": 1000
   },
   {
     "id": 102,
-    "name": "星尘币 ×1200",
-    "description": "1200 枚星尘币 + 赠送 200 枚",
-    "priceInCents": 5800,
-    "currency": "CNY",
-    "category": "stardust_coins"
+    "name": "星尘币 ×1750",
+    "description": "1750 枚星尘币（含 250 加赠）",
+    "priceInCents": 399,
+    "currency": "USD",
+    "category": "stardust_coins",
+    "coins": 1750
+  },
+  {
+    "id": 103,
+    "name": "星尘币 ×4000",
+    "description": "4000 枚星尘币（含 600 加赠）",
+    "priceInCents": 899,
+    "currency": "USD",
+    "category": "stardust_coins",
+    "coins": 4000
+  },
+  {
+    "id": 104,
+    "name": "星尘币 ×8000",
+    "description": "8000 枚星尘币（含 1600 加赠）",
+    "priceInCents": 1699,
+    "currency": "USD",
+    "category": "stardust_coins",
+    "coins": 8000
   },
   {
     "id": 200,
     "name": "VIP 月度会员",
     "description": "30 天 VIP 权益：无限对话、每日双倍耳语、专属装扮",
-    "priceInCents": 1800,
-    "currency": "CNY",
-    "category": "membership"
+    "priceInCents": 299,
+    "currency": "USD",
+    "category": "membership",
+    "tier": "vip_month"
   },
   {
     "id": 201,
     "name": "VIP 年度会员",
     "description": "365 天 VIP 权益：无限对话、每日三倍耳语、全套专属装扮、优先新功能体验",
-    "priceInCents": 16800,
-    "currency": "CNY",
-    "category": "membership"
+    "priceInCents": 2499,
+    "currency": "USD",
+    "category": "membership",
+    "tier": "vip_year"
   }
 ]

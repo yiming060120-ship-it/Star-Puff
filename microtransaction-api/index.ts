@@ -9,7 +9,16 @@ export {
   getConfig,
   getProducts,
   findProduct,
+  generateOrderId,
+  getReport,
 } from "./service";
+export {
+  grantItems,
+  revokeGrant,
+  listGrantedOrders,
+  isOrderGranted,
+  mapProductToGrant,
+} from "./fulfillment";
 export type {
   InitPurchaseRequest,
   FinalizePurchaseRequest,
@@ -21,3 +30,9 @@ export type {
   Product,
   ApiResponse,
 } from "./types";
+export type {
+  GrantKind,
+  GrantPayload,
+  GrantResult,
+  GrantRequest,
+} from "./fulfillment";

@@ -58,12 +58,16 @@ export interface Product {
   name: string;
   /** 商品描述 */
   description: string;
-  /** 价格（分为单位，如 600 = ¥6.00） */
+  /** 价格（分为单位，如 99 = $0.99） */
   priceInCents: number;
   /** 货币代码 */
   currency?: string;
   /** 商品分类 */
   category?: "stardust_coins" | "membership" | "outfit" | "snack" | "gift";
+  /** 星尘币数量（仅 stardust_coins 类商品） */
+  coins?: number;
+  /** 会员等级（仅 membership 类商品） */
+  tier?: "vip_month" | "vip_year";
 }
 
 /** API 统一响应 */
@@ -74,14 +78,36 @@ export interface ApiResponse<T = unknown> {
   message?: string;
 }
 
+/**
+ * Steam 交易状态（官方附录 A）
+ * Init            已创建未授权
+ * Approved        用户已批准（可 Finalize）
+ * Succeeded       处理成功（已扣款，可发放物品）
+ * Failed          失败/拒绝
+ * Refunded        已退款（需回收物品）
+ * PartialRefund   部分退款
+ * Chargedback     拒付/争议（需回收物品）
+ */
+export type SteamTxnStatus =
+  | "Init"
+  | "Approved"
+  | "Succeeded"
+  | "Failed"
+  | "Refunded"
+  | "PartialRefund"
+  | "Chargedback"
+  | "RefundedSuspectedFraud"
+  | "RefundedFriendlyFraud"
+  | string;
+
 /** 购买初始化结果 */
 export interface InitPurchaseResult {
-  /** Steam 订单 ID */
+  /** Steam 订单 ID（服务端生成） */
   orderId: string;
   /** 是否需要 Steam 叠加层确认 */
   requiresSteamOverlay: boolean;
   /** 交易状态 */
-  status: "pending" | "completed" | "failed";
+  status: SteamTxnStatus;
 }
 
 /** 购买状态查询结果 */
@@ -89,7 +115,7 @@ export interface PurchaseStatusResult {
   /** Steam 订单 ID */
   orderId: string;
   /** 购买状态 */
-  status: "pending" | "completed" | "failed" | "cancelled";
+  status: SteamTxnStatus;
   /** 商品 ID */
   itemId?: number;
   /** 支付金额（分） */

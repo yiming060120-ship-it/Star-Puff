@@ -23,7 +23,14 @@ import {
   checkAppOwnership,
   getProducts,
   getConfig,
+  getReport,
 } from "./service";
+import {
+  grantItems,
+  revokeGrant,
+  listGrantedOrders,
+  isOrderGranted,
+} from "./fulfillment";
 
 const router = Router();
 
@@ -105,6 +112,43 @@ router.post("/check-purchase", async (req: Request, res: Response) => {
 
   const config = getConfig();
   const result = await checkPurchaseStatus({ steamId, appId: config.appId, orderId });
+  res.json(result);
+});
+
+// ---- 发放权益（Finalize 成功后调用）----
+
+router.post("/grant", async (req: Request, res: Response) => {
+  const { orderId, steamId, itemId, quantity } = req.body;
+  const result = await grantItems({ orderId, steamId, itemId, quantity });
+  res.json(result);
+});
+
+// ---- 回收权益（退款/拒付时调用）----
+
+router.post("/revoke", (req: Request, res: Response) => {
+  const { orderId } = req.body;
+  if (!orderId) {
+    return res.status(400).json({ success: false, error: "缺少 orderId" });
+  }
+  const result = revokeGrant(orderId);
+  res.json(result);
+});
+
+// ---- 已发放订单列表（对账/调试用）----
+
+router.get("/granted-orders", (_req: Request, res: Response) => {
+  res.json({ success: true, data: listGrantedOrders() });
+});
+
+// ---- 交易对账报告（GetReport）----
+
+router.get("/report", async (req: Request, res: Response) => {
+  const { type, time, maxResults } = req.query;
+  const result = await getReport({
+    type: typeof type === "string" ? type : undefined,
+    time: typeof time === "string" ? time : undefined,
+    maxResults: typeof maxResults === "string" ? Number(maxResults) : undefined,
+  });
   res.json(result);
 });
 

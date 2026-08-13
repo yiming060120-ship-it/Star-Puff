@@ -35,6 +35,8 @@ import NotificationSettings from "./features/system/NotificationSettings";
 import { playSound } from "./audio/AudioSynth";
 import { localDateString } from "./utils/date";
 import { sendChatMessage, generateWhispers } from "./api";
+import { useMicrotransaction, applyGrantToUser, type PurchaseFlowState } from "./hooks/useMicrotransaction";
+import type { GrantPayload } from "./api";
 import ErrorBoundary from "./components/ErrorBoundary";
 import {
   Sparkles,
@@ -275,6 +277,36 @@ export default function App() {
     }
     return defaultVal;
   });
+
+  // Steam 用户 ID（内购用）。测试环境使用占位 ID，接入真实 Steam 时替换为登录态获取的 ID。
+  const [steamId] = useState<string>(() => {
+    const local = localStorage.getItem("starpuff_steam_id");
+    if (local) return local;
+    // 生成一个稳定的本地测试 ID，便于开发联调
+    const generated = "76561198000000000";
+    localStorage.setItem("starpuff_steam_id", generated);
+    return generated;
+  });
+
+  // 内购流程状态（用于 UI 反馈）
+  const [purchaseState, setPurchaseState] = useState<PurchaseFlowState>({
+    status: "idle",
+    orderId: null,
+    error: null,
+  });
+
+  // 发放回调：把后端返回的权益写回用户状态
+  const handleGranted = (payload: GrantPayload, orderId: string) => {
+    setUser(prev => applyGrantToUser(prev, payload));
+    if (payload.kind === "stardust_coins") {
+      triggerToast(`💎 购买成功！星尘币 +${payload.amount}（订单 ${orderId}）`);
+    } else {
+      triggerToast(`👑 会员开通成功！${payload.membershipLevel === "vip_year" ? "年卡" : "月卡"}权益即刻生效`);
+    }
+    playSound("success");
+  };
+
+  const { runPurchase } = useMicrotransaction(steamId, handleGranted);
 
   // V2.0 God mode vs Guest mode control states
   const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">("god");
@@ -1153,51 +1185,30 @@ export default function App() {
     }
   };
 
-  // Simulation topup
-  const handleTopupCoins = (amountRmb: number, baseCoins: number, bonus: number) => {
-    const double = true; // assume first charge doubled logic
-    const totalAward = double ? (baseCoins * 2) + bonus : baseCoins + bonus;
-    
-    setUser(prev => ({
-      ...prev,
-      stardustCoins: prev.stardustCoins + totalAward
-    }));
-    triggerToast(`💎 [支付模拟￥${amountRmb}] 成功购买 ${baseCoins} 星尘币，首充翻倍加赠 ${baseCoins} + 赠送 ${bonus}，共得 ${totalAward} 币！`);
-    playSound("success");
+  // 真实内购：购买星尘币（itemId 对应 products.json 中的星尘币商品）
+  // pkg.itemId 由 UI 传入，对应后端商品 ID
+  const handleTopupCoins = async (itemId: number) => {
+    setPurchaseState({ status: "purchasing", orderId: null, error: null });
+    const result = await runPurchase(itemId, 1);
+    setPurchaseState(result);
+    if (result.status === "error") {
+      triggerToast(`⚠️ 购买失败：${result.error || "未知错误"}`);
+      playSound("beep");
+    }
   };
 
-  // simulated membership checkouts
-  const handleSubscribeVip = (tier: "month" | "year" | "trial") => {
-    let cost = 9.9;
-    let label = "星云月卡";
-    let duration: "vip_month" | "vip_year" = "vip_month";
-
-    if (tier === "year") {
-      cost = 79.0;
-      label = "星云年卡";
-      duration = "vip_year";
-    } else if (tier === "trial") {
-      cost = 1.9;
-      label = "首月特惠月卡";
-      duration = "vip_month";
-    }
-
-    const pay = window.confirm(`【微信快捷支付】\n确认付款 ￥${cost} 订阅「${label}」吗？`);
-    if (pay) {
-      setUser(prev => ({
-        ...prev,
-        membership: duration,
-        dialogsRemaining: 999999, // infinite ticks
-        unlimitedTalks: true,
-        // Give exclusive outfits if year card
-        outfitsUnlocked: tier === "year" 
-          ? [...prev.outfitsUnlocked, "cape_aurora"] 
-          : prev.outfitsUnlocked
-      }));
-
-      triggerToast(`👑 VIP 身份升级成功！特权立即生效。专享每日 3条 AI耳语生成 权益已开启。`);
-      playSound("success");
+  // 真实内购：订阅会员（itemId 对应 products.json 中的会员商品）
+  const handleSubscribeVip = async (tier: "month" | "year" | "trial") => {
+    // itemId 映射：200=月卡 201=年卡；trial 暂用月卡商品
+    const itemId = tier === "year" ? 201 : 200;
+    setPurchaseState({ status: "purchasing", orderId: null, error: null });
+    const result = await runPurchase(itemId, 1);
+    setPurchaseState(result);
+    if (result.status === "success") {
       setIsVipModalOpen(false);
+    } else {
+      triggerToast(`⚠️ 订阅失败：${result.error || "未知错误"}`);
+      playSound("beep");
     }
   };
 
@@ -1989,11 +2000,11 @@ export default function App() {
 
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         {[
-                          { rmb: 6, coins: 300, bonus: 0, rule: "首充特惠，充6元得600币！" },
-                          { rmb: 18, coins: 900, bonus: 100, rule: "+100加赠，充18元得1000币" },
-                          { rmb: 28, coins: 1500, bonus: 250, rule: "+250加赠，极度合算" },
-                          { rmb: 68, coins: 3400, bonus: 600, rule: "+600加赠，中额超值" },
-                          { rmb: 128, coins: 6400, bonus: 1600, rule: "赠多送多，尊享大满贯" }
+                          { itemId: 100, rmb: 6, coins: 600, rule: "首充特惠，充6元得600币！" },
+                          { itemId: 101, rmb: 18, coins: 1000, rule: "+100加赠，充18元得1000币" },
+                          { itemId: 102, rmb: 28, coins: 1750, rule: "+250加赠，极度合算" },
+                          { itemId: 103, rmb: 68, coins: 4000, rule: "+600加赠，中额超值" },
+                          { itemId: 104, rmb: 128, coins: 8000, rule: "赠多送多，尊享大满贯" }
                         ].map((pkg, idx) => (
                           <div
                             key={idx}
@@ -2003,7 +2014,7 @@ export default function App() {
                               <span className="text-[10px] text-[#ffccd5] font-mono leading-none font-bold block">{pkg.rmb} 元人民币</span>
                               <div className="text-md font-extrabold text-amber-300 font-mono mt-1.5 flex items-center justify-center gap-0.5">
                                 <Coins className="w-3.5 h-3.5 text-orange-400 animate-spin-slow" />
-                                {pkg.coins + pkg.bonus}
+                                {pkg.coins}
                               </div>
                               <span className="text-[8px] text-gray-400 block mt-1 line-clamp-2 leading-tight">
                                 {pkg.rule}
@@ -2011,10 +2022,11 @@ export default function App() {
                             </div>
 
                             <button
-                              onClick={() => handleTopupCoins(pkg.rmb, pkg.coins, pkg.bonus)}
-                              className="mt-2.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[9px] py-1 rounded"
+                              onClick={() => handleTopupCoins(pkg.itemId)}
+                              disabled={purchaseState.status === "purchasing"}
+                              className="mt-2.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[9px] py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              微信闪付 ￥{pkg.rmb}
+                              {purchaseState.status === "purchasing" ? "支付中…" : `微信闪付 ￥${pkg.rmb}`}
                             </button>
                           </div>
                         ))}
@@ -2501,9 +2513,10 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => handleSubscribeVip("trial")}
-                  className="mt-2.5 w-full bg-[#ef476f] text-white text-[10px] font-bold py-1.5 rounded-lg"
+                  disabled={purchaseState.status === "purchasing"}
+                  className="mt-2.5 w-full bg-[#ef476f] text-white text-[10px] font-bold py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ￥1.9 立即开通
+                  {purchaseState.status === "purchasing" ? "开通中…" : "￥1.9 立即开通"}
                 </button>
               </div>
 
@@ -2521,9 +2534,10 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => handleSubscribeVip("month")}
-                  className="mt-2.5 w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-[10px] font-bold py-1.5 rounded-lg"
+                  disabled={purchaseState.status === "purchasing"}
+                  className="mt-2.5 w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-[10px] font-bold py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ￥9.9 订阅订阅
+                  {purchaseState.status === "purchasing" ? "订阅中…" : "￥9.9 订阅月卡"}
                 </button>
               </div>
 
@@ -2541,9 +2555,10 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => handleSubscribeVip("year")}
-                  className="mt-2.5 w-full bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] font-bold py-1.5 rounded-lg"
+                  disabled={purchaseState.status === "purchasing"}
+                  className="mt-2.5 w-full bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] font-bold py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ￥79 订购年卡
+                  {purchaseState.status === "purchasing" ? "订购中…" : "￥79 订购年卡"}
                 </button>
               </div>
             </div>
