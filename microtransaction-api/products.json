@@ -1,0 +1,42 @@
+[
+  {
+    "id": 100,
+    "name": "星尘币 ×100",
+    "description": "100 枚星尘币，可在星云商店购买装扮和礼物",
+    "priceInCents": 600,
+    "currency": "CNY",
+    "category": "stardust_coins"
+  },
+  {
+    "id": 101,
+    "name": "星尘币 ×500",
+    "description": "500 枚星尘币 + 赠送 50 枚",
+    "priceInCents": 2500,
+    "currency": "CNY",
+    "category": "stardust_coins"
+  },
+  {
+    "id": 102,
+    "name": "星尘币 ×1200",
+    "description": "1200 枚星尘币 + 赠送 200 枚",
+    "priceInCents": 5800,
+    "currency": "CNY",
+    "category": "stardust_coins"
+  },
+  {
+    "id": 200,
+    "name": "VIP 月度会员",
+    "description": "30 天 VIP 权益：无限对话、每日双倍耳语、专属装扮",
+    "priceInCents": 1800,
+    "currency": "CNY",
+    "category": "membership"
+  },
+  {
+    "id": 201,
+    "name": "VIP 年度会员",
+    "description": "365 天 VIP 权益：无限对话、每日三倍耳语、全套专属装扮、优先新功能体验",
+    "priceInCents": 16800,
+    "currency": "CNY",
+    "category": "membership"
+  }
+]

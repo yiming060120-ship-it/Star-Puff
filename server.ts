@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { microtransactionRoutes } from "./microtransaction-api/index";
 
 dotenv.config();
 
@@ -435,6 +436,9 @@ app.post("/api/reconstruct-3d", async (req, res) => {
     });
   }
 });
+
+// ---- 微交易 API 路由 ----
+app.use("/api/mtx", microtransactionRoutes);
 
 // REST API for Generating AI Growth Stories
 app.post("/api/growth-story", async (req, res) => {

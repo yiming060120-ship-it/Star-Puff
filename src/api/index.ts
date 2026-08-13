@@ -104,3 +104,79 @@ export async function generateGrowthStory(params: {
   });
   return res.json();
 }
+
+// ---- 微交易 API (microtransaction-api) ----
+
+export interface ProductItem {
+  id: number;
+  name: string;
+  description: string;
+  priceInCents: number;
+  currency?: string;
+  category?: string;
+}
+
+export interface MtxApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+/** 获取所有商品列表 */
+export async function getProducts(): Promise<MtxApiResponse<ProductItem[]>> {
+  const res = await fetch("/api/mtx/products");
+  return res.json();
+}
+
+/** 初始化购买 */
+export async function initPurchase(params: {
+  steamId: string;
+  itemId: number;
+  quantity?: number;
+  description?: string;
+  language?: string;
+  currency?: string;
+}): Promise<MtxApiResponse<{ orderId: string; requiresSteamOverlay: boolean; status: string }>> {
+  const res = await fetch("/api/mtx/init-purchase", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
+/** 完成购买 */
+export async function finalizePurchase(params: {
+  steamId: string;
+  orderId: string;
+}): Promise<MtxApiResponse<{ status: string }>> {
+  const res = await fetch("/api/mtx/finalize-purchase", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
+/** 查询购买状态 */
+export async function checkPurchaseStatus(params: {
+  steamId: string;
+  orderId?: string;
+}): Promise<MtxApiResponse<{ orderId: string; status: string; itemId?: number; amountInCents?: number }>> {
+  const res = await fetch("/api/mtx/check-purchase", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
+/** 验证用户可靠性 */
+export async function verifyUser(steamId: string): Promise<MtxApiResponse<{ isReliable: boolean; steamId: string }>> {
+  const res = await fetch("/api/mtx/verify-user", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ steamId }),
+  });
+  return res.json();
+}
