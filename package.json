@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "steamworks.js": "^0.4.0",
-    "keytar": "^8.0.0",
     "better-sqlite3": "^8.0.0"
   },
   "devDependencies": {

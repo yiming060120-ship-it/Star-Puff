@@ -15,7 +15,11 @@ import type { Product, ApiResponse } from "./types";
 import { findProduct } from "./service";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import * as db from "./db";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ---- 发放权益定义 ----
 

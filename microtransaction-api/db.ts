@@ -1,5 +1,15 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+import { createRequire } from "module";
+
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { createRequire } from "module";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const GRANTS_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(GRANTS_DIR, "starpuff.sqlite3");
@@ -13,8 +23,8 @@ function ensureDir() {
 function init() {
   if (db) return;
   ensureDir();
-  // require at runtime to avoid optional dependency resolution issues during install
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // load better-sqlite3 via createRequire for ESM compatibility
+  const require = createRequire(import.meta.url);
   const Database = require("better-sqlite3");
   db = new Database(DB_FILE);
   db.pragma("journal_mode = WAL");
