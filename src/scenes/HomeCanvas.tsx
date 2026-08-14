@@ -3886,27 +3886,6 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             >
               🔮 WebGL 高精实体
             </button>
-            <span className="text-gray-500 mx-2">|</span>
-            <span className="text-gray-500 font-mono tracking-widest uppercase mr-2">Styles:</span>
-            {(petConfig.model3d
-              ? (["shaded", "wireframe", "rig", "xray", "model3d", "voxel", "realistic-stardust"] as RenderingMode[])
-              : (["shaded", "wireframe", "rig", "xray", "voxel", "realistic-stardust"] as RenderingMode[])
-            ).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => {
-                  setRenderMode(mode);
-                  playSound("click");
-                }}
-                className={`px-2.5 py-1 rounded transition-colors uppercase ${
-                  renderMode === mode
-                    ? "bg-purple-600 text-white font-bold"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                {mode === "shaded" ? "🎨 实体" : mode === "wireframe" ? "🕸️ 线框" : mode === "rig" ? "🦴 骨架" : mode === "xray" ? "⚡ 射线" : mode === "model3d" ? "🤖 3D全息" : mode === "voxel" ? "🧊 体素" : "💫 V2.0星尘写实"}
-              </button>
-            ))}
           </div>
 
           {/* Fur/Bone density sliders */}
