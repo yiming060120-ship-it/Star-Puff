@@ -1331,7 +1331,8 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
       }
 
       // 0. 沉睡状态：画面变暗 + 星尘缓慢飘散，宠物停止动画
-      if (isSleepingRef.current) {
+      // 仅当「确实沉睡 且 能量已耗尽」时才显示沉睡剪影，避免旧存档残留 isSleeping 导致 2D 形象消失
+      if (isSleepingRef.current && energyIndexRef.current <= 0) {
         const darkGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
         darkGrad.addColorStop(0, "#010008");
         darkGrad.addColorStop(1, "#050512");
