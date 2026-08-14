@@ -1,12 +1,6 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, useGLTF } from '@react-three/drei';
-
-// 这是一个加载 3D 模型的自定义组件
-function PetModel() {
-  // 从 public/models/pet.glb 加载模型
-  const { scene } = useGLTF('/models/pet.glb');
-  return <primitive object={scene} scale={1} position={[0, 0, 0]} />;
-}
+import { OrbitControls } from '@react-three/drei';
+import { AnimatedPetModel } from "../pet3d/AnimatedPetModel";
 
 /**
  * @license
@@ -3964,7 +3958,11 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
                   <meshStandardMaterial color="red" wireframe={true} />
                 </mesh>
               }>
-                <PetModel />
+                <AnimatedPetModel
+                  energy={petConfig.companionEnergy ?? petConfig.statusEnergy ?? energyIndex}
+                  isSleeping={petConfig.isSleeping ?? false}
+                  mood={moodIndex}
+                />
               </Suspense>
               <OrbitControls />
             </Canvas>
