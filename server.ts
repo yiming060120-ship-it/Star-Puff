@@ -1,9 +1,8 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
-import { microtransactionRoutes } from "./microtransaction-api/index";
+import { microtransactionRoutes, updateConfig } from "./microtransaction-api/index";
 
 dotenv.config();
 
@@ -30,6 +29,20 @@ function getGeminiClient(): GoogleGenAI | null {
     }
   }
   return aiClient;
+}
+
+/**
+ * 更新 Gemini key（设置页调用）。
+ * 传入非空 key 会重建客户端；传空字符串表示关闭在线 AI，回到离线模板模式。
+ */
+export function setGeminiApiKey(key: string): void {
+  aiClient = null;
+  const trimmed = (key || "").trim();
+  if (trimmed) {
+    process.env.GEMINI_API_KEY = trimmed;
+  } else {
+    delete process.env.GEMINI_API_KEY;
+  }
 }
 
 // REST API for Generating AI Pet Whispers
@@ -440,6 +453,26 @@ app.post("/api/reconstruct-3d", async (req, res) => {
 // ---- 微交易 API 路由 ----
 app.use("/api/mtx", microtransactionRoutes);
 
+// ---- 配置 API（供桌面版设置页读取/写入运行配置）----
+
+/** 当前 AI 模式状态：供设置页显示「在线 Gemini / 离线模板」 */
+function currentAiState() {
+  const raw = process.env.GEMINI_API_KEY || "";
+  const hasKey = Boolean(raw && raw !== "MY_GEMINI_API_KEY" && raw.trim() !== "");
+  return { aiEnabled: hasKey, providerMode: hasKey ? "Gemini" : "Offline" };
+}
+
+app.get("/api/config/status", (_req, res) => {
+  res.json({ success: true, ...currentAiState() });
+});
+
+/** 设置 Gemini key；key 为空字符串表示关闭在线 AI */
+app.post("/api/config/gemini-key", (req, res) => {
+  const { key = "" } = req.body ?? {};
+  setGeminiApiKey(String(key));
+  res.json({ success: true, ...currentAiState() });
+});
+
 // REST API for Generating AI Growth Stories
 app.post("/api/growth-story", async (req, res) => {
   const { petName = "小星尘", breed = "可爱宝宝", petType = "猫" } = req.body;
@@ -489,16 +522,44 @@ app.post("/api/growth-story", async (req, res) => {
   }
 });
 
-// Configure Vite integration for SPA mode or build delivery
-async function startServer() {
+// ---- 服务启动（可被 Electron 内嵌调用，也可直接作为 CLI 运行）----
+
+export interface StarPuffServerOptions {
+  /** 监听端口；传 0 表示随机端口（Electron 内嵌时使用） */
+  port?: number;
+  /** 监听地址；Electron 内嵌时固定 127.0.0.1，不对外开放 */
+  host?: string;
+  /** 静态资源目录（生产态服务 dist 的位置），默认 process.cwd()/dist */
+  appDir?: string;
+  /** 端口就绪后的回调，Electron 用它拿到实际端口再 loadURL */
+  onListening?: (port: number) => void;
+}
+
+export async function startStarPuffServer(opts: StarPuffServerOptions = {}): Promise<void> {
+  const { port = PORT, host = "0.0.0.0", appDir, onListening } = opts;
+
+  // 微交易配置跟随运行时注入（模块加载时的 env 快照可能已过时）
+  updateConfig({
+    webApiKey: process.env.STEAM_WEB_API_KEY || "",
+    appId: Number(process.env.STEAM_APP_ID) || 480,
+    sandbox: process.env.STEAM_SANDBOX === "true",
+    // 生产环境严禁 mock，防止"假发货/假扣款"资损
+    mockMode:
+      process.env.NODE_ENV === "production"
+        ? false
+        : process.env.STEAM_MOCK_MODE === "true" || !process.env.STEAM_WEB_API_KEY,
+  });
+
   if (process.env.NODE_ENV !== "production") {
+    // vite 只在开发态需要；动态 import 避免生产打包时引入这个巨型依赖
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = appDir || path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     // 正则写法同时兼容 Express 4 与 Express 5（后者已移除 "*" 通配符语法）
     app.get(/.*/, (req, res) => {
@@ -506,9 +567,16 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`StarPuff full-stack server running on http://localhost:${PORT}`);
+  const server = app.listen(port, host, () => {
+    const address = server.address();
+    const actualPort = typeof address === "object" && address ? address.port : port;
+    console.log(`StarPuff full-stack server running on http://localhost:${actualPort}`);
+    onListening?.(actualPort);
   });
 }
 
-startServer();
+// 被 Electron 内嵌 require 时（设置了 STARPUFF_EMBEDDED=1）不自动启动；
+// 直接运行本文件（npm run dev / npm start）时保持原有行为。
+if (process.env.STARPUFF_EMBEDDED !== "1") {
+  startStarPuffServer();
+}

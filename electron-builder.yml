@@ -1,0 +1,36 @@
+# electron-builder 配置：Windows NSIS 安装包
+# 要点：
+#   - files 只含 electron/** 与 package.json（无运行时依赖，server.cjs 全自包含）
+#   - extraResources 把 dist/ 复制到 resources/dist（绕开 asar 内 Express 流式服务坑）
+#   - 未打包态（electron:dev）不经过此配置
+
+appId: com.starpuff.game
+productName: StarPuff
+directories:
+  buildResources: build
+  output: release
+files:
+  - electron/**
+  - package.json
+# steamworks.js 原生 .node 必须解包到真实文件系统（asar 内 dlopen 会失败）
+asarUnpack:
+  - "node_modules/steamworks.js/**/*"
+extraResources:
+  - from: dist
+    to: dist
+    filter:
+      - "**/*"
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  executableName: StarPuff
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: "喵汪星云 StarPuff"
+  createDesktopShortcut: always
+  artifactName: ${productName}-Setup-${version}.${ext}

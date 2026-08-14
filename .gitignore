@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# dev 模式 Steam AppID（勿提交）
+steam_appid.txt
+
+# electron-builder 打包产物（安装包 / 解包临时目录，勿提交）
+release/
