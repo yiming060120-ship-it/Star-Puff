@@ -1666,7 +1666,7 @@ export default function App() {
               <span className="text-sm md:text-md font-medium tracking-widest uppercase flex items-center gap-1.5 font-sans">
                 喵汪星云 <span className="text-xs text-purple-400 font-mono">StarPuff</span>
               </span>
-              <p className="text-[8px] text-gray-400 font-mono tracking-tighter">ASTROCADE PIXEL ENGINE v3.5</p>
+              <p className="text-[8px] text-gray-400 font-sans tracking-wide">星尘像素引擎 · 温柔守护中 ✨</p>
             </div>
           </div>
 
@@ -1719,7 +1719,7 @@ export default function App() {
               triggerToast("💡 开启系统引航新手训练！");
             }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              !user.onboardingCompleted ? "text-yellow-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              !user.onboardingCompleted ? "text-yellow-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
@@ -1731,7 +1731,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("home"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "home" ? "text-orange-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "home" ? "text-orange-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
@@ -1743,7 +1743,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("galaxy"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "galaxy" ? "text-indigo-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "galaxy" ? "text-indigo-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
@@ -1755,7 +1755,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("community"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "community" ? "text-purple-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "community" ? "text-purple-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center text-md">
@@ -1767,7 +1767,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("store"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "store" ? "text-pink-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "store" ? "text-pink-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center text-md">
@@ -1779,7 +1779,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("profile"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "profile" ? "text-cyan-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "profile" ? "text-cyan-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center rounded-full border border-white/50 overflow-hidden bg-gradient-to-b from-slate-500 to-slate-700 w-4 h-4" />
@@ -1789,7 +1789,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("v26_suite"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "v26_suite" ? "text-pink-400 scale-110" : "opacity-45 hover:opacity-100 text-white"
+              activeTab === "v26_suite" ? "text-pink-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center text-xs animate-pulse">
@@ -1807,11 +1807,11 @@ export default function App() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
             </span>
-            <span className="font-semibold text-white tracking-wide font-mono">
-              ✨ 星云 V2.0 运行模式控制台 (Console) :
+            <span className="font-semibold text-white tracking-wide font-sans">
+              ✨ 星云守护模式
             </span>
             <span className="text-gray-400 text-[10px] hidden sm:inline">
-              (一键自如切换以对照【开发上帝特权】与【普通访客限免】体验)
+              切换你的守护体验
             </span>
           </div>
           
@@ -1911,12 +1911,12 @@ export default function App() {
                     <div className="w-full max-w-lg flex flex-col items-center py-4 relative">
                       {/* Active status tags */}
                       <div className="absolute top-4 left-4 z-20 flex space-x-2">
-                        <span className="px-2.5 py-0.5 bg-black/60 border border-white/5 rounded-full text-[9px] font-mono tracking-wider text-slate-300 uppercase">
-                          星谱矩阵完成度 99%
+                        <span className="px-2.5 py-0.5 bg-black/60 border border-white/5 rounded-full text-[9px] font-sans tracking-wide text-slate-300">
+                          ✨ 星尘凝聚 99%
                         </span>
-                        <span className="px-2.5 py-0.5 bg-pink-500/20 border border-pink-500/30 rounded-full text-[9px] font-mono tracking-wider text-pink-300 uppercase flex items-center gap-1">
+                        <span className="px-2.5 py-0.5 bg-pink-500/20 border border-pink-500/30 rounded-full text-[9px] font-sans tracking-wide text-pink-300 flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-ping" />
-                          AI 陪伴中
+                          暖心陪伴中
                         </span>
                       </div>
 
@@ -1933,10 +1933,10 @@ export default function App() {
                         <h4 className="text-xl font-bold tracking-widest text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]">
                           {user.activePet.name}
                         </h4>
-                        <div className="flex items-center justify-center gap-2 mt-1.5 text-xs text-indigo-300 font-mono">
+                        <div className="flex items-center justify-center gap-2 mt-1.5 text-xs text-indigo-300 font-sans">
                           <span>🎂 {user.activePet.passingDate} 踏彩虹桥</span>
-                          <span>•</span>
-                          <span>羁绊活跃: {user.unlimitedTalks ? "无限次" : `${user.dialogsRemaining}/5 轮`}</span>
+                          <span>·</span>
+                          <span>羁绊活跃 · {user.unlimitedTalks ? "无限次" : `${user.dialogsRemaining}/5 轮`}</span>
                         </div>
                       </div>
                     </div>
@@ -1944,9 +1944,9 @@ export default function App() {
                     {/* --- MEMORY FLASHBACK CHARGING PROGRESS WIDGET --- */}
                     <div className="w-full bg-[#110c2c]/85 border border-[#fc407a]/20 rounded-2xl p-4 space-y-2 max-w-lg shadow-[inset_0_1px_3px_rgba(255,255,255,0.05),0_8px_20px_rgba(0,0,0,0.4)]">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-[#ff5c8a] font-mono font-bold flex items-center gap-1">
+                        <span className="text-[#ff5c8a] font-sans font-bold flex items-center gap-1">
                           <Heart className="w-3.5 h-3.5 fill-[#ff5c8a] animate-pulse" />
-                          星心连系蓄力条 (Memory Bonding Meter) : {bondingCharge}%
+                          星心连系蓄力 · {bondingCharge}%
                         </span>
                         <span className="text-purple-300 text-[9px] font-mono animate-pulse">
                           {bondingCharge >= 80 ? "💖 星能饱满：一触即发温情闪回！" : "💫 蓄满100%唤醒生前故事"}
@@ -1960,18 +1960,20 @@ export default function App() {
                           <span className="absolute right-0.5 top-0.5 w-1 h-1 rounded-full bg-white animate-ping" />
                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-[8.5px] text-gray-500 font-mono">
-                        <span>💡 日常抚摸(+15) • 投喂小零食(+25) • 抛送爱心/抛红毛球(+10)级联蓄能</span>
-                        <button 
-                          onClick={() => {
-                            incrementBondingCharge(100);
-                            playSound("chime");
-                          }}
-                          className="text-pink-300 hover:text-pink-100 underline decoration-pink-500/20 active:scale-95 transition-transform"
-                          id="trigger-test-flashback"
-                        >
-                          [ 瞬发闪回测试 ]
-                        </button>
+                      <div className="flex items-center justify-between text-[8.5px] text-gray-500 font-sans">
+                        <span>💡 日常抚摸(+15) · 投喂小零食(+25) · 抛送爱心/红毛球(+10)级联蓄能</span>
+                        {systemPlayMode === "god" && (
+                          <button 
+                            onClick={() => {
+                              incrementBondingCharge(100);
+                              playSound("chime");
+                            }}
+                            className="text-pink-300 hover:text-pink-100 underline decoration-pink-500/20 active:scale-95 transition-transform"
+                            id="trigger-test-flashback"
+                          >
+                            [ 测试闪回 ]
+                          </button>
+                        )}
                       </div>
                     </div>
 
