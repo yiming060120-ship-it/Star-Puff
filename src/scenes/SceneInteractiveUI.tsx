@@ -184,13 +184,15 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   };
 
   return (
-    <div className="w-full bg-slate-900/60 border border-indigo-500/30 rounded-xl p-4 backdrop-blur-md mt-4 shadow-xl">
+    <div className="w-full bg-[#140e30]/85 border border-indigo-400/25 rounded-2xl p-4 backdrop-blur-md mt-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
       {/* Universal Header */}
-      <div className="flex items-center justify-between border-b border-indigo-500/30 pb-3 mb-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-indigo-400" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            {sceneId === 'rose' && "星云花圃管理"}
+      <div className="flex items-center justify-between border-b border-indigo-400/20 pb-3 mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-400/30 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-indigo-300" />
+          </div>
+          <h3 className="text-sm font-bold text-white tracking-wide font-sans">
+            {sceneId === 'rose' && "星云花圃"}
             {sceneId === 'vega' && "星尘面包店"}
             {sceneId === 'comet' && "彗星竞速中心"}
             {sceneId === 'library' && "银河图书馆"}
@@ -199,11 +201,10 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
             {sceneId === 'orion' && "猎户座秘境探险"}
           </h3>
         </div>
-        <div className="flex items-center gap-4">
-           <div className="flex flex-col items-end">
-             <span className="text-[10px] text-white/50">资产</span>
-             <span className="text-sm font-bold text-amber-400 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5"/> {coins}</span>
-           </div>
+        <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-full px-3 py-1.5">
+           <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+           <span className="text-sm font-bold text-amber-300 font-sans">{coins}</span>
+           <span className="text-[10px] text-white/40">星尘币</span>
         </div>
       </div>
 
@@ -257,8 +258,8 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
         <div className="flex gap-6">
            <div className="flex-1 bg-black/40 rounded-lg p-4 border border-white/5">
               <div className="flex justify-between items-center mb-4">
-                 <div className="text-sm font-bold text-orange-400 flex items-center gap-2"><Store className="w-4 h-4"/> 烘焙坊 Lv.{shopLevel}</div>
-                 {shopLevel < 2 && <button onClick={upgradeShop} className="text-xs bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 px-2 py-1 rounded border border-yellow-500/50 transition-colors">200币 升级商店</button>}
+                 <div className="text-sm font-bold text-orange-400 flex items-center gap-2 font-sans"><Store className="w-4 h-4"/> 烘焙坊 · {shopLevel} 级</div>
+                 {shopLevel < 2 && <button onClick={upgradeShop} className="text-xs bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 px-2.5 py-1 rounded-full border border-yellow-500/50 transition-colors">200 币升级</button>}
               </div>
               <div className="flex gap-4">
                  <button onClick={() => startBaking('croissant')} disabled={!!bakingTask} className="flex-1 py-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-colors">
@@ -266,7 +267,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
                     <span className="text-xs text-orange-200">制作牛角包 (5s)</span>
                  </button>
                  <button onClick={() => startBaking('starCake')} disabled={!!bakingTask || shopLevel < 2} className="flex-1 py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-colors relative">
-                    {shopLevel < 2 && <div className="absolute top-1 right-2 text-[10px] text-red-400">需Lv.2</div>}
+                    {shopLevel < 2 && <div className="absolute top-1 right-2 text-[10px] text-red-400">需 2 级</div>}
                     <span className="text-2xl">🍰</span>
                     <span className="text-xs text-fuchsia-200">制作星云蛋糕 (10s)</span>
                  </button>
@@ -374,17 +375,22 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
 
       {/* FALLBACK FOR OTHER SCENES (Just as examples, can expand later) */}
       {['gemini', 'andromeda', 'orion'].includes(sceneId) && (
-        <div className="flex items-center justify-center p-8 border border-dashed border-white/10 rounded-lg bg-black/20">
-           <div className="text-center">
-              <MapIcon className="w-8 h-8 text-white/20 mx-auto mb-2" />
-              <div className="text-sm text-white/50">区域建设中...</div>
+        <div className="flex items-center justify-center p-10 rounded-xl bg-gradient-to-b from-[#1a1140]/60 to-[#0d0826]/60 border border-indigo-400/15">
+           <div className="text-center space-y-3">
+              <div className="w-14 h-14 mx-auto rounded-full bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center">
+                <MapIcon className="w-6 h-6 text-indigo-300/60" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-indigo-200">这片星域正在苏醒中 ✨</div>
+                <p className="text-[11px] text-indigo-300/50 mt-1">更多奇妙玩法即将抵达，先四处走走看看吧</p>
+              </div>
               <button onClick={() => {
                 setCoins(c => c + 10);
                 onGrantCoins(10);
                 addLog("✨ 在未探索区域发现了一些星尘币！");
                 playSound("sparkle");
-              }} className="mt-4 px-4 py-2 bg-white/5 hover:bg-white/10 rounded text-xs text-white/70 transition-colors">
-                探索周边 (+10 币)
+              }} className="px-5 py-2 bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-full text-xs text-indigo-200 transition-all hover:scale-105 active:scale-95">
+                🌌 四处探索 (+10 币)
               </button>
            </div>
         </div>

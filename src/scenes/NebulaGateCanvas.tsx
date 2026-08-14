@@ -958,26 +958,26 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
           <Sparkles className="w-4 h-4" />
           <span className="font-medium tracking-wide">星门多端漫游：同屏 6人</span>
         </div>
-        <div className="absolute bottom-4 right-4 bg-black/60 border border-slate-700/50 rounded-lg p-2.5 text-[10px] text-white/50 pointer-events-none select-none flex items-center gap-2 backdrop-blur-md hidden sm:flex">
+        <div className="absolute bottom-4 right-4 bg-black/60 border border-slate-700/50 rounded-full p-2.5 text-[10px] text-white/60 pointer-events-none select-none flex items-center gap-2 backdrop-blur-md hidden sm:flex">
            <ImageIcon className="w-3.5 h-3.5" />
-           <span>{sceneMeta.name} - 次世代高精 2D 拟真光影引擎</span>
+           <span>{sceneMeta.name} · 星尘漫游中</span>
         </div>
       </div>
 
       {/* Deep Interactive UI Panel */}
       <SceneInteractiveUI sceneId={sceneId} addLog={addLog} onGrantCoins={onGrantCoins} />
 
-      <div className="bg-slate-950/70 border border-white/10 rounded-xl p-5 flex flex-col h-44 shadow-inner">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
-          <h4 className="text-xs uppercase tracking-widest text-indigo-400 font-bold flex items-center gap-2">
+      <div className="bg-[#120d2c]/80 border border-indigo-400/20 rounded-2xl p-5 flex flex-col h-44 shadow-inner">
+        <div className="flex items-center justify-between border-b border-indigo-400/20 pb-3 mb-3">
+          <h4 className="text-xs tracking-wide text-indigo-300 font-bold flex items-center gap-2 font-sans">
             <Compass className="w-4 h-4 text-indigo-400" />
-            【{sceneMeta.name}】实时奇遇记
+            【{sceneMeta.name}】奇遇记
           </h4>
-          <span className="text-[9px] text-indigo-500/50 font-mono tracking-widest">ASTRO SCENE EVENT LOG</span>
+          <span className="text-[9px] text-indigo-400/50 font-sans">✦ 星宠的实时动态</span>
         </div>
         <div className="overflow-y-auto flex-1 space-y-2.5 pr-2 custom-scrollbar text-xs">
           {internalLogs.map((log, idx) => (
-            <div key={idx} className="font-mono text-indigo-100/80 leading-relaxed border-b border-white/5 pb-2 last:border-0 pl-3 border-l-2 border-indigo-500/40">
+            <div key={idx} className="font-sans text-indigo-100/80 leading-relaxed border-b border-white/5 pb-2 last:border-0 pl-3 border-l-2 border-indigo-500/40">
               {log}
             </div>
           ))}
