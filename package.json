@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "steamworks.js": "^0.4.0",
-    "better-sqlite3": "^8.0.0"
+    "better-sqlite3": "^13.0.0"
   },
   "devDependencies": {
     "@google/genai": "^1.29.0",
