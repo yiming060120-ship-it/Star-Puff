@@ -62,18 +62,8 @@ import {
   Coins,
   Send,
   MessageSquare,
-  Gift,
-  Plus,
   Compass,
-  ShoppingBag,
-  TrendingUp,
-  User,
   BookOpen,
-  LogOut,
-  AlertCircle,
-  Clock,
-  Play,
-  Tv,
   Share2
 } from "lucide-react";
 
@@ -1200,8 +1190,18 @@ export default function App() {
     });
   };
 
+  // 通知偏好配置：从 localStorage 读取初始化，保存时同步更新，避免"只写不读"导致配置丢失
+  const [notificationConfig, setNotificationConfig] = useState<any>(() => {
+    try {
+      const raw = localStorage.getItem("starpuff_notification_config");
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   const handleSaveNotificationConfig = (cfg: any) => {
-    // Save to localStorage or state to satisfy P0-8
+    setNotificationConfig(cfg);
     try {
       localStorage.setItem("starpuff_notification_config", JSON.stringify(cfg));
     } catch (e) {
@@ -2620,15 +2620,14 @@ export default function App() {
                                 ...prev.activePet,
                                 model3d: newModel
                               };
-                              // sync to local storage
-                              try {
-                                localStorage.setItem("starpuff_active_pet", JSON.stringify(updatedPet));
-                              } catch (e) {
-                                console.error(e);
-                              }
+                              // 同步到 allPets 列表，避免切换宠物后 3D 模型丢失（原代码只写无效的独立 key，未同步列表）
+                              const allPets = (prev.allPets ?? []).map(p =>
+                                p.id === updatedPet.id ? updatedPet : p
+                              );
                               return {
                                 ...prev,
-                                activePet: updatedPet
+                                activePet: updatedPet,
+                                allPets
                               };
                             });
                           }}
@@ -2683,6 +2682,7 @@ export default function App() {
                           triggerToast={triggerToast}
                         />
                         <NotificationSettings
+                          initialConfig={notificationConfig ?? undefined}
                           onSaveConfig={handleSaveNotificationConfig}
                           triggerToast={triggerToast}
                         />
@@ -3140,6 +3140,17 @@ export default function App() {
             });
           }}
           triggeredMemoryId={activeMemoryFlashbackId}
+        />
+      )}
+
+      {/* --- AR 相机模拟 --- */}
+      {isArCameraOpen && user.activePet && (
+        <ArCameraSimulation
+          isOpen={isArCameraOpen}
+          onClose={() => setIsArCameraOpen(false)}
+          pet={user.activePet}
+          triggerToast={triggerToast}
+          isGodMode={systemPlayMode === "god"}
         />
       )}
 

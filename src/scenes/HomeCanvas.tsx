@@ -10,7 +10,6 @@ import { AnimatedPetModel } from "../pet3d/AnimatedPetModel";
 import React, { useEffect, useRef, useState, Suspense } from "react";
 import { PetConfig } from "../types";
 import { playSound } from "../audio/AudioSynth";
-import { PetThreeOverlay } from "../pet3d/PetThreeOverlay";
 
 export function adjustBrightness(hex: string, percent: number): string {
   if (!hex || hex[0] !== '#') return hex || '#ffffff';
