@@ -25,6 +25,8 @@ interface AnimatedPetModelProps {
   gesture?: string | null;
   /** 模型路径（默认 /models/pet.glb，可传物种模型路径） */
   modelPath?: string;
+  /** 渲染风格（写实动作指令集） */
+  renderMode?: string;
 }
 
 export function AnimatedPetModel({
@@ -33,6 +35,7 @@ export function AnimatedPetModel({
   mood = 75,
   gesture = null,
   modelPath = "/models/pet.glb",
+  renderMode = "shaded",
 }: AnimatedPetModelProps) {
   const { scene } = useGLTF(modelPath);
   const groupRef = useRef<THREE.Group>(null);
@@ -42,10 +45,12 @@ export function AnimatedPetModel({
   const isSleepingRef = useRef(isSleeping);
   const moodRef = useRef(mood);
   const gestureRef = useRef(gesture);
+  const renderModeRef = useRef(renderMode);
   energyRef.current = energy;
   isSleepingRef.current = isSleeping;
   moodRef.current = mood;
   gestureRef.current = gesture;
+  renderModeRef.current = renderMode;
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
     clone.traverse((obj) => {
@@ -156,6 +161,33 @@ export function AnimatedPetModel({
         mat.transparent = targetOpacity < 1.0;
         // 平滑过渡透明度
         mat.opacity += (targetOpacity - mat.opacity) * Math.min(1, dt * 4);
+      }
+    }
+
+    // ---- 2.5 渲染风格（写实动作指令集）----
+    const mode = renderModeRef.current;
+    for (const m of materials) {
+      const mat = m as THREE.MeshStandardMaterial;
+      if (!mat) continue;
+      if (mode === "wireframe") {
+        mat.wireframe = true;
+        mat.transparent = false;
+      } else if (mode === "xray") {
+        // X 光射线：半透明 + 发光，模拟透视
+        mat.transparent = true;
+        mat.opacity = 0.45;
+        mat.emissive = mat.emissive ?? new THREE.Color(0x66ccff);
+        mat.emissiveIntensity = 0.6;
+      } else if (mode === "rig" || mode === "voxel") {
+        // 骨架/体素：线框 + 低透明
+        mat.wireframe = true;
+        mat.transparent = true;
+        mat.opacity = 0.7;
+      } else {
+        // shaded / model3d / realistic-stardust：恢复实体
+        mat.wireframe = false;
+        mat.transparent = false;
+        mat.opacity = 1.0;
       }
     }
 

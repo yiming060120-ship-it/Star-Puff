@@ -3888,10 +3888,10 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             </button>
             <span className="text-gray-500 mx-2">|</span>
             <span className="text-gray-500 font-mono tracking-widest uppercase mr-2">Styles:</span>
-            {(!useReal3D ? (petConfig.model3d
+            {(petConfig.model3d
               ? (["shaded", "wireframe", "rig", "xray", "model3d", "voxel", "realistic-stardust"] as RenderingMode[])
               : (["shaded", "wireframe", "rig", "xray", "voxel", "realistic-stardust"] as RenderingMode[])
-            ) : [] as RenderingMode[]).map((mode) => (
+            ).map((mode) => (
               <button
                 key={mode}
                 onClick={() => {
@@ -3975,6 +3975,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
                   isSleeping={petConfig.isSleeping ?? false}
                   mood={moodIndex}
                   modelPath={petConfig.modelFile ? `/models/species/${petConfig.modelFile}` : "/models/pet.glb"}
+                  renderMode={renderMode}
                 />
               </Suspense>
               <OrbitControls />
