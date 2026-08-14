@@ -61,6 +61,10 @@ export interface PetConfig {
   lastEnergyLoginBonusDate?: string;
   /** 是否已领取月卡每日自动恢复 */
   lastVipRecoveryDate?: string;
+
+  // V4 宠物种类/模型选择
+  /** 选中的 3D 模型文件名（相对 public/models/species/），如 species_01.glb */
+  modelFile?: string;
 }
 
 export interface StarPuffUser {

@@ -3961,6 +3961,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
                   energy={petConfig.companionEnergy ?? petConfig.statusEnergy ?? energyIndex}
                   isSleeping={petConfig.isSleeping ?? false}
                   mood={moodIndex}
+                  modelPath={petConfig.modelFile ? `/models/species/${petConfig.modelFile}` : "/models/pet.glb"}
                 />
               </Suspense>
               <OrbitControls />

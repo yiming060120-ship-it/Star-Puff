@@ -1,7 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, Suspense } from "react";
 import { PetConfig, PetType } from "../../types";
 import { Sparkles, Upload, Flame, Paintbrush, Heart, Music, Check } from "lucide-react";
 import { motion } from "motion/react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, useGLTF } from "@react-three/drei";
+import { SPECIES_MODELS, getSpeciesModelPath } from "../../data/speciesModels";
 
 interface StardustCeremonyProps {
   onComplete: (config: PetConfig) => void;
@@ -39,6 +42,12 @@ const PRESET_PETS = [
   },
 ];
 
+/** 按需加载的 3D 模型预览 */
+function ModelPreview({ modelPath }: { modelPath: string }) {
+  const { scene } = useGLTF(modelPath);
+  return <primitive object={scene} position={[0, 0, 0]} />;
+}
+
 export default function StardustCeremony({ onComplete, playSparkleSound }: StardustCeremonyProps) {
   const [step, setStep] = useState<"info" | "analyze" | "constellation" | "crystallize">("info");
   
@@ -48,6 +57,9 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
   const [ownerName, setOwnerName] = useState("");
   const [breed, setBreed] = useState("");
   const [passingDate, setPassingDate] = useState("2025-04-12");
+  // 3D 模型选择
+  const [modelFile, setModelFile] = useState<string>("");
+  const [previewModelPath, setPreviewModelPath] = useState<string | null>(null);
   const [hobbies, setHobbies] = useState("追逐星光, 捕蝴蝶, 窗台晒太阳");
   const [favoriteThings, setFavoriteThings] = useState("小鱼干罐头, 主人的摸摸, 暖暖的枕头");
   const [selectedPhoto, setSelectedPhoto] = useState<string>(PRESET_PETS[0].img);
@@ -409,6 +421,8 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
       stardustMatrixHex: matrixHex,
       hobbies: hobbies.split(/[,，]/).map(s => s.trim()).filter(Boolean),
       favoriteThings: favoriteThings.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+      // 选中的 3D 模型（空则回退默认 pet.glb）
+      modelFile: modelFile || undefined,
     });
   };
 
@@ -490,6 +504,50 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
                       className="w-full bg-[#120b2d] border border-slate-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-pink-500"
                     />
                   </div>
+                </div>
+
+                {/* 3D 高精模型选择 */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">
+                    ✨ 3D 高精模型（选择星尘宠物的立体形态）
+                  </label>
+                  {/* 预览区（按需加载） */}
+                  {previewModelPath && (
+                    <div className="h-40 bg-black/40 border border-purple-500/20 rounded-xl overflow-hidden relative">
+                      <Canvas camera={{ position: [0, 0, 4], fov: 45 }} className="w-full h-full">
+                        <ambientLight intensity={1.5} />
+                        <directionalLight position={[5, 5, 5]} intensity={1.5} />
+                        <Suspense fallback={null}>
+                          <ModelPreview modelPath={previewModelPath} />
+                        </Suspense>
+                        <OrbitControls enablePan={false} minDistance={1.5} maxDistance={8} />
+                      </Canvas>
+                    </div>
+                  )}
+                  {/* 模型卡片 */}
+                  <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
+                    {SPECIES_MODELS.map((m) => (
+                      <button
+                        key={m.file}
+                        type="button"
+                        onClick={() => {
+                          setModelFile(m.file);
+                          setPreviewModelPath(getSpeciesModelPath(m.file));
+                        }}
+                        className={`p-1.5 rounded-lg border text-center transition-all ${
+                          modelFile === m.file
+                            ? "border-pink-400 bg-pink-500/20 text-white"
+                            : "border-slate-700 bg-[#120b2d]/60 text-gray-400 hover:border-pink-400/50"
+                        }`}
+                      >
+                        <div className="text-base leading-none">🐾</div>
+                        <div className="text-[9px] font-bold mt-1">{m.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                  {modelFile && (
+                    <p className="text-[9px] text-pink-300">已选模型：{modelFile}（将在主页 3D 模式展示）</p>
+                  )}
                 </div>
 
                 <div>

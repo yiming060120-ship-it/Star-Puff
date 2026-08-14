@@ -23,6 +23,8 @@ interface AnimatedPetModelProps {
   mood?: number;
   /** 触发一次性动作（外部传入，如 "happy"/"sad"/"jump"） */
   gesture?: string | null;
+  /** 模型路径（默认 /models/pet.glb，可传物种模型路径） */
+  modelPath?: string;
 }
 
 export function AnimatedPetModel({
@@ -30,8 +32,9 @@ export function AnimatedPetModel({
   isSleeping = false,
   mood = 75,
   gesture = null,
+  modelPath = "/models/pet.glb",
 }: AnimatedPetModelProps) {
-  const { scene } = useGLTF("/models/pet.glb");
+  const { scene } = useGLTF(modelPath);
   const groupRef = useRef<THREE.Group>(null);
 
   // 用 ref 同步会动态变化的 props，确保 useFrame 每帧读取最新值（避免闭包捕获旧值）
