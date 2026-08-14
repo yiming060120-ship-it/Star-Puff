@@ -2114,6 +2114,13 @@ export default function App() {
                       onGrantCoins={(amt) => {
                         setUser(prev => ({ ...prev, stardustCoins: prev.stardustCoins + amt }));
                       }}
+                      onSpendCoins={(amt) => {
+                        // 直接读取当前星尘币判断余额，避免 setState 异步副作用
+                        if (user.stardustCoins < amt) return false;
+                        setUser(prev => ({ ...prev, stardustCoins: prev.stardustCoins - amt }));
+                        return true;
+                      }}
+                      stardustCoins={user.stardustCoins}
                       isTaskAlreadyCompleted={tasks.find(t => t.id === "task_explore")?.completedTimes === 1}
                       onTaskCompleted={() => {
                         updateTaskProgress("task_explore", 1);

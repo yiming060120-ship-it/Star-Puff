@@ -6,10 +6,12 @@ interface SceneInteractiveUIProps {
   sceneId: string;
   addLog: (msg: string) => void;
   onGrantCoins: (amount: number) => void;
+  onSpendCoins?: (amount: number) => boolean; // 返回是否扣款成功（余额不足返回 false）
+  initialCoins?: number;
 }
 
-export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId, addLog, onGrantCoins }) => {
-  const [coins, setCoins] = useState(100);
+export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId, addLog, onGrantCoins, onSpendCoins, initialCoins }) => {
+  const [coins, setCoins] = useState(initialCoins ?? 100);
   
   // === ROSE PARK (Farming & Harvesting) ===
   const [bed, setBed] = useState<{type: string, state: number, time: number}[]>(Array(6).fill({type: 'none', state: 0, time: 0}));
@@ -103,14 +105,21 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
 
   const upgradeShop = () => {
     if (shopLevel >= 2) return addLog("ℹ️ 商店已满级！");
-    if (coins >= 200) {
-      setCoins(c => c - 200);
-      setShopLevel(2);
-      addLog("🎊 花费 200 星尘币，商店升级成功！解锁新食谱！");
-      playSound("chime");
-    } else {
+    if (coins < 200) {
       addLog("⚠️ 星尘币不足，需要 200 星尘币升级。");
+      playSound("beep");
+      return;
     }
+    // 同步扣全局星尘币
+    if (onSpendCoins && !onSpendCoins(200)) {
+      addLog("⚠️ 星尘币不足，需要 200 星尘币升级。");
+      playSound("beep");
+      return;
+    }
+    setCoins(c => c - 200);
+    setShopLevel(2);
+    addLog("🎊 花费 200 星尘币，商店升级成功！解锁新食谱！");
+    playSound("chime");
   };
 
   // === COMET TRACK (Pet Training & Racing) ===
@@ -118,14 +127,21 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   const [raceActive, setRaceActive] = useState(false);
 
   const trainPet = (stat: 'speed' | 'stamina') => {
-    if (coins >= 20) {
-      setCoins(c => c - 20);
-      setPetStats(prev => ({ ...prev, [stat]: prev[stat] + Math.floor(Math.random() * 3) + 1 }));
-      addLog(`🏃 训练结束！宠物消耗 20 币，${stat === 'speed' ? '速度' : '耐力'}提升了！`);
-      playSound("click");
-    } else {
+    if (coins < 20) {
       addLog("⚠️ 星尘币不足 20，无法进行训练。");
+      playSound("beep");
+      return;
     }
+    // 同步扣全局星尘币
+    if (onSpendCoins && !onSpendCoins(20)) {
+      addLog("⚠️ 星尘币不足，无法进行训练。");
+      playSound("beep");
+      return;
+    }
+    setCoins(c => c - 20);
+    setPetStats(prev => ({ ...prev, [stat]: prev[stat] + Math.floor(Math.random() * 3) + 1 }));
+    addLog(`🏃 训练结束！宠物消耗 20 币，${stat === 'speed' ? '速度' : '耐力'}提升了！`);
+    playSound("click");
   };
 
   const enterRace = () => {
@@ -167,20 +183,23 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   };
 
   const unlockLore = () => {
-    if (researchPoints >= 20) {
-      setResearchPoints(rp => rp - 20);
-      const lorePieces = ["星尘的起源是远古超新星的叹息。", "双子座沙滩的沙子其实是碎裂的时空结晶。", "森林深处沉睡着第一代星际漫游者。"];
-      const newLore = lorePieces[unlockedLore.length % lorePieces.length];
-      if (!unlockedLore.includes(newLore)) {
-        setUnlockedLore([...unlockedLore, newLore]);
-        addLog(`📜 解锁了新的世界秘闻：${newLore}`);
-        playSound("chime");
-      } else {
-        addLog("📚 当前暂无更多秘闻可解锁。");
-      }
-    } else {
+    if (researchPoints < 20) {
       addLog("⚠️ 需要 20 点研究点数才能解锁秘闻。");
+      return;
     }
+    const lorePieces = ["星尘的起源是远古超新星的叹息。", "双子座沙滩的沙子其实是碎裂的时空结晶。", "森林深处沉睡着第一代星际漫游者。"];
+    // 先找出尚未解锁的秘闻，避免「扣点但无产出」
+    const lockedLore = lorePieces.filter(l => !unlockedLore.includes(l));
+    if (lockedLore.length === 0) {
+      addLog("📚 所有秘闻都已解锁完毕啦！");
+      playSound("click");
+      return;
+    }
+    const newLore = lockedLore[0];
+    setResearchPoints(rp => rp - 20);
+    setUnlockedLore([...unlockedLore, newLore]);
+    addLog(`📜 解锁了新的世界秘闻：${newLore}`);
+    playSound("chime");
   };
 
   return (
@@ -246,8 +265,16 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
                   <span>x{inventory.magicWater}</span>
                 </div>
              </div>
-             <button className="py-2 bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/40 hover:to-purple-500/40 border border-pink-500/50 rounded-lg text-xs font-bold text-pink-200 transition-colors">
-               去商店购买物资
+             <button
+               onClick={() => {
+                 // 补充种子和泉水，让花园玩法可以持续
+                 setInventory(prev => ({ ...prev, roseSeed: prev.roseSeed + 5, starSeed: prev.starSeed + 2, magicWater: prev.magicWater + 3 }));
+                 addLog("🛒 补充了玫瑰种子 x5、星光种子 x2、魔法泉水 x3！");
+                 playSound("sparkle");
+               }}
+               className="py-2 bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/40 hover:to-purple-500/40 border border-pink-500/50 rounded-lg text-xs font-bold text-pink-200 transition-all hover:scale-105 active:scale-95"
+             >
+               领取免费物资
              </button>
           </div>
         </div>
@@ -262,11 +289,11 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
                  {shopLevel < 2 && <button onClick={upgradeShop} className="text-xs bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 px-2.5 py-1 rounded-full border border-yellow-500/50 transition-colors">200 币升级</button>}
               </div>
               <div className="flex gap-4">
-                 <button onClick={() => startBaking('croissant')} disabled={!!bakingTask} className="flex-1 py-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-colors">
+                 <button onClick={() => startBaking('croissant')} disabled={!!bakingTask} className="flex-1 py-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-all hover:scale-[1.03] active:scale-95">
                     <span className="text-2xl">🥐</span>
                     <span className="text-xs text-orange-200">制作牛角包 (5s)</span>
                  </button>
-                 <button onClick={() => startBaking('starCake')} disabled={!!bakingTask || shopLevel < 2} className="flex-1 py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-colors relative">
+                 <button onClick={() => startBaking('starCake')} disabled={!!bakingTask || shopLevel < 2} className="flex-1 py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-all hover:scale-[1.03] active:scale-95 relative">
                     {shopLevel < 2 && <div className="absolute top-1 right-2 text-[10px] text-red-400">需 2 级</div>}
                     <span className="text-2xl">🍰</span>
                     <span className="text-xs text-fuchsia-200">制作星云蛋糕 (10s)</span>
@@ -302,10 +329,10 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
               <div className="bg-black/40 rounded-lg p-4 border border-white/5">
                  <div className="text-xs text-cyan-400 mb-3 font-bold flex items-center gap-2"><Zap className="w-4 h-4"/> 宠物特训</div>
                  <div className="flex gap-4">
-                    <button onClick={() => trainPet('speed')} className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg flex flex-col items-center gap-1 transition-colors">
+                    <button onClick={() => trainPet('speed')} className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg flex flex-col items-center gap-1 transition-all hover:scale-[1.03] active:scale-95">
                        <span className="text-xs text-blue-200">🏃 速度特训 (-20币)</span>
                     </button>
-                    <button onClick={() => trainPet('stamina')} className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg flex flex-col items-center gap-1 transition-colors">
+                    <button onClick={() => trainPet('stamina')} className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg flex flex-col items-center gap-1 transition-all hover:scale-[1.03] active:scale-95">
                        <span className="text-xs text-emerald-200">🛡️ 耐力特训 (-20币)</span>
                     </button>
                  </div>
@@ -342,11 +369,11 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
            <div className="flex-1 bg-black/40 rounded-lg p-4 border border-white/5">
               <div className="text-sm font-bold text-purple-400 flex items-center gap-2 mb-4"><BookOpen className="w-4 h-4"/> 档案馆研究室</div>
               <div className="flex gap-4">
-                 <button onClick={readBook} className="flex-1 py-6 bg-purple-500/10 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl flex flex-col items-center justify-center gap-2 transition-colors">
+                 <button onClick={readBook} className="flex-1 py-6 bg-purple-500/10 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-95">
                     <Book className="w-6 h-6 text-purple-300"/>
                     <span className="text-xs text-purple-200">翻阅古籍 (获得研究点数)</span>
                  </button>
-                 <button onClick={unlockLore} className="flex-1 py-6 bg-indigo-500/10 hover:bg-indigo-500/30 border border-indigo-500/30 rounded-xl flex flex-col items-center justify-center gap-2 transition-colors relative">
+                 <button onClick={unlockLore} className="flex-1 py-6 bg-indigo-500/10 hover:bg-indigo-500/30 border border-indigo-500/30 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-95 relative">
                     <div className="absolute top-2 right-2 text-[10px] text-indigo-300 bg-indigo-500/20 px-1.5 py-0.5 rounded">消耗 20 点</div>
                     <Compass className="w-6 h-6 text-indigo-300"/>
                     <span className="text-xs text-indigo-200">解读秘闻</span>

@@ -9,6 +9,8 @@ interface NebulaGateCanvasProps {
   userPet: PetConfig | null;
   onLoggedEvent: (log: string) => void;
   onGrantCoins: (amount: number) => void;
+  onSpendCoins?: (amount: number) => boolean;
+  stardustCoins?: number;
   isTaskAlreadyCompleted: boolean;
   onTaskCompleted: () => void;
 }
@@ -634,6 +636,8 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
   userPet,
   onLoggedEvent,
   onGrantCoins,
+  onSpendCoins,
+  stardustCoins,
   isTaskAlreadyCompleted,
   onTaskCompleted
 }) => {
@@ -653,6 +657,8 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
             onTaskCompleted={onTaskCompleted}
             isTaskAlreadyCompleted={isTaskAlreadyCompleted}
             onGrantCoins={onGrantCoins}
+            onSpendCoins={onSpendCoins}
+            stardustCoins={stardustCoins}
           />
         </div>
       ) : (
@@ -693,7 +699,7 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
   );
 };
 
-const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTaskAlreadyCompleted, onGrantCoins }: { sceneId: string, userPet: PetConfig | null, onLoggedEvent: (log: string) => void, onTaskCompleted: () => void, isTaskAlreadyCompleted: boolean, onGrantCoins: (a:number)=>void }) => {
+const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTaskAlreadyCompleted, onGrantCoins, onSpendCoins, stardustCoins }: { sceneId: string, userPet: PetConfig | null, onLoggedEvent: (log: string) => void, onTaskCompleted: () => void, isTaskAlreadyCompleted: boolean, onGrantCoins: (a:number)=>void, onSpendCoins?: (a:number)=>boolean, stardustCoins?: number }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneMeta = SCENE_META.find(s => s.id === sceneId)!;
   const sceneDesign = SCENE_DESIGNS[sceneId];
@@ -965,7 +971,7 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
       </div>
 
       {/* Deep Interactive UI Panel */}
-      <SceneInteractiveUI sceneId={sceneId} addLog={addLog} onGrantCoins={onGrantCoins} />
+      <SceneInteractiveUI sceneId={sceneId} addLog={addLog} onGrantCoins={onGrantCoins} onSpendCoins={onSpendCoins} initialCoins={stardustCoins} />
 
       <div className="bg-[#120d2c]/80 border border-indigo-400/20 rounded-2xl p-5 flex flex-col h-44 shadow-inner">
         <div className="flex items-center justify-between border-b border-indigo-400/20 pb-3 mb-3">
