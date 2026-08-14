@@ -90,6 +90,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const useReal3DRef = useRef(true);
   const animationRef = useRef<number | null>(null);
 
+  // 沉睡状态 ref（由 petConfig.isSleeping 驱动，供 rAF 主循环读取）
+  const isSleepingRef = useRef<boolean>(petConfig.isSleeping ?? false);
+
   // Day & Night atmospheric systems state
   const [skyTime, setSkyTime] = useState<CycleTimeType>("night");
   const [skyWeather, setSkyWeather] = useState<WeatherType>("clear");
@@ -97,6 +100,10 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   useEffect(() => {
     useReal3DRef.current = useReal3D;
   }, [useReal3D]);
+
+  useEffect(() => {
+    isSleepingRef.current = petConfig.isSleeping ?? false;
+  }, [petConfig.isSleeping]);
 
   // Determine pet species type
   const species = (() => {
@@ -126,7 +133,8 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   };
 
   const [moodIndex, setMoodIndex] = useState<number>(() => readPetStat("mood", 75));
-  const [energyIndex, setEnergyIndex] = useState<number>(() => readPetStat("energy", 85));
+  // 能量值：以陪伴能量系统（companionEnergy）为单一真实来源，画布只做显示跟随
+  const [energyIndex, setEnergyIndex] = useState<number>(() => petConfig.companionEnergy ?? petConfig.statusEnergy ?? 90);
   const [hungerIndex, setHungerIndex] = useState<number>(() => readPetStat("hunger", petConfig.statusHunger ?? 80));
   const [cleanIndex, setCleanIndex] = useState<number>(() => readPetStat("clean", petConfig.statusCleanliness ?? 95));
   const [petLevel, setPetLevel] = useState<number>(() => readPetStat("level", petConfig.level ?? 1));
@@ -150,11 +158,10 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const autoWeatherCycleRef = useRef<boolean>(autoWeatherCycle);
   autoWeatherCycleRef.current = autoWeatherCycle;
 
-  // Persist Pet mood/energy statistics（以稳定 id 为 key）
+  // Persist Pet mood statistics（以稳定 id 为 key；能量值不再独立持久化，改由陪伴能量系统统一管理）
   useEffect(() => {
     try {
       localStorage.setItem(`star_puff_mood_${petStorageKey}`, moodIndex.toString());
-      localStorage.setItem(`star_puff_energy_${petStorageKey}`, energyIndex.toString());
       localStorage.setItem(`star_puff_hunger_${petStorageKey}`, hungerIndex.toString());
       localStorage.setItem(`star_puff_clean_${petStorageKey}`, cleanIndex.toString());
       localStorage.setItem(`star_puff_level_${petStorageKey}`, petLevel.toString());
@@ -163,7 +170,12 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     } catch (e) {
       console.warn("Storage write error", e);
     }
-  }, [moodIndex, energyIndex, hungerIndex, cleanIndex, petLevel, petExp, intimacyIndex, petStorageKey]);
+  }, [moodIndex, hungerIndex, cleanIndex, petLevel, petExp, intimacyIndex, petStorageKey]);
+
+  // 能量值跟随陪伴能量系统（companionEnergy）：单一真实来源，切换/喂食后画布同步
+  useEffect(() => {
+    setEnergyIndex(petConfig.companionEnergy ?? petConfig.statusEnergy ?? 90);
+  }, [petConfig.companionEnergy, petConfig.statusEnergy, petConfig.id]);
 
   // Automated Real-world Weather & Climate evolution wheel
   useEffect(() => {
@@ -1322,6 +1334,45 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
       } else if (activeGestureRef.current !== "wag") {
         danceOffsetX.current += (0 - danceOffsetX.current) * 0.1;
         danceOffsetY.current += (0 - danceOffsetY.current) * 0.1;
+      }
+
+      // 0. 沉睡状态：画面变暗 + 星尘缓慢飘散，宠物停止动画
+      if (isSleepingRef.current) {
+        const darkGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        darkGrad.addColorStop(0, "#010008");
+        darkGrad.addColorStop(1, "#050512");
+        ctx.fillStyle = darkGrad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 缓慢飘散的星尘粒子
+        for (let i = 0; i < 40; i++) {
+          const px = (frame * 0.15 + i * 37) % canvas.width;
+          const py = (canvas.height - ((frame * 0.2 + i * 53) % canvas.height));
+          const twinkle = 0.2 + 0.3 * Math.sin(frame * 0.03 + i);
+          ctx.fillStyle = `rgba(200, 200, 255, ${twinkle})`;
+          ctx.beginPath();
+          ctx.arc(px, py, 1 + Math.sin(frame * 0.02 + i) * 0.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 中心蜷缩的沉睡剪影（简化）
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = "#8fa4b3";
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2 + 10;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 42, 26, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // 头部
+        ctx.beginPath();
+        ctx.arc(cx - 8, cy - 16, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        frame++;
+        animationRef.current = requestAnimationFrame(mainLoop);
+        return;
       }
 
       // 1. Draw atmospheric diurnal/nocturnal background depending on skyTime
@@ -4067,7 +4118,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
                 />
               </div>
               <div className="flex justify-between text-[8px] text-gray-500 font-mono">
-                <span>{energyIndex < 35 ? "⚠️ 极度饥饿" : energyIndex < 70 ? "稍微疲惫" : "精神抖擞"}</span>
+                <span>{energyIndex < 10 ? "💤 想要睡觉" : energyIndex < 35 ? "😵 虚弱乏力" : energyIndex < 70 ? "稍微疲惫" : "精神抖擞"}</span>
                 <span>代谢慢行</span>
               </div>
             </div>
@@ -4237,7 +4288,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               id="btn-v27-feed"
             >
               <span className="text-sm">🐟</span>
-              <span>投喂多维银鱼</span>
+              <span>逗玩互动</span>
             </button>
 
             {/* Hug shield button */}

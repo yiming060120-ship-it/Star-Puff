@@ -267,11 +267,11 @@ export default function App() {
     }
     const defaultVal: StarPuffUser = {
       ownerName: "星之守护者",
-      membership: "vip_year",
+      membership: "free",
       stardustCoins: 520, // free starter budget
-      unlimitedTalks: true,
-      dialogsRemaining: 999,
-      dialogsMax: 999,
+      unlimitedTalks: false,
+      dialogsRemaining: 5,
+      dialogsMax: 5,
       streakDays: 1,
       activePet: DEFAULT_KITTEN,
       historyLogs: [
@@ -364,13 +364,26 @@ export default function App() {
 
   // 当前活跃宠物的陪伴能量快照（从 user.activePet 派生，用于 UI 即时刷新）
   const [energyTick, setEnergyTick] = useState(0); // 用于周期性触发重算
-  // 累计喂食次数（用于触发「深度羁绊」暖心文案）
+  // 累计喂食次数（用于触发「深度羁绊」暖心文案），按宠物 id 分 key 存储
+  const activePetId = user.activePet?.id ?? user.activePet?.name ?? "default";
   const [feedCount, setFeedCount] = useState<number>(() => {
-    const local = localStorage.getItem("starpuff_feed_count");
+    const local = localStorage.getItem(`starpuff_feed_count_${activePetId}`);
     return local ? Number(local) : 0;
   });
   /** 触发深度羁绊文案所需的累计喂食次数阈值 */
   const DEEP_BOND_THRESHOLD = 10;
+  // 首睡免费唤醒标记（每个宠物独立，首次沉睡可免费唤醒一次）
+  const [freeReviveUsed, setFreeReviveUsed] = useState<boolean>(() => {
+    return localStorage.getItem(`starpuff_free_revive_${activePetId}`) === "1";
+  });
+
+  // 切换宠物时，重新加载该宠物的喂食次数与首睡免费标记
+  useEffect(() => {
+    const localCount = localStorage.getItem(`starpuff_feed_count_${activePetId}`);
+    setFeedCount(localCount ? Number(localCount) : 0);
+    setFreeReviveUsed(localStorage.getItem(`starpuff_free_revive_${activePetId}`) === "1");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePetId]);
 
   /** 从 user.activePet 计算当前陪伴能量（应用衰减） */
   const currentCompanionEnergy = (() => {
@@ -410,8 +423,9 @@ export default function App() {
     const food = findEnergyFood(foodId);
     if (!food) return;
 
-    if (user.stardustCoins < food.price) {
-      triggerToast(`⚠️【星尘币不足】${food.name} 需要 ${food.price} 星尘币，您当前只有 ${user.stardustCoins} 币。`);
+    // 满能量拦截：避免误扣币（唤醒剂除外，唤醒剂即使满能量也用于解除沉睡态）
+    if (food.id !== "energy_revive" && currentCompanionEnergy >= 100) {
+      triggerToast("🌟 陪伴能量已经满格啦，暂时不需要喂食哦～");
       playSound("beep");
       return;
     }
@@ -423,8 +437,21 @@ export default function App() {
       return;
     }
 
-    // 扣币
-    setUser(prev => ({ ...prev, stardustCoins: prev.stardustCoins - food.price }));
+    // 首睡免费唤醒：首次沉睡的宠物可免费使用一次唤醒剂
+    const isFreeRevive = food.id === "energy_revive" && !freeReviveUsed;
+    if (!isFreeRevive && user.stardustCoins < food.price) {
+      triggerToast(`⚠️【星尘币不足】${food.name} 需要 ${food.price} 星尘币，您当前只有 ${user.stardustCoins} 币。`);
+      playSound("beep");
+      return;
+    }
+
+    // 扣币（免费唤醒不扣币）
+    if (!isFreeRevive) {
+      setUser(prev => ({ ...prev, stardustCoins: prev.stardustCoins - food.price }));
+    } else {
+      setFreeReviveUsed(true);
+      try { localStorage.setItem(`starpuff_free_revive_${activePetId}`, "1"); } catch (e) {}
+    }
 
     // 恢复能量
     const nextEnergy = Math.min(100, currentCompanionEnergy + food.energyRestore);
@@ -434,17 +461,21 @@ export default function App() {
         : 0,
     });
 
-    // 累计喂食次数并持久化
+    // 累计喂食次数并持久化（按宠物 id 分 key）
     const nextFeedCount = feedCount + 1;
     setFeedCount(nextFeedCount);
     try {
-      localStorage.setItem("starpuff_feed_count", String(nextFeedCount));
+      localStorage.setItem(`starpuff_feed_count_${activePetId}`, String(nextFeedCount));
     } catch (e) {}
 
     // 反馈文案
     if (food.id === "energy_revive") {
       const revivePhrase = pickPhrase(PHRASES.revive);
-      triggerToast(`✨ 星尘唤醒剂生效！${user.activePet?.name} 睁开了眼睛：「${revivePhrase}」`);
+      if (isFreeRevive) {
+        triggerToast(`💝 第一次陷入沉睡，免费唤醒！✨ ${user.activePet?.name} 睁开了眼睛：「${revivePhrase}」`);
+      } else {
+        triggerToast(`✨ 星尘唤醒剂生效！${user.activePet?.name} 睁开了眼睛：「${revivePhrase}」`);
+      }
     } else if (nextFeedCount >= DEEP_BOND_THRESHOLD && nextFeedCount % 5 === 0) {
       // 深度羁绊：喂食很多次后，触发更深情暖心的文案（每 5 次触发一次，避免过频）
       const deepPhrase = pickPhrase(PHRASES.deepBond);
@@ -460,10 +491,26 @@ export default function App() {
     setConfettiTrigger(prev => prev + 1);
   };
 
-  // 周期性刷新能量（每 30 秒重算一次，让 UI 反映时间流逝）
+  // 周期性刷新能量（每 30 秒重算一次，让 UI 反映时间流逝），并把实时衰减值写回 activePet，
+  // 使 HomeCanvas 等下游组件能通过 petConfig.companionEnergy 拿到最新能量
   useEffect(() => {
     const timer = setInterval(() => {
       setEnergyTick(t => t + 1);
+      // 同步实时能量到 activePet（画布/情绪系统依赖此字段）
+      setUser(prev => {
+        if (!prev.activePet) return prev;
+        const pet = prev.activePet;
+        const base = pet.companionEnergy ?? pet.statusEnergy ?? 90;
+        const updatedAt = pet.companionEnergyUpdatedAt ?? Date.now();
+        const immuneUntil = pet.companionEnergyImmuneUntil ?? 0;
+        const liveEnergy = Date.now() < immuneUntil
+          ? Math.max(0, base)
+          : calcCurrentEnergy(base, updatedAt);
+        if (Math.round(liveEnergy) === Math.round(base)) return prev; // 无变化则跳过，避免无效渲染
+        const updatedPet = { ...pet, companionEnergy: liveEnergy };
+        const allPets = prev.allPets?.map(p => p.id === updatedPet.id ? updatedPet : p) ?? [updatedPet];
+        return { ...prev, activePet: updatedPet, allPets };
+      });
     }, 30000);
     return () => clearInterval(timer);
   }, []);
@@ -544,8 +591,16 @@ export default function App() {
   }, [companionState.state, energyTick]);
 
   // V2.0 God mode vs Guest mode control states
-  const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">("god");
+  // 默认访客模式（上线游玩版本）；上帝模式仅供开发/测试临时启用，需持久化避免刷新回退
+  const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">(() => {
+    return localStorage.getItem("starpuff_system_play_mode") === "god" ? "god" : "guest";
+  });
   const [isArCameraOpen, setIsArCameraOpen] = useState(false);
+
+  // 持久化运行模式
+  useEffect(() => {
+    localStorage.setItem("starpuff_system_play_mode", systemPlayMode);
+  }, [systemPlayMode]);
 
   // 演示模式（上帝/访客）的真实经济快照，防止演示覆盖写穿持久存档
   const economyBackupRef = useRef<Partial<StarPuffUser> | null>(null);
@@ -578,23 +633,34 @@ export default function App() {
           try { localStorage.setItem(ECONOMY_BACKUP_KEY, JSON.stringify(backup)); } catch (e) {}
         }
         economyBackupRef.current = backup;
+        // 上帝模式：临时授予无限对话 + 大量星尘币 + 年卡，便于开发测试
         return {
           ...prev,
           membership: "vip_year",
           unlimitedTalks: true,
-          dialogsRemaining: 999,
-          dialogsMax: 999,
+          dialogsRemaining: 999999,
+          dialogsMax: 999999,
           stardustCoins: Math.max(prev.stardustCoins, 99999)
         };
       });
     } else {
       setUser(prev => {
         const backup = loadEconomyBackup();
-        if (!backup) return prev;
+        // 若有备份则恢复真实经济字段；否则回退到访客默认态（免费 + 少量对话 + 初始币）
+        const restored = backup
+          ? { ...prev, ...backup }
+          : {
+              ...prev,
+              membership: "free" as const,
+              unlimitedTalks: false,
+              dialogsRemaining: 3,
+              dialogsMax: 5,
+              stardustCoins: 15
+            };
         economyBackupRef.current = null;
         try { localStorage.removeItem(ECONOMY_BACKUP_KEY); } catch (e) {}
         // 恢复真实经济/会员字段，保留演示期间获得的其他进度（宠物、装扮等）
-        return { ...prev, ...backup };
+        return restored;
       });
     }
   }, [systemPlayMode]);
@@ -755,8 +821,15 @@ export default function App() {
 
     // 陪伴能量状态拦截：沉睡/低能量时无法正常对话
     if (companionState.state === "sleeping") {
+      const userText = chatInput.trim();
       setChatMessages(prev => [
         ...prev,
+        {
+          id: `chat_${Date.now()}_u`,
+          sender: "user" as const,
+          text: userText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
         {
           id: `chat_${Date.now()}_sleep`,
           sender: "pet" as const,
@@ -764,6 +837,7 @@ export default function App() {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
+      setChatInput(""); // 清空输入框，闭环完整
       triggerToast("😴 星宠正在沉睡，无法回应。请用「星尘唤醒剂」唤醒它。");
       playSound("beep");
       return;
@@ -771,9 +845,16 @@ export default function App() {
 
     if (!companionState.canInteract) {
       // 失落疏离/心寒告别：拒绝正常互动，只流露状态话术
+      const userText = chatInput.trim();
       const phrase = pickPhrase(getPhrasesForState(companionState.state));
       setChatMessages(prev => [
         ...prev,
+        {
+          id: `chat_${Date.now()}_u`,
+          sender: "user" as const,
+          text: userText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
         {
           id: `chat_${Date.now()}_low`,
           sender: "pet" as const,
@@ -781,6 +862,7 @@ export default function App() {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
+      setChatInput(""); // 清空输入框，闭环完整
       triggerToast(`💔 ${user.activePet?.name} 陪伴能量不足，正在疏离中...喂食可以重新温暖它。`);
       playSound("chime");
       return;
@@ -1013,7 +1095,11 @@ export default function App() {
         moodLevel: 95,
         happiness: 90,
         memoryTimelineList: [],
-        anniversariesList: []
+        anniversariesList: [],
+        // 初始化陪伴能量系统字段，避免新宠物缺失能量数据
+        companionEnergy: config.companionEnergy ?? 90,
+        companionEnergyUpdatedAt: Date.now(),
+        isSleeping: false
       };
       const nextPets = prev.allPets ? [...prev.allPets, updatedPet] : [updatedPet];
       return {
@@ -1049,9 +1135,14 @@ export default function App() {
 
   const handleAddPet = (newPet: PetConfig) => {
     setUser(prev => {
-      const petWithId = newPet.id
-        ? newPet
-        : { ...newPet, id: `pet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` };
+      const petWithId: PetConfig = {
+        ...newPet,
+        id: newPet.id ?? `pet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        // 初始化陪伴能量系统字段
+        companionEnergy: newPet.companionEnergy ?? 90,
+        companionEnergyUpdatedAt: Date.now(),
+        isSleeping: false
+      };
       const nextPets = prev.allPets ? [...prev.allPets, petWithId] : [petWithId];
       return {
         ...prev,
@@ -1729,7 +1820,7 @@ export default function App() {
               onClick={() => {
                 playSound("success");
                 setSystemPlayMode("god");
-                triggerToast("👑 上帝开发模式激活：拥有无限AI天神聊天、99,999星尘果，免除一切商业门槛收费！");
+                triggerToast("👑 上帝开发模式激活：无限对话 + 99,999 星尘币 + 年卡特权，仅供开发测试！");
               }}
               className={`px-3.5 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-1 leading-none ${
                 systemPlayMode === "god"
@@ -1737,13 +1828,13 @@ export default function App() {
                   : "text-gray-400 hover:text-indigo-200"
               }`}
             >
-              👑 上帝开发模式 (我的默认)
+              👑 上帝开发模式
             </button>
             <button
               onClick={() => {
                 playSound("click");
                 setSystemPlayMode("guest");
-                triggerToast("👥 访客体验模式激活：变为免费试用身份，限制AI聊天轮次至3次，金币归于15以便对比。");
+                triggerToast("👥 访客模式（正式上线版）：按真实会员身份运行，免费用户对话与星尘币受限。");
               }}
               className={`px-3.5 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-1 leading-none ${
                 systemPlayMode === "guest"
@@ -1751,7 +1842,7 @@ export default function App() {
                   : "text-gray-400 hover:text-indigo-200"
               }`}
             >
-              👥 访客对照模式 (普通用户)
+              👥 访客模式 (正式版)
             </button>
           </div>
         </div>

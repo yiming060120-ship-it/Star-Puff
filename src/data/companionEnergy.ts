@@ -99,13 +99,13 @@ export function getCompanionState(energy: number): CompanionStateMeta {
 // ---- 衰减规则 ----
 
 /** 每小时衰减点数 */
-export const DECAY_PER_HOUR = 5;
-/** 每日自然衰减上限（防太肝） */
-export const DECAY_PER_DAY_CAP = 40;
+export const DECAY_PER_HOUR = 4;
+/** 每日自然衰减上限（防太肝，也避免免费玩家被逼氪） */
+export const DECAY_PER_DAY_CAP = 30;
 /** 月卡用户每日自动恢复点数 */
 export const VIP_DAILY_RECOVERY = 30;
 /** 每日登录赠送能量（免费玩家活路） */
-export const LOGIN_DAILY_BONUS = 10;
+export const LOGIN_DAILY_BONUS = 20;
 
 /**
  * 计算从上次更新时间到现在的自然衰减值。
