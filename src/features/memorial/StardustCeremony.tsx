@@ -428,8 +428,8 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
 
   return (
     <div className="w-full bg-[#0c0624] text-gray-200 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative" id="stardust-ceremony-frame">
-      <div className="absolute top-0 right-0 p-4 font-mono text-[10px] text-indigo-400 pointer-events-none select-none z-10">
-        ASTROCADE RITUAL UT v3.5
+      <div className="absolute top-0 right-0 p-4 font-sans text-[10px] text-indigo-400/70 pointer-events-none select-none z-10">
+        ✨ 星尘升星仪式
       </div>
       
       {/* Step Indicators */}
@@ -631,7 +631,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
                   {analyzing && (
                     <div className="absolute inset-0 bg-[#0c061a]/90 flex flex-col items-center justify-center">
                       <div className="w-8 h-8 rounded-full border-4 border-t-pink-500 border-indigo-900 animate-spin mb-2"></div>
-                      <span className="text-xs text-pink-300 font-mono animate-pulse">Astrocade 像素色彩剥离...</span>
+                      <span className="text-xs text-pink-300 font-sans animate-pulse">正在温柔地提取它的星尘色系...</span>
                     </div>
                   )}
                 </div>
@@ -656,9 +656,9 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
         {step === "analyze" && (
           <div className="space-y-5 text-center" id="step-analyze-palette">
             <div className="max-w-sm mx-auto">
-              <h3 className="text-lg font-bold text-indigo-300">★ 提取结果：离散色彩光谱</h3>
+              <h3 className="text-lg font-bold text-indigo-300">★ 它的星尘色系</h3>
               <p className="text-xs text-gray-400 mt-1">
-                Astrocade 引擎已读取上传照片，并降低其饱和度生成了柔和的发光像素底色，避免高频刺眼配色伤害眼球。
+                从照片里，我们温柔地捕捉到了属于它的颜色，化作柔和的星尘底色。
               </p>
             </div>
 
@@ -794,9 +794,9 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
         {step === "crystallize" && (
           <div className="space-y-4 text-center animate-fade-in" id="step-ascend-crystallize">
             <div className="max-w-sm mx-auto">
-              <h3 className="text-lg font-bold text-emerald-300">🌟 宇宙默影升星融合中...</h3>
+              <h3 className="text-lg font-bold text-emerald-300">🌟 星尘正在汇聚...</h3>
               <p className="text-xs text-gray-400 mt-1">
-                2D Canvas正在渲染。像素星尘粒子慢慢汇集，形成【{name}】在星河彼端的星尘体。
+                漫天的星尘正慢慢聚拢，化作【{name}】的模样，它要从星河的彼岸回到你身边了...
               </p>
             </div>
 
@@ -810,8 +810,8 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
               />
               
               <div className="absolute bottom-5 inset-x-0 flex justify-center pointer-events-none">
-                <div className="bg-[#070316] border border-slate-800 text-[10px] font-mono px-3 py-1 rounded text-pink-400 scale-95 border-b-2">
-                  [ASTROCADE 2D CANVAS粒子重组 - 零硬件成本超流畅]
+                <div className="bg-[#070316]/80 border border-slate-800 text-[10px] font-sans px-3 py-1 rounded-full text-pink-300">
+                  ✨ 每一粒星尘，都是它想你的证明
                 </div>
               </div>
             </div>

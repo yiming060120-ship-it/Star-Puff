@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { PetConfig, PetType } from "../types";
 import { playSound } from "../audio/AudioSynth";
-import { Compass, Sparkles, Trophy, ChevronLeft, Image as ImageIcon, Info } from "lucide-react";
+import { Compass, Sparkles, Trophy, ChevronLeft, Image as ImageIcon } from "lucide-react";
 import { SCENE_DESIGNS } from "../data/sceneDesigns";
 import { SceneInteractiveUI } from "./SceneInteractiveUI";
 
@@ -638,7 +638,6 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
   onTaskCompleted
 }) => {
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
-  const [viewingPromptInfo, setViewingPromptInfo] = useState<string | null>(null);
   
   return (
     <div className="space-y-4" id="nebula-gate-explore-panel">
@@ -681,13 +680,6 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
                 <div className="relative z-10">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-3xl filter drop-shadow-lg group-hover:scale-110 transition-transform duration-300">{scene.icon}</span>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setViewingPromptInfo(scene.id); }}
-                      className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white transition-colors"
-                      title="查看场景生成提示词与美术设定"
-                    >
-                      <Info className="w-4 h-4" />
-                    </button>
                   </div>
                   <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 mb-1.5 transition-colors">{scene.name}</h4>
                   <p className="text-[10px] text-slate-300 line-clamp-2 leading-relaxed opacity-80">{scene.desc}</p>
@@ -695,35 +687,6 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
               </div>
             ))}
           </div>
-
-          {/* Prompt Viewer Modal */}
-          {viewingPromptInfo && (
-            <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-md" onClick={() => setViewingPromptInfo(null)}>
-              <div className="bg-[#0f0a25] border border-indigo-500/30 rounded-2xl p-6 w-full max-w-lg shadow-[0_0_50px_rgba(123,97,255,0.15)]" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-5 border-b border-white/10 pb-3">
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-indigo-400" />
-                    【{SCENE_META.find(s => s.id === viewingPromptInfo)?.name}】美术设定与提示词
-                  </h3>
-                  <button onClick={() => setViewingPromptInfo(null)} className="text-gray-400 hover:text-white transition-colors">×</button>
-                </div>
-                <div className="bg-black/50 border border-white/5 rounded-xl p-4 max-h-64 overflow-y-auto text-[11px] text-indigo-200 font-mono whitespace-pre-wrap leading-relaxed select-all custom-scrollbar">
-                  [ 场景风格规范 ]
-                  {SCENE_DESIGNS[viewingPromptInfo]?.overview}
-
-                  [ 景深分层 ]
-                  {SCENE_DESIGNS[viewingPromptInfo]?.layers.join("\n")}
-
-                  [ 建模要求 ]
-                  {SCENE_DESIGNS[viewingPromptInfo]?.modeling.map(m => `- ${m.title}: ${m.desc.join(", ")}`).join("\n")}
-
-                  [ 提示词 (Midjourney / Astrocade) ]
-                  {SCENE_DESIGNS[viewingPromptInfo]?.prompt}
-                </div>
-                <p className="text-[10px] text-slate-500 mt-4 text-center tracking-wider uppercase">点击外部关闭 • 提示词严格遵循 3D次世代级写实风 设定</p>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -2325,9 +2325,9 @@ export default function App() {
 
                     {/* OUTFITS SECTION */}
                     <div>
-                      <h4 className="text-[11px] font-bold uppercase tracking-widest text-indigo-400 mb-3 flex items-center gap-1.5">
+                      <h4 className="text-[11px] font-bold tracking-wide text-indigo-400 mb-3 flex items-center gap-1.5 font-sans">
                         <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                        1、Astrocade 独家像素外观装扮 (装扮效果实时渲染)
+                        1、星尘外观装扮 · 立即穿戴焕新
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {OUT_ITEMS.map((item) => {
@@ -2395,8 +2395,8 @@ export default function App() {
 
                     {/* SNACKS SECTION */}
                     <div>
-                      <h4 className="text-[11px] font-bold uppercase tracking-widest text-[#06d6a0] mb-3 flex items-center gap-1.5">
-                        🦴 2、治愈滋补零食能补仓
+                      <h4 className="text-[11px] font-bold tracking-wide text-[#06d6a0] mb-3 flex items-center gap-1.5 font-sans">
+                        🦴 2、治愈小零食 · 补充对话能量
                       </h4>
                       <p className="text-[10px] text-gray-400 mb-3 block">
                         喂食零食能瞬间恢复<b>1轮</b>主页宠物的对话额度，并触发家园像素爆炸特效。每日最多共可喂食10次零食！
@@ -2606,8 +2606,8 @@ export default function App() {
                     {/* Section 2: AI 3D high-fidelity bone/voxel mesh modeling */}
                     {user.activePet && (
                       <div className="bg-gradient-to-tr from-purple-500/10 to-orange-400/15 border border-purple-500/20 rounded-2xl p-5" id="profile-reconstruct-3d-panel">
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-orange-400 font-mono block mb-1">
-                          🎒 2、AI 3D高保真数字骨骼重构 (2D照片即刻还原)
+                        <span className="text-[10px] font-bold tracking-wide text-orange-400 font-sans block mb-1">
+                          🎒 2、3D 星尘重建 · 从照片唤醒它的模样
                         </span>
                         <p className="text-[9px] text-gray-400 mb-4 font-sans max-w-xl leading-normal">
                           采用双目重建与像素外差插值，将宠物生前2D硬照/生活照，计算还原并生成高保真3D骨架点阵与器官节点。合成成功后将即刻作为3D拟态投射上传星谱，并可在【主页】控制台开启 🤖 3D全息 投影。
@@ -2640,8 +2640,8 @@ export default function App() {
 
                     {/* Snacks interactive Feed bar */}
                     <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                      <span className="text-[11px] font-bold text-gray-400 block mb-3 uppercase tracking-widest">
-                        🎒 3、家长随身储物能补包袋 (零食喂养区)
+                      <span className="text-[11px] font-bold text-gray-400 block mb-3 tracking-wide font-sans">
+                        🎒 3、随身零食小包 · 随时喂食
                       </span>
                       
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -2650,10 +2650,10 @@ export default function App() {
                           return (
                             <div key={snack.id} className="bg-slate-950/40 p-3 rounded-lg border border-white/5 flex flex-col justify-between text-center">
                               <div>
-                                <span className="text-[9px] text-slate-500 uppercase tracking-widest block font-mono">SNACK ITEM</span>
+                                <span className="text-[9px] text-slate-500 tracking-wide block font-sans">🍬 小零食</span>
                                 <span className="text-xs font-bold text-white block mt-1">{snack.name}</span>
-                                <span className="text-xs font-mono text-purple-400 font-bold block mt-1">
-                                  持有: {quantity} 个
+                                <span className="text-xs font-sans text-purple-400 font-bold block mt-1">
+                                  持有 · {quantity} 个
                                 </span>
                               </div>
                               <button
