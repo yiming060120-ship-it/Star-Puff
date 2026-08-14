@@ -8,6 +8,12 @@
 
 import type { PetConfig, Pet3DModelConfig } from "../types";
 
+/**
+ * API 基址。默认同源：Electron 内嵌 Express / Vite 代理均为当前源。
+ * 正式上架若迁移到自有托管后端（客户端零密钥），把此常量改为后端根 URL 即可，如 "https://api.starpuff.example.com"。
+ */
+export const API_BASE = "";
+
 // ---- 耳语生成 ----
 
 export interface WhisperResponse {
@@ -25,7 +31,7 @@ export async function generateWhispers(params: {
   recentEvents: string[];
   isVip: boolean;
 }): Promise<WhisperResponse> {
-  const res = await fetch("/api/whisper", {
+  const res = await fetch(`${API_BASE}/api/whisper`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -52,7 +58,7 @@ export async function sendChatMessage(params: {
   lore: string;
   personality: string;
 }): Promise<ChatResponse> {
-  const res = await fetch("/api/chat", {
+  const res = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -75,7 +81,7 @@ export async function reconstruct3D(params: {
   primaryColor: string;
   base64Image: string;
 }): Promise<Reconstruct3DResponse> {
-  const res = await fetch("/api/reconstruct-3d", {
+  const res = await fetch(`${API_BASE}/api/reconstruct-3d`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -97,10 +103,34 @@ export async function generateGrowthStory(params: {
   breed: string;
   petType: string;
 }): Promise<GrowthStoryResponse> {
-  const res = await fetch("/api/growth-story", {
+  const res = await fetch(`${API_BASE}/api/growth-story`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
+// ---- AI 模式配置 ----
+
+export interface AiConfigStatus {
+  success: boolean;
+  aiEnabled: boolean;
+  providerMode: "Gemini" | "Offline";
+}
+
+/** 查询当前 AI 状态（离线模板 / Gemini 在线） */
+export async function getAiConfigStatus(): Promise<AiConfigStatus> {
+  const res = await fetch(`${API_BASE}/api/config/status`);
+  return res.json();
+}
+
+/** 设置 Gemini key（空串 = 关闭在线 AI 回离线模式） */
+export async function setGeminiKey(key: string): Promise<AiConfigStatus> {
+  const res = await fetch(`${API_BASE}/api/config/gemini-key`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key }),
   });
   return res.json();
 }
@@ -126,7 +156,7 @@ export interface MtxApiResponse<T = unknown> {
 
 /** 获取所有商品列表 */
 export async function getProducts(): Promise<MtxApiResponse<ProductItem[]>> {
-  const res = await fetch("/api/mtx/products");
+  const res = await fetch(`${API_BASE}/api/mtx/products`);
   return res.json();
 }
 
@@ -139,7 +169,7 @@ export async function initPurchase(params: {
   language?: string;
   currency?: string;
 }): Promise<MtxApiResponse<{ orderId: string; requiresSteamOverlay: boolean; status: string }>> {
-  const res = await fetch("/api/mtx/init-purchase", {
+  const res = await fetch(`${API_BASE}/api/mtx/init-purchase`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -152,7 +182,7 @@ export async function finalizePurchase(params: {
   steamId: string;
   orderId: string;
 }): Promise<MtxApiResponse<{ status: string }>> {
-  const res = await fetch("/api/mtx/finalize-purchase", {
+  const res = await fetch(`${API_BASE}/api/mtx/finalize-purchase`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -165,7 +195,7 @@ export async function checkPurchaseStatus(params: {
   steamId: string;
   orderId?: string;
 }): Promise<MtxApiResponse<{ orderId: string; status: string; itemId?: number; amountInCents?: number }>> {
-  const res = await fetch("/api/mtx/check-purchase", {
+  const res = await fetch(`${API_BASE}/api/mtx/check-purchase`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -175,7 +205,7 @@ export async function checkPurchaseStatus(params: {
 
 /** 验证用户可靠性 */
 export async function verifyUser(steamId: string): Promise<MtxApiResponse<{ isReliable: boolean; steamId: string }>> {
-  const res = await fetch("/api/mtx/verify-user", {
+  const res = await fetch(`${API_BASE}/api/mtx/verify-user`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ steamId }),
@@ -206,7 +236,7 @@ export async function grantItems(params: {
   itemId: number;
   quantity?: number;
 }): Promise<MtxApiResponse<GrantResult>> {
-  const res = await fetch("/api/mtx/grant", {
+  const res = await fetch(`${API_BASE}/api/mtx/grant`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -216,7 +246,7 @@ export async function grantItems(params: {
 
 /** 回收权益（退款/拒付时调用） */
 export async function revokeGrant(orderId: string): Promise<MtxApiResponse<{ orderId: string; type: string; payload: GrantPayload }>> {
-  const res = await fetch("/api/mtx/revoke", {
+  const res = await fetch(`${API_BASE}/api/mtx/revoke`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orderId }),

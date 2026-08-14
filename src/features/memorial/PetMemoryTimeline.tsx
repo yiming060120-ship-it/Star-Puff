@@ -33,10 +33,10 @@ const PERSONALITY_TAGS_POOL = [
 ];
 
 const PRESET_MEM_IMAGES = [
-  "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=200",
-  "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=200",
-  "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&q=80&w=200",
-  "https://images.unsplash.com/photo-1522850959516-58f958dde2c1?auto=format&fit=crop&q=80&w=200"
+  "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
+  "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
+  "/assets/images/unsplash/1585110396000-c9ffd4e4b308.jpg",
+  "/assets/images/unsplash/1522850959516-58f958dde2c1.jpg"
 ];
 
 export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdateTags, triggerToast }: PetMemoryTimelineProps) {
@@ -47,14 +47,14 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
       date: "2025-05-12",
       title: "第一次正式回到家 🏠",
       content: "那时候还是那么小小一只，在纸箱里瑟瑟发抖。但只要用手指蹭两下你湿漉漉的小鼻子，你就急切地开始舔我的掌心。那一瞬间，我们建立了契约。",
-      image: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=200"
+      image: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg"
     },
     {
       id: "seed_2",
       date: "2025-11-20",
       title: "打翻了我的红茶杯 ☕",
       content: "明明是你干的坏事，却理直气壮在茶杯旁边滚来滚去。看着地毯上蔓延的茶渍，和满脚红茶印还大摇大摆叫唤的你，真是让人又爱又气。",
-      image: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=200"
+      image: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg"
     }
   ];
 

@@ -22,7 +22,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_sofa_sun",
     title: "沙发阳光下的呼噜午后",
-    image: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
     icon: "🌸",
     category: "猫",
     descriptionTemplate: (petName, ownerName) => 
@@ -31,7 +31,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_rainy_paw",
     title: "雨天归途与泥巴印章",
-    image: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
     icon: "🌧️",
     category: "狗",
     descriptionTemplate: (petName, ownerName) => 
@@ -40,7 +40,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_lettuce_snack",
     title: "厨房菜叶的一场小窃",
-    image: "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1585110396000-c9ffd4e4b308.jpg",
     icon: "🥬",
     category: "兔",
     descriptionTemplate: (petName, ownerName) => 
@@ -49,7 +49,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_shoulder_clock",
     title: "肩膀上的拂晓闹铃",
-    image: "https://images.unsplash.com/photo-1522850959516-58f958dde2c1?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1522850959516-58f958dde2c1.jpg",
     icon: "🌅",
     category: "鸟",
     descriptionTemplate: (petName, ownerName) => 
@@ -58,7 +58,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_palm_sunflower",
     title: "掌心毛毛球的葵心温存",
-    image: "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1425082661705-1834bfd09dca.jpg",
     icon: "🌻",
     category: "仓鼠",
     descriptionTemplate: (petName, ownerName) => 
@@ -67,7 +67,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_deskside_watcher",
     title: "熬夜书桌旁的黑夜伙伴",
-    image: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1518791841217-8f162f1e1131.jpg",
     icon: "💻",
     category: "通用",
     descriptionTemplate: (petName, ownerName) => 
@@ -76,7 +76,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_first_meet",
     title: "初次相见的悸动礼赞",
-    image: "https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1517849845537-4d257902454a.jpg",
     icon: "🤝",
     category: "通用",
     descriptionTemplate: (petName, ownerName) => 

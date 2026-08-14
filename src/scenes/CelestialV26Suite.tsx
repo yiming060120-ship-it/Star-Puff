@@ -161,10 +161,10 @@ export default function CelestialV26Suite({
 
     // Generate 4 mock angles with pixel styling
     setGeneratePreviews([
-      "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=200", // Angle 1 (front)
-      "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&q=80&w=200", // Angle 2 (lateral)
-      "https://images.unsplash.com/photo-1537151625747-768eb6cf92b2?auto=format&fit=crop&q=80&w=200", // Angle 3 (playful)
-      "https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&q=80&w=200"  // Angle 4 (celestial)
+      "/assets/images/unsplash/1543466835-00a7907e9de1.jpg", // Angle 1 (front)
+      "/assets/images/unsplash/1583511655857-d19b40a7a54e.jpg", // Angle 2 (lateral)
+      "/assets/images/unsplash/1537151625747-768eb6cf92b2.jpg", // Angle 3 (playful)
+      "/assets/images/unsplash/1517849845537-4d257902454a.jpg"  // Angle 4 (celestial)
     ]);
   };
 
@@ -234,9 +234,9 @@ export default function CelestialV26Suite({
   // 3. 现实场景融合 3D 纪念 (2.4) state and logic
   // ------------------------------------------------------------------
   const [scenes, setScenes] = useState<Array<{ id: string; name: string; img: string }>>([
-    { id: "living_room", name: "温馨暖烘烘客厅", img: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=400" },
-    { id: "park", name: "微风下的阳光公园", img: "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?auto=format&fit=crop&q=80&w=400" },
-    { id: "bedroom", name: "寂静落雨卧室", img: "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=400" }
+    { id: "living_room", name: "温馨暖烘烘客厅", img: "/assets/images/unsplash/1586023492125-27b2c045efd7.jpg" },
+    { id: "park", name: "微风下的阳光公园", img: "/assets/images/unsplash/1519331379826-f10be5486c6f.jpg" },
+    { id: "bedroom", name: "寂静落雨卧室", img: "/assets/images/unsplash/1505691938895-1758d7feb511.jpg" }
   ]);
   const [activeSceneId, setActiveSceneId] = useState("living_room");
   const [customSceneUploaded, setCustomSceneUploaded] = useState<string | null>(null);

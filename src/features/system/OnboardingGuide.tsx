@@ -20,7 +20,7 @@ const GUIDE_STEPS = [
     targetText: "开始星云之旅",
     highlightId: "welcome",
     actionDesc: "了解如何照料你的宠物星尘",
-    image: "https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?auto=format&fit=crop&q=80&w=300"
+    image: "/assets/images/unsplash/1506318137071-a8e063b4bec0.jpg"
   },
   {
     title: "🐾 第一步：星尘默影与暖心互动 🐾",
@@ -28,7 +28,7 @@ const GUIDE_STEPS = [
     targetText: "我知道了，去试一下",
     highlightId: "pet-canvas",
     actionDesc: "点击默影获取温存日记",
-    image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=300"
+    image: "/assets/images/unsplash/1451187580459-43490279c0fa.jpg"
   },
   {
     title: "🍬 第二步：星海投喂与心情系统 🍬",
@@ -36,7 +36,7 @@ const GUIDE_STEPS = [
     targetText: "下一引导",
     highlightId: "profile-reconstruct-3d-panel",
     actionDesc: "投喂不仅能提高活跃，还会增加它的呼吸感",
-    image: "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&q=80&w=300"
+    image: "/assets/images/unsplash/1534447677768-be436bb09401.jpg"
   },
   {
     title: "🪐 第三步：大世界星云自由漫步 🪐",
@@ -44,7 +44,7 @@ const GUIDE_STEPS = [
     targetText: "太期待了！",
     highlightId: "galaxy-btn",
     actionDesc: "极速漫步星宿",
-    image: "https://images.unsplash.com/photo-1518546305927-5a555bb7020d?auto=format&fit=crop&q=80&w=300"
+    image: "/assets/images/unsplash/1518546305927-5a555bb7020d.jpg"
   },
   {
     title: "🏅 任务与 3D 重建：新星勋章! 🏅",
@@ -52,7 +52,7 @@ const GUIDE_STEPS = [
     targetText: "点亮命星，开始陪伴",
     highlightId: "finish",
     actionDesc: "完成仪式，获得 100 币奖励",
-    image: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&q=80&w=300"
+    image: "/assets/images/unsplash/1446776811953-b23d57bd21aa.jpg"
   }
 ];
 

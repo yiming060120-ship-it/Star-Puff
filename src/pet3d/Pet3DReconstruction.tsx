@@ -10,6 +10,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { PetConfig, Pet3DModelConfig, PetType } from "../types";
 import { playSound } from "../audio/AudioSynth";
+import { ACHIEVEMENTS, unlock } from "../steam/achievements";
 import { 
   Upload, Camera, HelpCircle, AlertCircle, Cpu, Zap, Rotate3d, 
   Compass, RefreshCw, ZoomIn, Eye, Heart, Check, Download, Layers, ShieldCheck
@@ -25,25 +26,25 @@ const PRESET_SAMPLES = [
   {
     name: "星蒲 (Puff Cream Cat)",
     type: "猫" as PetType,
-    url: "https://images.unsplash.com/photo-1574158622643-69d34d72650a?auto=format&fit=crop&q=80&w=500",
+    url: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
     color: "#fad0a3"
   },
   {
     name: "治愈金毛犬 (Golden Retriever)",
     type: "狗" as PetType,
-    url: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=500",
+    url: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
     color: "#e6b02a"
   },
   {
     name: "害羞小萌兔 (Lop-Ear Rabbit)",
     type: "兔" as PetType,
-    url: "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&q=80&w=500",
+    url: "/assets/images/unsplash/1585110396000-c9ffd4e4b308.jpg",
     color: "#b099fc"
   },
   {
     name: "机智小玄凤 (Cute Cockatiel)",
     type: "鸟" as PetType,
-    url: "https://images.unsplash.com/photo-1522850959516-58f958dde2c1?auto=format&fit=crop&q=80&w=500",
+    url: "/assets/images/unsplash/1522850959516-58f958dde2c1.jpg",
     color: "#2edcc8"
   }
 ];
@@ -1136,7 +1137,8 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     setGltfLoadProgress(0);
 
     const loader = new GLTFLoader();
-    const catModelUrl = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Cat/glTF/Cat.gltf';
+    // 原 Khronos Cat.gltf 外链已失效（raw.githubusercontent 不可达），改用本地主宠物模型
+    const catModelUrl = '/models/pet.glb';
 
     let catModel: THREE.Group | null = null;
     let mixer: THREE.AnimationMixer | null = null;
@@ -1383,6 +1385,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
   const handleApplyToPet = () => {
     if (!reconstructedModel) return;
     onSync3DModelToPet(reconstructedModel);
+    void unlock(ACHIEVEMENTS.first3dReconstruct);
     triggerToast(`💖 3D 全息体骨骼和动作配置已被同步给星枢家园的【${targetName}】！`);
     playSound("success");
   };

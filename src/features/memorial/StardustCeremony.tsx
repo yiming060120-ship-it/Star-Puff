@@ -14,28 +14,28 @@ const PRESET_PETS = [
     type: "狗" as PetType,
     breed: "萨摩耶",
     colors: ["#ffffff", "#f0e6ef", "#a3b18a", "#000000"],
-    img: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&q=80&w=200",
+    img: "/assets/images/unsplash/1548199973-03cce0bbc87b.jpg",
   },
   {
     name: "星蒲",
     type: "猫" as PetType,
     breed: "英短乳白",
     colors: ["#fad0a3", "#ffffff", "#8fa4b3", "#ff8ba7"],
-    img: "https://images.unsplash.com/photo-1574158622643-69d34d72650a?auto=format&fit=crop&q=80&w=200",
+    img: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
   },
   {
     name: "跳跳",
     type: "兔" as PetType,
     breed: "侏儒兔",
     colors: ["#deb887", "#f5deb3", "#fff0f5", "#a9a9a9"],
-    img: "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&q=80&w=200",
+    img: "/assets/images/unsplash/1585110396000-c9ffd4e4b308.jpg",
   },
   {
     name: "豆豆",
     type: "鸟" as PetType,
     breed: "玄凤鹦鹉",
     colors: ["#ffea00", "#ffffff", "#ff9100", "#757575"],
-    img: "https://images.unsplash.com/photo-1452570053594-1b985d6ea890?auto=format&fit=crop&q=80&w=200",
+    img: "/assets/images/unsplash/1452570053594-1b985d6ea890.jpg",
   },
 ];
 

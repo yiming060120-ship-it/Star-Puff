@@ -32,10 +32,13 @@ import CelestialV26Suite from "./scenes/CelestialV26Suite";
 import MemorialZone from "./features/memorial/MemorialZone";
 import ResonanceSystem from "./features/social/ResonanceSystem";
 import NotificationSettings from "./features/system/NotificationSettings";
+import AiSettings from "./features/system/AiSettings";
 import { playSound } from "./audio/AudioSynth";
 import { localDateString } from "./utils/date";
 import { sendChatMessage, generateWhispers } from "./api";
 import { useMicrotransaction, applyGrantToUser, type PurchaseFlowState } from "./hooks/useMicrotransaction";
+import { useSteam } from "./hooks/useSteam";
+import { ACHIEVEMENTS, unlock } from "./steam/achievements";
 import type { GrantPayload } from "./api";
 import {
   getCompanionState,
@@ -49,6 +52,7 @@ import {
   LOGIN_DAILY_BONUS,
 } from "./data/companionEnergy";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { flushSaveToDisk } from "./persistence/saveManager";
 import {
   Sparkles,
   Heart,
@@ -235,6 +239,21 @@ export default function App() {
   // Tabs: "home" (Stardust Home), "galaxy" (Nebula Gate), "community" (See Star People), "store" (Base Shop), "profile" (VIP/Dossier/Inventory)
   const [activeTab, setActiveTab] = useState<"home" | "galaxy" | "community" | "store" | "profile" | "v26_suite">("home");
 
+  // 持久化：周期全量快照 → userData/save.json；窗口关闭/卸载前立即 flush，防崩档丢进度
+  useEffect(() => {
+    const flush = () => {
+      void flushSaveToDisk();
+    };
+    const timer = setInterval(flush, 5000);
+    window.addEventListener("beforeunload", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("beforeunload", flush);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, []);
+
   // User details with localStorage persistence
   const [user, setUser] = useState<StarPuffUser>(() => {
     const local = localStorage.getItem("starpuff_user");
@@ -292,8 +311,9 @@ export default function App() {
     return defaultVal;
   });
 
-  // Steam 用户 ID（内购用）。测试环境使用占位 ID，接入真实 Steam 时替换为登录态获取的 ID。
-  const [steamId] = useState<string>(() => {
+  // Steam 用户 ID（内购用）。优先取 Steamworks 登录态的真实 ID，离线时用本地稳定占位 ID 便于联调。
+  const steamStatus = useSteam();
+  const [steamId, setSteamId] = useState<string>(() => {
     const local = localStorage.getItem("starpuff_steam_id");
     if (local) return local;
     // 生成一个稳定的本地测试 ID，便于开发联调
@@ -301,6 +321,23 @@ export default function App() {
     localStorage.setItem("starpuff_steam_id", generated);
     return generated;
   });
+  useEffect(() => {
+    if (steamStatus.steamId && steamStatus.steamId !== steamId) {
+      setSteamId(steamStatus.steamId);
+      localStorage.setItem("starpuff_steam_id", steamStatus.steamId);
+    }
+  }, [steamStatus.steamId]);
+
+  // Steam 成就：累计型条件检查（幂等，Steam 不可用时静默跳过）
+  useEffect(() => {
+    if (!steamStatus.available) return;
+    const coins = user.stardustCoins ?? 0;
+    if (coins >= 1000) void unlock(ACHIEVEMENTS.coins1000);
+    if ((user.streakDays ?? 0) >= 7) void unlock(ACHIEVEMENTS.sevenDayStreak);
+    const maxLevel = Math.max(1, ...(user.allPets ?? []).map((p) => p.level ?? 1));
+    if (maxLevel >= 10) void unlock(ACHIEVEMENTS.petLevel10);
+    if ((user.allPets ?? []).length >= 2) void unlock(ACHIEVEMENTS.multiPets);
+  }, [user, steamStatus.available]);
 
   // 内购流程状态（用于 UI 反馈）
   const [purchaseState, setPurchaseState] = useState<PurchaseFlowState>({
@@ -317,6 +354,7 @@ export default function App() {
     } else {
       triggerToast(`👑 会员开通成功！${payload.membershipLevel === "vip_year" ? "年卡" : "月卡"}权益即刻生效`);
     }
+    void unlock(ACHIEVEMENTS.firstPurchase);
     playSound("success");
   };
 
@@ -576,7 +614,7 @@ export default function App() {
         id: "w_seed",
         date: "2026-05-21",
         content: "主人，昨天我漫步到了织女星小镇，找了个全是星光粒子的松软角落踩了很久。这里的温度刚刚好，像你以前抱我的胸口。虽然猫咪变成了星尘，但我还是会在你每次叹气的时候，悄悄用尾毛拂过你的指尖。要在人间好好生活，不许因为我偷哭哦。",
-        coverImage: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=300",
+        coverImage: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
         likes: 12,
         hasLiked: false,
         comments: [
@@ -999,6 +1037,7 @@ export default function App() {
         lastCheckInDate: todayString
       };
     });
+    void unlock(ACHIEVEMENTS.firstCheckIn);
   };
 
   const handleSelectPet = (pet: PetConfig) => {
@@ -1108,7 +1147,7 @@ export default function App() {
         id: `w_lowenergy_${Date.now()}`,
         date: localDateString(),
         content: text,
-        coverImage: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=300",
+        coverImage: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
         likes: 0,
         hasLiked: false,
         comments: [],
@@ -1135,11 +1174,12 @@ export default function App() {
       });
 
       if (data.success && data.whispers && data.whispers.length > 0) {
+        void unlock(ACHIEVEMENTS.firstWhisper);
         // Mix custom illustration pixel cards depending on nature of event
         const presetCoverImages = [
-          "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=300",
-          "https://images.unsplash.com/photo-1544085311-11a028465b03?auto=format&fit=crop&q=80&w=300",
-          "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&q=80&w=300",
+          "/assets/images/unsplash/1579783900882-c0d3dad7b119.jpg",
+          "/assets/images/unsplash/1544085311-11a028465b03.jpg",
+          "/assets/images/unsplash/1620641788421-7a1c342ea42e.jpg",
         ];
 
         const newlyReceived: PetWhisper[] = data.whispers.map((txt: string, index: number) => ({
@@ -1176,7 +1216,7 @@ export default function App() {
         id: `w_fallback_${Date.now()}`,
         date: localDateString(),
         content: `${user.ownerName}，不要为我难过。我昨天又在星尘小镇睡了个温暖的午觉，梦里满是你在夕阳下拉着我散步的香甜味道。我已经学会了在大世界踏波浪，所有的别的小动物都在羡慕我身上的微光呢。要替我好好吃饭、开心大笑！`,
-        coverImage: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=300",
+        coverImage: "/assets/images/unsplash/1579783900882-c0d3dad7b119.jpg",
         likes: 3,
         hasLiked: false,
         comments: []
@@ -2366,6 +2406,8 @@ export default function App() {
                         在这里探看您的小家犬/小宝贝档案详情、管理已解锁外观。同时提供直购的高级AI数媒定制纪念包服务。
                       </p>
                     </div>
+
+                    <AiSettings triggerToast={triggerToast} />
 
                     {/* Pet Details Panel */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
