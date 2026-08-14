@@ -79,8 +79,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const threeCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [useReal3D, setUseReal3D] = useState<boolean>(true);
-  const useReal3DRef = useRef(true);
+  // 默认显示 2D 像素形象（治愈像素风），玩家可点「WebGL 高精实体」切换 3D
+  const [useReal3D, setUseReal3D] = useState<boolean>(false);
+  const useReal3DRef = useRef(false);
   const animationRef = useRef<number | null>(null);
 
   // 沉睡状态 ref（由 petConfig.isSleeping 驱动，供 rAF 主循环读取）
