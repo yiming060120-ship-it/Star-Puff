@@ -1218,6 +1218,12 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     }> = [];
 
     const mainLoop = () => {
+      // 3D 模式下跳过 2D 绘制（节省性能），但仍保持 rAF 循环以便切回
+      if (useReal3DRef.current) {
+        animationRef.current = requestAnimationFrame(mainLoop);
+        return;
+      }
+
       // Update interactive gesture timers and parameters
       if (activeGestureRef.current) {
         gestureTimer.current--;
@@ -3883,7 +3889,17 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
         {/* The interactive main drawing viewport */}
         <div className="relative flex justify-center bg-black overflow-hidden group">
-          <div className="w-full h-[320px] relative">
+          {/* 2D 核心渲染画布（含天气系统、情绪动画等旧版配件） */}
+          <canvas
+            ref={canvasRef}
+            width={900}
+            height={640}
+            className="w-full h-[320px] cursor-pointer select-none border-b border-white/5"
+            style={{ display: useReal3D ? "none" : "block" }}
+          />
+
+          {/* 3D WebGL 高精实体渲染画布 */}
+          <div className="w-full h-[320px] relative" style={{ display: useReal3D ? "block" : "none" }}>
             <Canvas
               className="w-full h-full cursor-pointer select-none border-b border-white/5 transition-transform duration-100"
               id="rendering-canvas-viewport"
