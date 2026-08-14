@@ -2443,8 +2443,8 @@ export default function App() {
                     {/* RECHARGE STARDUST COINS */}
                     <div className="bg-[#1c133a]/30 border border-purple-500/20 p-5 rounded-2xl space-y-4">
                       <div>
-                        <h4 className="text-xs font-bold text-purple-400 flex items-center gap-1.5 uppercase font-sans">
-                          💎 3、星尘币虚拟银行充能中心
+                        <h4 className="text-xs font-bold text-purple-400 flex items-center gap-1.5 font-sans">
+                          💎 3、星尘币 · 星光充值站
                         </h4>
                         <p className="text-[10px] text-gray-400">
                           汇率: 1元人民币 = 50星尘币。首充任意档位，基础币数翻倍（赠送同额绑定币）！
@@ -2492,11 +2492,11 @@ export default function App() {
                 {activeTab === "profile" && (
                   <div className="flex-1 flex flex-col space-y-6" id="view-profile">
                     <div className="border-b border-white/5 pb-3">
-                      <h3 className="text-sm font-semibold text-white flex items-center gap-1.5 animate-pulse">
-                        🛡️ 家长档案储藏 & 付费增值服务
+                      <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                        🛡️ 我的星尘家园 · 珍贵回忆
                       </h3>
                       <p className="text-[10px] text-gray-400 mt-0.5">
-                        在这里探看您的小家犬/小宝贝档案详情、管理已解锁外观。同时提供直购的高级AI数媒定制纪念包服务。
+                        这里珍藏着你的小宝贝的所有回忆，管理它的外观，还能为它定制专属的纪念。
                       </p>
                     </div>
 
@@ -2506,8 +2506,8 @@ export default function App() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Left: General metadata card */}
                       <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-                        <span className="text-[10px] uppercase tracking-widest text-[#ef476f] font-mono block">
-                          ★ 默魂登记记录册
+                        <span className="text-[10px] tracking-wide text-[#ef476f] font-sans block">
+                          ★ 小天使的登记册
                         </span>
 
                         <div className="space-y-2 text-xs">
