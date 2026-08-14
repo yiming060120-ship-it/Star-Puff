@@ -1,55 +1,55 @@
 [
   {
     "id": 100,
-    "name": "星尘币 ×600",
-    "description": "首充特惠：600 枚星尘币",
-    "priceInCents": 99,
-    "currency": "USD",
+    "name": "星尘币 ×180",
+    "description": "首充特惠：180 枚星尘币",
+    "priceInCents": 700,
+    "currency": "CNY",
     "category": "stardust_coins",
-    "coins": 600
+    "coins": 180
   },
   {
     "id": 101,
+    "name": "星尘币 ×500",
+    "description": "500 枚星尘币（含 30 加赠）",
+    "priceInCents": 1200,
+    "currency": "CNY",
+    "category": "stardust_coins",
+    "coins": 500
+  },
+  {
+    "id": 102,
     "name": "星尘币 ×1000",
     "description": "1000 枚星尘币（含 100 加赠）",
-    "priceInCents": 299,
-    "currency": "USD",
+    "priceInCents": 2200,
+    "currency": "CNY",
     "category": "stardust_coins",
     "coins": 1000
   },
   {
-    "id": 102,
-    "name": "星尘币 ×1750",
-    "description": "1750 枚星尘币（含 250 加赠）",
-    "priceInCents": 399,
-    "currency": "USD",
-    "category": "stardust_coins",
-    "coins": 1750
-  },
-  {
     "id": 103,
-    "name": "星尘币 ×4000",
-    "description": "4000 枚星尘币（含 600 加赠）",
-    "priceInCents": 899,
-    "currency": "USD",
+    "name": "星尘币 ×2200",
+    "description": "2200 枚星尘币（含 300 加赠）",
+    "priceInCents": 4500,
+    "currency": "CNY",
     "category": "stardust_coins",
-    "coins": 4000
+    "coins": 2200
   },
   {
     "id": 104,
-    "name": "星尘币 ×8000",
-    "description": "8000 枚星尘币（含 1600 加赠）",
-    "priceInCents": 1699,
-    "currency": "USD",
+    "name": "星尘币 ×4500",
+    "description": "4500 枚星尘币（含 700 加赠）",
+    "priceInCents": 8800,
+    "currency": "CNY",
     "category": "stardust_coins",
-    "coins": 8000
+    "coins": 4500
   },
   {
     "id": 200,
     "name": "VIP 月度会员",
     "description": "30 天 VIP 权益：无限对话、每日双倍耳语、专属装扮",
-    "priceInCents": 299,
-    "currency": "USD",
+    "priceInCents": 2500,
+    "currency": "CNY",
     "category": "membership",
     "tier": "vip_month"
   },
@@ -57,8 +57,8 @@
     "id": 201,
     "name": "VIP 年度会员",
     "description": "365 天 VIP 权益：无限对话、每日三倍耳语、全套专属装扮、优先新功能体验",
-    "priceInCents": 2499,
-    "currency": "USD",
+    "priceInCents": 12800,
+    "currency": "CNY",
     "category": "membership",
     "tier": "vip_year"
   }
