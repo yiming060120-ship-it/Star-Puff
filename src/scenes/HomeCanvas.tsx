@@ -1365,6 +1365,17 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         ctx.fill();
         ctx.restore();
 
+        // 明确的沉睡提示文字，避免玩家误以为 2D 形象消失
+        ctx.save();
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = "#c8c8ff";
+        ctx.font = "16px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("💤 星宠正在沉睡…", canvas.width / 2, canvas.height / 2 - 60);
+        ctx.fillText("用「星尘唤醒剂」唤醒它 ✨", canvas.width / 2, canvas.height / 2 - 36);
+        ctx.restore();
+
         frame++;
         animationRef.current = requestAnimationFrame(mainLoop);
         return;
