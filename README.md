@@ -34,6 +34,8 @@ npm run lint                # 类型检查（tsc --noEmit，提交前必过）
 npm run build && npm start  # 生产构建并运行
 ```
 
+注意：项目新增原生依赖 `better-sqlite3`，Windows 上需本机构建工具链或在 CI/构建机中预构建二进制。建议在开发机上运行 `npm install` 前确认已安装 Visual Studio Build Tools。CI 推荐使用 Node 22 环境。 
+
 > 工程诚实性声明：`npm run lint` 是本地最低验证门槛；任何"已完成"的功能声明都必须以通过类型检查并能实际运行 `npm run dev` 为前提。
 
 ---

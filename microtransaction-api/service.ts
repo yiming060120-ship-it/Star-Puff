@@ -84,21 +84,30 @@ async function callSteamApi<T>(
   method: "GET" | "POST" = "POST",
   body?: Record<string, unknown>
 ): Promise<T> {
-  const url = `${STEAM_API_BASE}${endpoint}?key=${config.webApiKey}`;
+  // Build URL and parameters. For GET requests we must append params to the URL;
+  // for POST requests send as application/x-www-form-urlencoded body.
+  let url = `${STEAM_API_BASE}${endpoint}`;
 
-  const options: RequestInit = {
-    method,
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  };
+  const params = new URLSearchParams();
+  if (config.webApiKey) {
+    params.append("key", config.webApiKey);
+  }
 
   if (body) {
-    const params = new URLSearchParams();
     for (const [key, value] of Object.entries(body)) {
       params.append(key, String(value));
     }
-    if (method === "POST") {
-      options.body = params.toString();
-    }
+  }
+
+  const options: RequestInit = { method };
+
+  if (method === "GET") {
+    const q = params.toString();
+    if (q) url += `?${q}`;
+  } else {
+    // POST
+    options.headers = { "Content-Type": "application/x-www-form-urlencoded" };
+    options.body = params.toString();
   }
 
   const response = await fetch(url, options);

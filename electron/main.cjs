@@ -11,6 +11,13 @@ if (process.env.ELECTRON_RUN_AS_NODE) {
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");
+// keytar: optional native module for secure OS credential storage
+let keytar = null;
+try {
+  keytar = require("keytar");
+} catch (e) {
+  keytar = null;
+}
 
 // 诊断日志：Windows GUI 程序无 stdout，设置 STARPUFF_LOG 后把 console 同时写入文件，
 // 便于排查打包态/安装后的问题（发布后用户反馈也靠它）
@@ -58,6 +65,46 @@ function writeConfig(cfg) {
   }
 }
 
+// Keytar-backed secure storage for Gemini API key (preferred).
+const KEYTAR_SERVICE = "StarPuff";
+const KEYTAR_ACCOUNT = "gemini_api_key";
+
+async function getStoredGeminiKey() {
+  if (keytar) {
+    try {
+      const v = await keytar.getPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT);
+      if (v) return v;
+    } catch (e) {
+      console.warn("[keytar] getPassword failed:", e?.message ?? e);
+    }
+  }
+  // fallback to local config file (legacy)
+  try {
+    return readConfig().geminiApiKey ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function setStoredGeminiKey(key) {
+  if (keytar) {
+    try {
+      if (key) await keytar.setPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT, String(key));
+      else await keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT);
+    } catch (e) {
+      console.warn("[keytar] setPassword/deletePassword failed:", e?.message ?? e);
+    }
+  }
+  // also persist to config.json for compatibility
+  try {
+    const cfg = readConfig();
+    cfg.geminiApiKey = String(key ?? "");
+    writeConfig(cfg);
+  } catch (e) {
+    console.warn("[config] writeConfig fallback failed:", e?.message ?? e);
+  }
+}
+
 // 内嵌启动后端
 let serverModule = null; // require 到的 server.cjs，供 setGeminiApiKey 等模块级函数调用
 async function startEmbeddedServer() {
@@ -71,10 +118,14 @@ async function startEmbeddedServer() {
     : path.join(__dirname, "..", "dist"); // 未打包时 electron/ 上级即项目根
 
   serverModule = require(path.join(distDir, "server.cjs"));
-  // 启动即应用已保存的 Gemini key（若有），实现重启后设置保留
-  const cfg = readConfig();
-  if (cfg.geminiApiKey && typeof serverModule.setGeminiApiKey === "function") {
-    serverModule.setGeminiApiKey(cfg.geminiApiKey);
+  // 启动即应用已保存的 Gemini key（优先从系统密钥链读取），实现重启后设置保留
+  try {
+    const stored = await getStoredGeminiKey();
+    if (stored && typeof serverModule.setGeminiApiKey === "function") {
+      serverModule.setGeminiApiKey(stored);
+    }
+  } catch (e) {
+    console.warn("[startup] 读取 Gemini key 失败：", e?.message ?? e);
   }
   await serverModule.startStarPuffServer({
     port: 0, // 随机端口，规避本地端口占用
@@ -227,12 +278,20 @@ ipcMain.handle("steam:cloud-read", async (_e, name) => {
 });
 
 // 配置 IPC：Gemini key 持久化到 userData/config.json，并立即应用到运行中的服务
-ipcMain.handle("config:getGeminiKey", async () => readConfig().geminiApiKey ?? "");
+ipcMain.handle("config:getGeminiKey", async () => {
+  try {
+    return await getStoredGeminiKey();
+  } catch (e) {
+    return readConfig().geminiApiKey ?? "";
+  }
+});
 ipcMain.handle("config:setGeminiKey", async (_e, key) => {
-  const cfg = readConfig();
-  cfg.geminiApiKey = String(key ?? "");
-  writeConfig(cfg);
-  if (serverModule?.setGeminiApiKey) serverModule.setGeminiApiKey(cfg.geminiApiKey);
+  try {
+    await setStoredGeminiKey(key);
+  } catch (e) {
+    console.warn("[config] setStoredGeminiKey failed:", e?.message ?? e);
+  }
+  if (serverModule?.setGeminiApiKey) serverModule.setGeminiApiKey(String(key ?? ""));
   return true;
 });
 

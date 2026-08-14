@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
-import { microtransactionRoutes, updateConfig } from "./microtransaction-api/index";
+import { microtransactionRoutes, updateConfig, getReport, getConfig, revokeGrant } from "./microtransaction-api/index";
 
 dotenv.config();
 
@@ -573,6 +573,46 @@ export async function startStarPuffServer(opts: StarPuffServerOptions = {}): Pro
     console.log(`StarPuff full-stack server running on http://localhost:${actualPort}`);
     onListening?.(actualPort);
   });
+
+  // 启动对账调度（首次运行后每 24 小时执行一次）
+  try {
+    const intervalMs = 24 * 3600 * 1000; // 24h
+    const runReport = async () => {
+      try {
+        const cfg = getConfig();
+        if (cfg.mockMode || !cfg.webApiKey) {
+          console.log("[report-scheduler] skipping: mockMode or missing webApiKey");
+          return;
+        }
+        const resp = await getReport({ type: "SETTLEMENT", maxResults: 500 });
+        if (!resp.success || !Array.isArray(resp.data)) return;
+        for (const rec of resp.data) {
+          const status = String(rec.status || "");
+          const orderid = String((rec as any).orderid || "");
+          if (!orderid) continue;
+          if (
+            status === "Refunded" ||
+            status === "Chargedback" ||
+            status.startsWith("Refunded")
+          ) {
+            try {
+              revokeGrant(orderid);
+              console.log(`[report-scheduler] revoked order ${orderid} due to status ${status}`);
+            } catch (e) {
+              console.warn("[report-scheduler] revokeGrant failed:", e?.message ?? e);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[report-scheduler] error:", e?.message ?? e);
+      }
+    };
+    // run immediately, then schedule
+    runReport().catch(() => {});
+    setInterval(() => runReport().catch(() => {}), intervalMs);
+  } catch (e) {
+    console.warn("[report-scheduler] init failed:", e?.message ?? e);
+  }
 }
 
 // 被 Electron 内嵌 require 时（设置了 STARPUFF_EMBEDDED=1）不自动启动；
