@@ -2507,106 +2507,95 @@ export default function App() {
                       </p>
                     </div>
 
-                    <AiSettings triggerToast={triggerToast} />
+                    {systemPlayMode === "god" && (
+                      <AiSettings triggerToast={triggerToast} />
+                    )}
 
                     {/* Pet Details Panel */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Left: General metadata card */}
-                      <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-                        <span className="text-[10px] tracking-wide text-[#ef476f] font-sans block">
-                          ★ 小天使的登记册
-                        </span>
-
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between border-b border-white/5 pb-1">
-                            <span className="text-gray-400">小天使昵称 :</span>
-                            <span className="text-white font-semibold">{user.activePet.name}</span>
+                      {/* Left: 宠物温暖卡片 */}
+                      <div className="bg-gradient-to-b from-[#1a1140]/70 to-[#120c2e]/70 border border-purple-400/20 rounded-2xl p-5 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-xl shadow-[0_0_20px_rgba(167,139,250,0.4)]">
+                            {user.activePet.type === "猫" ? "🐱" : user.activePet.type === "狗" ? "🐶" : user.activePet.type === "兔" ? "🐰" : "🐹"}
                           </div>
-                          <div className="flex justify-between border-b border-white/5 pb-1">
-                            <span className="text-gray-400">萌宠种属 :</span>
-                            <span className="text-white font-mono">{user.activePet.type} ({user.activePet.breed})</span>
-                          </div>
-                          <div className="flex justify-between border-b border-white/5 pb-1">
-                            <span className="text-gray-400">家长(你)的称呼 :</span>
-                            <span className="text-white">{user.ownerName}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-white/5 pb-1">
-                            <span className="text-gray-400">离苏飞升日 :</span>
-                            <span className="text-white font-mono">{user.activePet.passingDate}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">色彩主基底色 :</span>
-                            <div className="flex items-center gap-1">
-                              <span className="w-3.5 h-3.5 rounded border border-white/20" style={{ backgroundColor: user.activePet.primaryColor }} />
-                              <span className="text-white font-mono text-[10px]">{user.activePet.primaryColor}</span>
-                            </div>
+                          <div>
+                            <div className="text-base font-bold text-white">{user.activePet.name}</div>
+                            <div className="text-[11px] text-purple-300">{user.activePet.type} · {user.activePet.breed}</div>
                           </div>
                         </div>
 
-                        {/* Reset profile simulation */}
-                        <div className="pt-3 border-t border-white/5 flex justify-end">
+                        <div className="space-y-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 shrink-0">家长称呼</span>
+                            <span className="text-white">{user.ownerName}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 shrink-0">彩虹桥之日</span>
+                            <span className="text-white">{user.activePet.passingDate}</span>
+                          </div>
+                        </div>
+
+                        {/* Reset profile */}
+                        <div className="pt-2 border-t border-white/10 flex justify-end">
                           <button
                             onClick={() => {
-                              const proceed = window.confirm("⚠️【危险警告】\n您确定要抹除当前宠物的星谱档案吗？\n清除后，原2D粒子矩阵和历史日志都将彻底消逝，需要重新举行升星仪式。");
+                              const proceed = window.confirm("你确定要重新为小宝贝举行升星仪式吗？\n当前的小宝贝会化作星尘回到天际。");
                               if (proceed) {
                                 setUser(prev => ({ ...prev, activePet: null }));
                                 playSound("success");
-                                triggerToast("星尘已解体，默影重归天际，静待您再次召唤升星仪式。");
+                                triggerToast("小宝贝化作星尘回到天际了，随时欢迎为它再次举行升星仪式。");
                               }
                             }}
-                            className="text-red-400 hover:text-red-300 text-[9px] font-mono hover:underline"
+                            className="text-red-400/70 hover:text-red-300 text-[10px] hover:underline transition-colors"
                           >
-                            × 抹除数据重新举行仪式
+                            重新举行升星仪式
                           </button>
                         </div>
                       </div>
 
-                      {/* Right: Premium RMB direct pay options */}
-                      <div className="bg-indigo-950/20 border border-purple-500/20 rounded-xl p-4 flex flex-col justify-between">
+                      {/* Right: 纪念定制 */}
+                      <div className="bg-gradient-to-b from-[#1a1140]/50 to-[#120c2e]/50 border border-purple-400/15 rounded-2xl p-5 flex flex-col justify-between">
                         <div className="space-y-2">
-                          <span className="text-[10px] uppercase tracking-widest text-[#ffd166] font-mono block font-bold flex items-center gap-1">
-                            💎 RMB 尊享特惠增资定制专区
+                          <span className="text-[11px] font-bold text-amber-300 font-sans flex items-center gap-1.5">
+                            💎 专属纪念定制
                           </span>
-                          <p className="text-[10px] text-gray-300 leading-normal">
-                            以下功能属于高级线下数媒团队与服务器集群单独运算，采用实款直付渠道（不可使用星尘币折抵抵扣）。
+                          <p className="text-[10px] text-gray-400 leading-normal">
+                            为小宝贝定制一份独一无二的纪念，把回忆永远珍藏。
                           </p>
 
                           <div className="space-y-2.5 pt-1">
-                            <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 flex gap-2 items-center justify-between">
+                            <div className="bg-black/25 p-3 rounded-xl border border-white/5 flex gap-2 items-center justify-between">
                               <div>
-                                <span className="text-xs font-semibold text-white">1. AI 纪念视频大礼包</span>
-                                <p className="text-[9px] text-gray-400 leading-tight">
-                                  整理宠物生前留影照片 + 星云像素专属场景，生成15秒微缩温暖像素纪念短片
+                                <span className="text-xs font-semibold text-white">纪念短片</span>
+                                <p className="text-[9px] text-gray-400 leading-tight mt-0.5">
+                                  把它的照片做成 15 秒温暖纪念短片
                                 </p>
                               </div>
                               <button
                                 onClick={() => handleBuyPremiumService("AI 纪念视频包", 29.9)}
-                                className="bg-[#f72585] hover:bg-[#b5179e] text-white font-bold text-[9px] px-2.5 py-1.5 rounded shrink-0"
+                                className="bg-[#f72585] hover:bg-[#b5179e] text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all hover:scale-105 active:scale-95"
                               >
-                                ￥29.9/次
+                                ￥29.9
                               </button>
                             </div>
 
-                            <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 flex gap-2 items-center justify-between">
+                            <div className="bg-black/25 p-3 rounded-xl border border-white/5 flex gap-2 items-center justify-between">
                               <div>
-                                <span className="text-xs font-semibold text-white">2. 高级小窝同源数字孪主</span>
-                                <p className="text-[9px] text-gray-400 leading-tight">
-                                  支持上传多达5张生前生活小窝照片，由AI高保真智能绘制还原成暖洋小窝像素地插
+                                <span className="text-xs font-semibold text-white">小窝复刻</span>
+                                <p className="text-[9px] text-gray-400 leading-tight mt-0.5">
+                                  还原它生前的小窝，让熟悉的味道回来
                                 </p>
                               </div>
                               <button
                                 onClick={() => handleBuyPremiumService("高级小窝孪生", 19.9)}
-                                className="bg-[#4cc9f0] hover:bg-[#4361ee] text-slate-900 font-bold text-[9px] px-2.5 py-1.5 rounded shrink-0"
+                                className="bg-[#4cc9f0] hover:bg-[#4361ee] text-slate-900 font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all hover:scale-105 active:scale-95"
                               >
-                                ￥19.9/次
+                                ￥19.9
                               </button>
                             </div>
                           </div>
                         </div>
-
-                        <p className="text-[8px] text-slate-500 font-mono mt-3 text-center">
-                          * 均支持微信、支付宝全真机快捷拉起支付
-                        </p>
                       </div>
                     </div>
 
@@ -2617,7 +2606,7 @@ export default function App() {
                           🎒 2、3D 星尘重建 · 从照片唤醒它的模样
                         </span>
                         <p className="text-[9px] text-gray-400 mb-4 font-sans max-w-xl leading-normal">
-                          采用双目重建与像素外差插值，将宠物生前2D硬照/生活照，计算还原并生成高保真3D骨架点阵与器官节点。合成成功后将即刻作为3D拟态投射上传星谱，并可在【主页】控制台开启 🤖 3D全息 投影。
+                          上传它生前的照片，让小宝贝以 3D 星尘的模样重新回到你身边。合成后可在主页切换查看。
                         </p>
                         
                         <Pet3DReconstruction 
@@ -2646,8 +2635,8 @@ export default function App() {
                     )}
 
                     {/* Snacks interactive Feed bar */}
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                      <span className="text-[11px] font-bold text-gray-400 block mb-3 tracking-wide font-sans">
+                    <div className="bg-gradient-to-b from-[#1a1140]/60 to-[#120c2e]/60 border border-purple-400/15 rounded-2xl p-4">
+                      <span className="text-[11px] font-bold text-gray-300 block mb-3 tracking-wide font-sans">
                         🎒 3、随身零食小包 · 随时喂食
                       </span>
                       
@@ -2655,7 +2644,7 @@ export default function App() {
                         {SNACK_ITEMS.slice(0, 5).map(snack => {
                           const quantity = foodInventory[snack.id] || 0;
                           return (
-                            <div key={snack.id} className="bg-slate-950/40 p-3 rounded-lg border border-white/5 flex flex-col justify-between text-center">
+                            <div key={snack.id} className="bg-black/25 p-3 rounded-xl border border-white/10 flex flex-col justify-between text-center">
                               <div>
                                 <span className="text-[9px] text-slate-500 tracking-wide block font-sans">🍬 小零食</span>
                                 <span className="text-xs font-bold text-white block mt-1">{snack.name}</span>
@@ -2699,20 +2688,20 @@ export default function App() {
                         {/* Reset guiding instrument box */}
                         <div className="bg-[#110c2c]/85 border border-white/10 rounded-3xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
                           <div>
-                            <h4 className="text-xs font-bold text-white font-mono flex items-center gap-1.5">
-                              ✨ 想要重新温习星轨训练引导?
+                            <h4 className="text-xs font-bold text-white font-sans flex items-center gap-1.5">
+                              ✨ 想重新看看新手引导吗？
                             </h4>
-                            <p className="text-[10px] text-gray-400 mt-1">重置完毕后退出设置, 将立即拉起星云引航仪，重新展示灵魂照料流程。</p>
+                            <p className="text-[10px] text-gray-400 mt-1">重置后，星云引航仪会重新带你熟悉照顾小宝贝的每一步。</p>
                           </div>
                            <button
                             onClick={() => {
                               setUser(prev => ({ ...prev, onboardingCompleted: false }));
-                              triggerToast("💡 星轨引航仪已重置！退出设置后将立即拉起向导！");
+                              triggerToast("💡 新手引导已重置！下次进入将重新为你引路。");
                               playSound("success");
                             }}
-                            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md font-mono shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all text-center"
+                            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md font-sans shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all text-center"
                           >
-                            ⚙️ 重置新手引航
+                            重新体验引导
                           </button>
                         </div>
                       </div>
