@@ -33,6 +33,7 @@ import MemorialZone from "./features/memorial/MemorialZone";
 import ResonanceSystem from "./features/social/ResonanceSystem";
 import NotificationSettings from "./features/system/NotificationSettings";
 import AiSettings from "./features/system/AiSettings";
+import MtxLogPanel from "./features/system/MtxLogPanel";
 import { playSound } from "./audio/AudioSynth";
 import { localDateString } from "./utils/date";
 import { sendChatMessage, generateWhispers } from "./api";
@@ -2492,6 +2493,9 @@ export default function App() {
                         ))}
                       </div>
                     </div>
+
+                    {/* 微交易日志面板（测试/调试用） */}
+                    <MtxLogPanel />
                   </div>
                 )}
 
