@@ -19,6 +19,7 @@ import type { StarPuffUser } from "../types";
 import {
   initPurchase,
   finalizePurchase,
+  checkPurchaseStatus,
   grantItems,
   verifyUser,
   type GrantPayload,
@@ -86,22 +87,27 @@ export function useMicrotransaction(
         if (!init.success || !init.data) {
           return { status: "error", orderId: null, error: init.error || "初始化订单失败" };
         }
-        const { orderId, requiresSteamOverlay } = init.data;
+        const { orderId } = init.data;
 
-        // 3. 完成扣款（真实环境需等待 Steam 叠加层授权回调；
-        //    此处由前端在授权完成后调用 finalize）
+        // 3. 查询交易状态（等待 Steam 授权；家长控制等场景下回调可能不触发）
+        const status = await checkPurchaseStatus({ steamId, orderId });
+        if (!status.success) {
+          return { status: "error", orderId, error: status.error || "查询交易状态失败" };
+        }
+
+        // 4. 完成扣款（真实环境需等待 Steam 叠加层授权回调后调用 finalize）
         const finalize = await finalizePurchase({ steamId, orderId });
         if (!finalize.success) {
           return { status: "error", orderId, error: finalize.error || "完成购买失败" };
         }
 
-        // 4. 发放权益（幂等，后端会去重）
+        // 5. 发放权益（幂等，后端会去重）
         const grant = await grantItems({ orderId, steamId, itemId, quantity });
         if (!grant.success || !grant.data) {
           return { status: "error", orderId, error: grant.error || "发放权益失败" };
         }
 
-        // 5. 通知上层更新用户状态
+        // 6. 通知上层更新用户状态
         onGranted(grant.data.payload, orderId);
         return { status: "success", orderId, error: null };
       } catch (error: any) {

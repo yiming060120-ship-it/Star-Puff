@@ -1596,8 +1596,8 @@ export default function App() {
   };
 
   // 真实内购：订阅会员（itemId 对应 products.json 中的会员商品）
-  const handleSubscribeVip = async (tier: "month" | "year" | "trial") => {
-    // itemId 映射：200=月卡 201=年卡；trial 暂用月卡商品
+  const handleSubscribeVip = async (tier: "month" | "year") => {
+    // itemId 映射：200=月卡 201=年卡
     const itemId = tier === "year" ? 201 : 200;
     setPurchaseState({ status: "purchasing", orderId: null, error: null });
     const result = await runPurchase(itemId, 1);
@@ -2454,17 +2454,17 @@ export default function App() {
                           💎 3、星尘币 · 星光充值站
                         </h4>
                         <p className="text-[10px] text-gray-400">
-                          汇率: 1元人民币 = 50星尘币。首充任意档位，基础币数翻倍（赠送同额绑定币）！
+                          购买星尘币，为小宝贝补充陪伴能量，还能在商店兑换心仪的装扮和礼物。
                         </p>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         {[
-                          { itemId: 100, rmb: 6, coins: 600, rule: "首充特惠，充6元得600币！" },
-                          { itemId: 101, rmb: 18, coins: 1000, rule: "+100加赠，充18元得1000币" },
-                          { itemId: 102, rmb: 28, coins: 1750, rule: "+250加赠，极度合算" },
-                          { itemId: 103, rmb: 68, coins: 4000, rule: "+600加赠，中额超值" },
-                          { itemId: 104, rmb: 128, coins: 8000, rule: "赠多送多，尊享大满贯" }
+                          { itemId: 100, rmb: 7, coins: 180, rule: "首充特惠，180 枚星尘币" },
+                          { itemId: 101, rmb: 12, coins: 500, rule: "500 枚星尘币（含 30 加赠）" },
+                          { itemId: 102, rmb: 22, coins: 1000, rule: "1000 枚星尘币（含 100 加赠）" },
+                          { itemId: 103, rmb: 45, coins: 2200, rule: "2200 枚星尘币（含 300 加赠）" },
+                          { itemId: 104, rmb: 88, coins: 4500, rule: "4500 枚星尘币（含 700 加赠）" }
                         ].map((pkg, idx) => (
                           <div
                             key={idx}
@@ -2954,29 +2954,12 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* Option 1: Trial */}
-              <div className="bg-black/40 border border-slate-800 rounded-xl p-4 text-center space-y-1 flex flex-col justify-between">
-                <div>
-                  <span className="text-[10px] px-1.5 py-0.5 bg-[#ef476f]/20 text-[#ef476f] border border-[#ef476f]/20 rounded font-mono font-bold">限时尝鲜</span>
-                  <p className="text-xs font-semibold text-white mt-1.5">新客首月特惠</p>
-                  <div className="text-xl font-bold font-mono text-purple-300 mt-1">￥1.9/首月</div>
-                  <p className="text-[9px] text-gray-400 leading-tight mt-1 pt-1.5 border-t border-slate-900">享完整月卡权益，次月自动续费可取消</p>
-                </div>
-                <button
-                  onClick={() => handleSubscribeVip("trial")}
-                  disabled={purchaseState.status === "purchasing"}
-                  className="mt-2.5 w-full bg-[#ef476f] text-white text-[10px] font-bold py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {purchaseState.status === "purchasing" ? "开通中…" : "￥1.9 立即开通"}
-                </button>
-              </div>
-
-              {/* Option 2: Month Card */}
+              {/* Option 1: Month Card */}
               <div className="bg-black/40 border border-purple-500/20 rounded-xl p-4 text-center space-y-1 flex flex-col justify-between scale-105 shadow-[0_0_15px_rgba(123,97,255,0.1)]">
                 <div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 border border-yellow-500/20 rounded font-mono font-bold">主打守护</span>
                   <p className="text-xs font-semibold text-white mt-1.5">星云守护月卡</p>
-                  <div className="text-xl font-bold font-mono text-amber-300 mt-1">￥9.9/月</div>
+                  <div className="text-xl font-bold font-mono text-amber-300 mt-1">￥25/月</div>
                   <p className="text-[9px] text-gray-400 leading-tight mt-1 pt-1.5 border-t border-slate-900">
                     每日 3条 AI耳语<br />
                     主页对话无限次<br />
@@ -2988,16 +2971,16 @@ export default function App() {
                   disabled={purchaseState.status === "purchasing"}
                   className="mt-2.5 w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-[10px] font-bold py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {purchaseState.status === "purchasing" ? "订阅中…" : "￥9.9 订阅月卡"}
+                  {purchaseState.status === "purchasing" ? "订阅中…" : "￥25 订阅月卡"}
                 </button>
               </div>
 
-              {/* Option 3: Year Card */}
-              <div className="bg-black/40 border border-slate-800 rounded-xl p-4 text-center space-y-1 flex flex-col justify-between">
+              {/* Option 2: Year Card */}
+              <div className="bg-black/40 border border-cyan-500/20 rounded-xl p-4 text-center space-y-1 flex flex-col justify-between">
                 <div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded font-mono font-bold">至臻感恩</span>
                   <p className="text-xs font-semibold text-white mt-1.5">星云至尊年卡</p>
-                  <div className="text-xl font-bold font-mono text-cyan-200 mt-1">￥79/年</div>
+                  <div className="text-xl font-bold font-mono text-cyan-200 mt-1">￥128/年</div>
                   <p className="text-[9px] text-gray-400 leading-tight mt-1 pt-1.5 border-t border-slate-900">
                     月卡全部权益<br />
                     星尘商店 8折<br />
@@ -3009,7 +2992,7 @@ export default function App() {
                   disabled={purchaseState.status === "purchasing"}
                   className="mt-2.5 w-full bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] font-bold py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {purchaseState.status === "purchasing" ? "订购中…" : "￥79 订购年卡"}
+                  {purchaseState.status === "purchasing" ? "订购中…" : "￥128 订购年卡"}
                 </button>
               </div>
             </div>
