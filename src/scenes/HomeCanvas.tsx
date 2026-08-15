@@ -510,7 +510,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const detectTouchedPart = (x: number, y: number, canvasWidth: number, canvasHeight: number): "head" | "back" | "stomach" | "paws" | "tail" => {
     const cx = canvasWidth / 2;
     const cy = canvasHeight / 2 + 10;
-    const bodyR = 48;
+    const bodyR = 62;
 
     const headShiftX = cx;
     const headShiftY = cy - 30; // head is located 30px above body center
@@ -1934,8 +1934,8 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         ctx.restore();
       } else {
         // Dynamic variables for pet parts
-        const bodyR = 48;
-      const headR = 34;
+        const bodyR = 62;
+      const headR = 44;
 
       // Segment offsets matching character head turn
       const targetDX = mouseCoords.current.x - cx;
@@ -3710,7 +3710,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         const lLookDist = Math.min(10, Math.hypot(targetDX, targetDY) * 0.08);
         const lHeadOffsetX = Math.cos(lAngle) * lLookDist;
         const lHeadOffsetY = Math.sin(lAngle) * lLookDist - 30;
-        const lHeadR = 34;
+        const lHeadR = 44;
 
         const headXVal = cx + lHeadOffsetX * 0.35 + danceOffsetX.current + rollOffsetX;
         const headYVal = cy + lHeadOffsetY * 0.15 + danceOffsetY.current + jumpOffset.current + rollOffsetY - lHeadR * 1.15;
