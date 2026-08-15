@@ -1832,104 +1832,41 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
             </div>
           </div>
 
-          {/* New Section: Bone Motion Controller Panel & GLTF Export Panel */}
+          {/* New Section: GLTF Export Panel */}
           {reconstructedModel && (
             <div className="w-full bg-[#150a2f]/80 border border-purple-500/20 rounded-2xl p-4 space-y-4 shadow-xl">
               
-              {/* Dynamic bone actions trigger buttons list */}
+              {/* 导出操作按钮 */}
               <div className="space-y-2">
-                <span className="text-[10px] text-purple-300 font-mono block tracking-widest uppercase">
-                  🎬 骨骼核心动画驱动测试 (Skeletal Core Motion Playback)
+                <span className="text-[10px] text-purple-300 font-sans block tracking-wide">
+                  ✨ 让 3D 星尘形象陪伴你
                 </span>
-                <div className="grid grid-cols-5 gap-1 md:gap-2">
-                  {[
-                    { id: "stand", name: "🧍 站立", sound: "click" },
-                    { id: "walk", name: "🚶 行走", sound: "click" },
-                    { id: "wag_tail", name: "🐕 摇尾巴", sound: "bubble" },
-                    { id: "sit", name: "🧘 坐下", sound: "chime" },
-                    { id: "pet", name: "👋 抚摸", sound: "sparkle" }
-                  ].map((anim) => {
-                    const isActive = activeAnimation === anim.id;
-                    return (
-                      <button
-                        key={anim.id}
-                        onClick={() => {
-                          setActiveAnimation(anim.id as any);
-                          playSound(anim.sound as any);
-                          if (anim.id === "pet") {
-                            triggerToast("💗 抚摸触发！头部关节微微下倾，向四周迸发漫天爱恋 stardust！");
-                          }
-                        }}
-                        className={`py-2 rounded-xl text-[10px] md:text-xs font-bold text-center cursor-pointer transition-all ${
-                          isActive 
-                            ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-[0_0_12px_rgba(236,72,153,0.3)] scale-105" 
-                            : "bg-[#09031a]/60 text-gray-400 border border-white/5 hover:border-white/10 hover:text-white"
-                        }`}
-                      >
-                        {anim.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Slider for Particle Intensity edge */}
-              <div className="space-y-1.5 bg-black/30 p-3 rounded-xl border border-white/5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400 flex items-center gap-1 font-mono">
-                    🌌 星尘边界粒子浓度 (Stardust Density)
-                  </span>
-                  <span className="text-cyan-300 font-mono">{stardustParticleStrength}%</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="10" 
-                  max="150" 
-                  value={stardustParticleStrength}
-                  onChange={(e) => setStardustParticleStrength(Number(e.target.value))}
-                  className="w-full accent-cyan-400 h-1 rounded-lg bg-white/10 cursor-pointer"
-                />
-              </div>
-
-              {/* Advanced info panel about the file */}
-              <div className="bg-black/50 border border-white/5 rounded-xl p-3 space-y-2.5">
-                <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
-                  <span className="text-[10px] text-gray-400 font-mono">WeChat MiniGame Engine Match</span>
-                  <span className="text-[9px] bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 px-2 rounded">
-                    LOW POLYGON MESH
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-300 leading-relaxed text-justify">
-                  该 3D 模型专为微信小游戏轻量化定制：基于 Quad-Patch 晶體低面数（低 Polygon）渲染，融合骨架 Skin Rig 体系。完全兼容 Three.js, Cocos, Laya 等小游戏原生骨骼绑定，让上传后的 2D 照片完美转化。
-                </p>
-                
-                {/* WeChat low-poly export action buttons row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     onClick={handleExportGLTF}
-                    className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-300/10 rounded-xl text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
-                    title="导出标准的 rigged.gltf 文件，内置骨骼、顶点权重和小游戏行走等全套键帧动画"
+                    className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-300/10 rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-95"
+                    title="导出 3D 模型文件"
                   >
-                    <Download className="w-3.8 h-3.8 animate-bounce" />
-                    <span>💾 导出小游戏 GLTF 骨骼模型</span>
+                    <Download className="w-4 h-4" />
+                    <span>导出 3D 模型</span>
                   </button>
 
                   <button
                     onClick={handleApplyToPet}
-                    className="w-full py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white border border-pink-300/10 rounded-xl text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
-                    title="直接同步让主页、世界大门里的小家伙立刻获得这套 3D 全息外观和呼吸摇尾功能"
+                    className="w-full py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white border border-pink-300/10 rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-95"
+                    title="让主页的小家伙拥有这套 3D 形象"
                   >
-                    <Heart className="w-3.8 h-3.8 fill-white text-white animate-soft-breath" />
-                    <span>⚡ 同步至家园 3D 灵魂核</span>
+                    <Heart className="w-4 h-4 fill-white text-white" />
+                    <span>同步到家园</span>
                   </button>
                 </div>
               </div>
 
-              {/* Show the personalized narrative text block */}
+              {/* 星尘档案签印 */}
               <div className="p-3.5 bg-[#09031a] rounded-xl border border-pink-500/15">
                 <div className="flex items-center gap-1.5 border-b border-white/5 pb-1.5 mb-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[10px] text-emerald-300 font-mono tracking-wider">星尘档案重建签印 (Holographic Lore Certification)</span>
+                  <span className="text-[10px] text-emerald-300 font-sans tracking-wide">星尘档案签印</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-indigo-100 text-justify font-sans">
                   {reconstructedModel.loreParagraph}
