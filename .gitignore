@@ -12,3 +12,18 @@ steam_appid.txt
 
 # electron-builder 打包产物（安装包 / 解包临时目录，勿提交）
 release/
+
+# ---- 3D 模型大文件（本地存放，不提交到 git，避免仓库体积爆炸）----
+# 宠物 3D 模型（每个 25MB+，共 300MB+）
+public/models/*.glb
+public/models/*.GLB
+public/models/*.gltf
+public/models/species/*.glb
+public/models/species/*.GLB
+public/models/species/*.gltf
+
+# 用户本地 AI 建模素材（D 盘等外部目录，不应进入项目）
+*.blend
+*.fbx
+*.obj
+*.mtl
