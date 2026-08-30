@@ -1,12 +1,14 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { createRequire } from "module";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const GRANTS_DIR = path.join(__dirname, "data");
+// 数据目录定位：
+// - 优先用 STARPUFF_DATA_DIR 环境变量（Electron 主进程注入 userData，可写）
+// - 回退到 process.cwd()/microtransaction-data（dev 模式项目根，可写）
+// 不能用 import.meta.url/__dirname 定位：esbuild 打包 CJS 后 import.meta 为空，
+// 且打包后 __dirname 指向 asar 内只读目录，SQLite 无法写入。
+const DATA_ROOT = process.env.STARPUFF_DATA_DIR || path.join(process.cwd(), "microtransaction-data");
+const GRANTS_DIR = path.join(DATA_ROOT, "data");
 const DB_FILE = path.join(GRANTS_DIR, "starpuff.sqlite3");
 
 let db: any = null;
@@ -18,8 +20,8 @@ function ensureDir() {
 function init() {
   if (db) return;
   ensureDir();
-  // load better-sqlite3 via createRequire for ESM compatibility
-  const require = createRequire(import.meta.url);
+  // load better-sqlite3 via createRequire（动态 require，避免被 esbuild 打包）
+  const require = createRequire(typeof __filename !== "undefined" ? __filename : path.join(process.cwd(), "server.cjs"));
   const Database = require("better-sqlite3");
   db = new Database(DB_FILE);
   db.pragma("journal_mode = WAL");

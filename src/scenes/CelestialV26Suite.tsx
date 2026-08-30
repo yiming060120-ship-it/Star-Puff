@@ -80,7 +80,6 @@ export default function CelestialV26Suite({
   const [isTimeReversing, setIsTimeReversing] = useState(false);
   const [growthStory, setGrowthStory] = useState("");
   const [loadingStory, setLoadingStory] = useState(false);
-  const [timeReversalUnlocked, setTimeReversalUnlocked] = useState(false); // VIP 19.9 fee
 
   const toggleTimeReversalAnimation = () => {
     if (isTimeReversing) {
@@ -149,7 +148,6 @@ export default function CelestialV26Suite({
   const [customSize, setCustomSize] = useState(50);
   const [customEar, setCustomEar] = useState("垂耳");
   const [customTail, setCustomTail] = useState("菊花卷尾");
-  const [customMarkings, setCustomMarkings] = useState("白色手套足羽");
   const [isModifyingDetail, setIsModifyingDetail] = useState(false);
   const [modifyPrompt, setModifyPrompt] = useState("");
 
@@ -244,7 +242,6 @@ export default function CelestialV26Suite({
   const [lightAura, setLightAura] = useState(80);
   const [dailyMoment, setDailyMoment] = useState("正在温暖的沙发角上打着细鼾，尾巴尖亮起一抹荧光...");
   const [isSynthesizingMoment, setIsSynthesizingMoment] = useState(false);
-  const [isMockArOpen, setIsMockArOpen] = useState(false);
 
   const startCustomSceneUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -288,9 +285,85 @@ export default function CelestialV26Suite({
   const [traitClingy, setTraitClingy] = useState(82);
 
   const [voiceUploaded, setVoiceUploaded] = useState(false);
-  const [voiceId, setVoiceId] = useState<string | null>(null);
   const [isCloningVoice, setIsCloningVoice] = useState(false);
   const [voiceStatusText, setVoiceStatusText] = useState("未录制/上传宠物生前叫声/呼吸颤音音频");
+  // 声纹耳语内容（试听时大字展示）
+  const [voiceWhisper, setVoiceWhisper] = useState<string | null>(null);
+  // [BUG-FIX] 壁纸定制两个下拉框改为受控（原为非受控，选择无效）
+  const [wallpaperBackground, setWallpaperBackground] = useState("violet_nebula");
+  const [wallpaperSpec, setWallpaperSpec] = useState("iphone");
+  // [BUG-FIX] 聊天室消息列表 + 输入框受控（原聊天板硬编码、发送不更新）
+  const [chatMessages, setChatMessages] = useState<Array<{ sender: string; text: string; mine: boolean }>>([
+    { sender: "悠悠家长 🌇 (金毛家长)", text: "我家柴柴上星期也梦到了这个草莓海，大家一起加油！天乐好有灵气呀好可爱！", mine: false },
+    { sender: "小白妈妈 🐶 (比熊家长)", text: "看到它眨眼睛，眼框瞬间就红了，毛发一摆一摆的，跟它以前夏天吹风一模一样...", mine: false },
+    { sender: "我 (天乐守护人)", text: "刚刚给天乐喂了多维小银鱼，它大笑的时候尾巴摇得太可爱了，星环都大了一圈！", mine: true },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  // [BUG-FIX] 壁纸渲染层类型三选一（原为无 onClick 的装饰卡片，点了没反应）
+  const [wallpaperRenderType, setWallpaperRenderType] = useState<"static" | "live" | "interactive">("live");
+
+  // [BUG-FIX] 空壳按钮落地状态：让"模拟触发"类按钮产生真实可见的状态变化，而非仅有一次性 toast
+  const [arPhotoSaved, setArPhotoSaved] = useState(false);
+  const [arPhotoCount, setArPhotoCount] = useState(0);
+  const [capsuleSealed, setCapsuleSealed] = useState(false);
+  const [neuroFeedback, setNeuroFeedback] = useState<{ label: string; tone: "pink" | "yellow" | "cyan" | "purple" } | null>(null);
+  const NEURO_TONE_CLASS: Record<"pink" | "yellow" | "cyan" | "purple", string> = {
+    pink: "bg-pink-500/10 border-pink-500/30 text-pink-200",
+    yellow: "bg-yellow-500/10 border-yellow-500/30 text-yellow-200",
+    cyan: "bg-cyan-500/10 border-cyan-500/30 text-cyan-200",
+    purple: "bg-purple-500/10 border-purple-500/30 text-purple-200",
+  };
+  const [motionSynced, setMotionSynced] = useState(false);
+  const [roomFireworks, setRoomFireworks] = useState(false);
+  const [roomFeed, setRoomFeed] = useState(false);
+
+  // [BUG-FIX] 壁纸定制：让背景 / 规格 / 渲染层三个选择真正作用于下载产物
+  const WALLPAPER_THEMES: Record<string, { name: string; c1: string; c2: string; accent: string }> = {
+    violet_nebula: { name: "紫罗兰玫瑰星云", c1: "#1a0b2e", c2: "#4c1d95", accent: "#f9a8d4" },
+    meadow: { name: "梦境晨曦大草场", c1: "#0b2e1a", c2: "#1d954c", accent: "#fde68a" },
+    gate: { name: "星神宏伟神龛之殿", c1: "#2e1a0b", c2: "#954c1d", accent: "#fcd34d" },
+  };
+  const WALLPAPER_SIZES: Record<string, { w: number; h: number; label: string }> = {
+    iphone: { w: 1080, h: 1920, label: "4K 视网膜极清 (iOS)" },
+    android: { w: 2560, h: 1440, label: "2K 宽幅 (Android 引擎)" },
+    watch: { w: 512, h: 512, label: "512x512 小表盘 (Watch)" },
+  };
+
+  const buildWallpaperSvg = () => {
+    const theme = WALLPAPER_THEMES[wallpaperBackground] ?? WALLPAPER_THEMES.violet_nebula;
+    const size = WALLPAPER_SIZES[wallpaperSpec] ?? WALLPAPER_SIZES.iphone;
+    const { w, h } = size;
+    const cx = Math.round(w / 2);
+    const cy = Math.round(h / 2);
+    const r = Math.round(Math.min(w, h) * 0.24);
+
+    let extra = "";
+    let suffix = "";
+    if (wallpaperRenderType === "live") {
+      const particles: string[] = [];
+      for (let i = 0; i < 60; i++) {
+        const px = Math.floor((((i * 37) % 97) / 97) * w);
+        const py = Math.floor((((i * 53) % 89) / 89) * h);
+        const pr = 2 + (i % 5);
+        particles.push(`<circle cx='${px}' cy='${py}' r='${pr}' fill='${theme.accent}' opacity='${(0.2 + (i % 4) * 0.2).toFixed(1)}'/>`);
+      }
+      extra = particles.join("");
+      suffix = "_live";
+    } else if (wallpaperRenderType === "interactive") {
+      extra = `<circle cx='${cx}' cy='${cy}' r='${r}' fill='none' stroke='${theme.accent}' stroke-width='4' opacity='0.7'/><circle cx='${cx}' cy='${cy}' r='6' fill='${theme.accent}'/>`;
+      suffix = "_gaze";
+    } else {
+      extra = `<rect x='${cx - r}' y='${cy - r}' width='${r * 2}' height='${r * 2}' rx='24' fill='${theme.accent}' opacity='0.12'/>`;
+      suffix = "_static";
+    }
+
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'><defs><linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='${theme.c1}'/><stop offset='100%' stop-color='${theme.c2}'/></linearGradient></defs><rect width='${w}' height='${h}' fill='url(#bg)'/>${extra}<circle cx='${cx}' cy='${cy}' r='${r}' fill='#fad0a3' opacity='0.35'/><circle cx='${cx}' cy='${cy}' r='${Math.round(r * 0.8)}' fill='#ffffff' opacity='0.5'/><text x='${cx}' y='${cy + r + 60}' fill='${theme.accent}' font-size='42' font-family='sans-serif' text-anchor='middle'>STARDUST COMPANION: ${pet.name}</text><text x='${cx}' y='${cy + r + 110}' fill='#ffffff' opacity='0.7' font-size='26' font-family='sans-serif' text-anchor='middle'>${theme.name}</text></svg>`;
+
+    return {
+      href: "data:image/svg+xml;utf8," + encodeURIComponent(svg),
+      filename: `${pet.name}_stardust_wallpaper_${wallpaperBackground}${suffix}.png`,
+    };
+  };
 
   const startVoiceRecordingSim = () => {
     setIsCloningVoice(true);
@@ -299,7 +372,6 @@ export default function CelestialV26Suite({
     setTimeout(() => {
       setIsCloningVoice(false);
       setVoiceUploaded(true);
-      setVoiceId(`voice_${Date.now()}`);
       setVoiceStatusText("🟢 声卡AI克隆完毕：已锁存暖萌声纹（100%还原纯净小羽颤音）");
       triggerToast("🔊 宠物叫声/声线深度AI还原克隆成功！点击可自由播放耳语音色！");
     }, 2000);
@@ -307,7 +379,10 @@ export default function CelestialV26Suite({
 
   const playClonedVoice = () => {
     playSound("sparkle");
-    triggerToast(`🔊 播放【${pet.name}】的拟合声纹: “（温和的喵呜/呼噜颤音声……）妈妈，我也超想你呐～”`);
+    // [BUG-FIX] 声纹耳语用独立大字展示，而非小号 toast
+    setVoiceWhisper(`（温和的喵呜 / 呼噜颤音……）妈妈，我也超想你呐～`);
+    // 6 秒后自动淡出
+    setTimeout(() => setVoiceWhisper(null), 6000);
   };
 
   // ------------------------------------------------------------------
@@ -351,12 +426,17 @@ export default function CelestialV26Suite({
   ]);
   const [newHeirName, setNewHeirName] = useState("");
   const [legacyRitualActive, setLegacyRitualActive] = useState(false);
-  const [timeCapsuleDate, setTimeCapsuleDate] = useState("2036-05-28"); // 10 years later
+  const [timeCapsuleDate, setTimeCapsuleDate] = useState(() => {
+    // 默认锁定 10 年后解封，动态计算避免硬编码年份随时间失效
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 10);
+    return d.toISOString().split("T")[0];
+  });
 
   const handleAddHeir = () => {
     if (!newHeirName.trim()) return;
     if (heirs.length >= 3) {
-      triggerToast("⚠️ 免费/基础版仅支持绑定1位，高级版专属解锁至多3位继承人！");
+      triggerToast("⚠️ 最多支持绑定 3 位继承人哦，已经满员啦！");
       return;
     }
     setHeirs(prev => [...prev, { name: newHeirName, checked: false }]);
@@ -389,18 +469,15 @@ export default function CelestialV26Suite({
       triggerToast("❌ 您的金星尘币不足！每支香烛耗费 10 星尘币");
       return;
     }
+    const target = memorialPets[index];
+    if (!target) return;
 
     // Spend coins
     setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins - 10) }));
-
-    setMemorialPets(prev => prev.map((p, i) => {
-      if (i === index) {
-        triggerToast(`🕯️ 成功为【${p.name}】点亮永恒暖烛，卡片散射辉光增益 +30%!`);
-        playSound("sparkle");
-        return { ...p, glow: p.glow + 30 };
-      }
-      return p;
-    }));
+    // 副作用（toast/音效）放在 updater 之外，避免 StrictMode 下 updater 被调用两次导致双重触发
+    setMemorialPets(prev => prev.map((p, i) => (i === index ? { ...p, glow: p.glow + 30 } : p)));
+    triggerToast(`🕯️ 成功为【${target.name}】点亮永恒暖烛，卡片散射辉光增益 +30%!`);
+    playSound("sparkle");
   };
 
   const handleSendWallGift = (index: number, cost: number, name: string) => {
@@ -408,15 +485,12 @@ export default function CelestialV26Suite({
       triggerToast("❌ 精粹星尘币储量不足，无法赠送该款高维灵翼礼盒");
       return;
     }
+    const target = memorialPets[index];
+    if (!target) return;
     setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins - cost) }));
-    setMemorialPets(prev => prev.map((p, i) => {
-      if (i === index) {
-        triggerToast(`🎁 给家长 ${p.owner} 的宝贝 ${p.name} 赠送了【${name}】！光芒暴涨 ${cost} 个系数！`);
-        playSound("chime");
-        return { ...p, glow: p.glow + cost };
-      }
-      return p;
-    }));
+    setMemorialPets(prev => prev.map((p, i) => (i === index ? { ...p, glow: p.glow + cost } : p)));
+    triggerToast(`🎁 给家长 ${target.owner} 的宝贝 ${target.name} 赠送了【${name}】！光芒暴涨 ${cost} 个系数！`);
+    playSound("chime");
   };
 
   // ------------------------------------------------------------------
@@ -427,9 +501,17 @@ export default function CelestialV26Suite({
   const [mintLoading, setMintLoading] = useState(false);
   const [synthesizedTexture, setSynthesizedTexture] = useState("标准星尘粒子态");
 
+  const NFT_MINT_COST = 100; // 铸造费（星尘币）
+
   const mintNewNft = () => {
+    if (user.stardustCoins < NFT_MINT_COST) {
+      triggerToast(`❌ 星尘币不足！铸造数藏需要 ${NFT_MINT_COST} 星尘币，您当前只有 ${user.stardustCoins} 币。`);
+      playSound("beep");
+      return;
+    }
     setMintLoading(true);
     playSound("chime");
+    setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins - NFT_MINT_COST) }));
     setTimeout(() => {
       setNftMinted(true);
       setNftHash("0x7a3af92dc00ee6b4028faefd" + Math.floor(Math.random()*90000 + 10000) + "ff2");
@@ -446,7 +528,17 @@ export default function CelestialV26Suite({
   const [isRenderingVideo, setIsRenderingVideo] = useState(false);
   const [renderedVideoUrl, setRenderedVideoUrl] = useState<string | null>(null);
 
+  // 视频渲染费用（星尘币），按视频长度计价
+  const VIDEO_COST_MAP: Record<15 | 30 | 60, number> = { 15: 30, 30: 50, 60: 100 };
+
   const startRenderingAIVideo = () => {
+    const cost = VIDEO_COST_MAP[videoLength];
+    if (user.stardustCoins < cost) {
+      triggerToast(`❌ 星尘币不足！渲染 ${videoLength} 秒纪念视频需要 ${cost} 星尘币，您当前只有 ${user.stardustCoins} 币。`);
+      playSound("beep");
+      return;
+    }
+    setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins - cost) }));
     setIsRenderingVideo(true);
     playSound("chime");
     setTimeout(() => {
@@ -470,12 +562,19 @@ export default function CelestialV26Suite({
     playSound("sparkle");
     triggerToast("⚡ 云端实时编译重新生成.glb量子骨干网格，已极速同步！");
     if (user.activePet && user.activePet.model3d) {
+      // 粒子密度映射为顶点数（10~100% → 顶点数 120~600），星尾起伏映射为尾部深度尺寸
+      const mappedVertices = Math.round(120 + (editDensity / 100) * 480);
       onUpdatePet({
         ...user.activePet,
         model3d: {
           ...user.activePet.model3d,
           glowIntensity: editGlow / 100,
-          depthMapColors: [editColors[0], ...editColors.slice(1)]
+          depthMapColors: [editColors[0], ...editColors.slice(1)],
+          verticesCount: mappedVertices,
+          dimensions: {
+            ...user.activePet.model3d.dimensions,
+            depth: Math.max(0.4, 0.4 + editTailSize * 0.06),
+          },
         }
       });
     }
@@ -484,7 +583,6 @@ export default function CelestialV26Suite({
   // ------------------------------------------------------------------
   // 11. 宠物基因数码馆 (2.12) state
   // ------------------------------------------------------------------
-  const [geneReportAttached, setGeneReportAttached] = useState(false);
   const [dnaTestingProgress, setDnaTestingProgress] = useState<"idle" | "kit_mailed" | "lab_testing" | "report_completed">("idle");
   const [depositPaid, setDepositPaid] = useState(false);
 
@@ -762,7 +860,7 @@ export default function CelestialV26Suite({
                     )}
 
                     <div className="p-3 bg-indigo-950/20 rounded border border-indigo-900/40 text-[10px] text-indigo-300">
-                      🔒 <strong>付费解锁：</strong>基础版支持3个年龄形态。付费 <strong>19.9 元</strong> 开启生命时光回溯高级版，升级无拘限制年龄，支持3D高精度插值平滑骨骼缩放！
+                      ✨ 支持在幼年、青年、成熟、暮年四个生命形态间自由切换，3D 粒子平滑插值骨骼缩放，全程无痛星能填充。
                     </div>
                   </div>
                 </div>
@@ -886,7 +984,7 @@ export default function CelestialV26Suite({
                       <button
                         onClick={handleApplyModification}
                         disabled={isModifyingDetail}
-                        className="bg-purple-600 hover:bg-purple-700 px-3 rounded text-xs font-semibold text-white"
+                        className="bg-purple-600 hover:bg-purple-700 px-3 rounded text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isModifyingDetail ? "重构中..." : "应用微调"}
                       </button>
@@ -1006,7 +1104,7 @@ export default function CelestialV26Suite({
                         <button
                           onClick={recomputeDailyMoment}
                           disabled={isSynthesizingMoment}
-                          className="text-[9px] text-gray-400 hover:text-sky-300 font-semibold"
+                          className="text-[9px] text-gray-400 hover:text-sky-300 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isSynthesizingMoment ? "脑补中..." : "🔄 刷新动作"}
                         </button>
@@ -1018,10 +1116,15 @@ export default function CelestialV26Suite({
 
                     <div className="flex gap-2">
                       <button
-                        onClick={() => triggerToast("📷 合影完毕！一张超唯美的【它躺在你被窝】照片已永久保存至心语画册。")}
-                        className="bg-indigo-650 hover:bg-indigo-700 py-1.5 px-3 rounded text-[11px] text-white font-bold flex items-center gap-1"
+                        onClick={() => {
+                          playSound("sparkle");
+                          setArPhotoSaved(true);
+                          setArPhotoCount(c => c + 1);
+                          triggerToast(`📷 合影完毕！第 ${arPhotoCount + 1} 张【它躺在你被窝】照片已永久保存至心语画册。`);
+                        }}
+                        className={`py-1.5 px-3 rounded text-[11px] text-white font-bold flex items-center gap-1 transition-colors ${arPhotoSaved ? "bg-emerald-700 hover:bg-emerald-600" : "bg-indigo-650 hover:bg-indigo-700"}`}
                       >
-                        <Camera className="w-3.5 h-3.5" /> 2.4.1 开启AR虚实合影
+                        <Camera className="w-3.5 h-3.5" /> {arPhotoSaved ? `✓ 已保存 ${arPhotoCount} 张合影` : "2.4.1 开启AR虚实合影"}
                       </button>
                     </div>
 
@@ -1128,11 +1231,19 @@ export default function CelestialV26Suite({
                         {voiceStatusText}
                       </div>
 
+                      {/* 声纹耳语大字展示 */}
+                      {voiceWhisper && (
+                        <div className="p-3 bg-pink-500/10 border border-pink-500/30 rounded-lg text-center animate-fade-in">
+                          <div className="text-[9px] font-mono text-pink-400 mb-1">🔊 {pet.name} 的声纹耳语</div>
+                          <p className="text-base md:text-lg font-serif text-pink-100 leading-relaxed">“{voiceWhisper}”</p>
+                        </div>
+                      )}
+
                       <div className="flex gap-2">
                         <button
                           onClick={startVoiceRecordingSim}
                           disabled={isCloningVoice}
-                          className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white rounded flex items-center justify-center gap-1"
+                          className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white rounded flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Compass className="w-3.5 h-3.5" /> 克隆声音训练
                         </button>
@@ -1227,11 +1338,31 @@ export default function CelestialV26Suite({
                     </div>
 
                     <button
-                      onClick={() => triggerToast("📘 下载对话纪念册成功，一键导出为纯净Txt格式及PDF精排版本。")}
+                      onClick={() => {
+                        // [BUG-FIX] 真实导出对话纪念册为 TXT 文件（原只弹 toast，无文件落地）
+                        if (dialogAnthology.length === 0) {
+                          triggerToast("📭 还没有任何对话记录，先去写一封心语吧～");
+                          return;
+                        }
+                        const lines = dialogAnthology.map(
+                          (d, idx) => `【第 ${idx + 1} 则 · ${d.date}】\n主人：${d.q}\n${pet.name}：${d.a}\n`
+                        );
+                        const content = `喵汪星云 · 时空回笺纪念册\n—— ${pet.name} 与主人的心电对答 ——\n\n${lines.join("\n")}`;
+                        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `${pet.name}-对话纪念册.txt`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        triggerToast("📘 对话纪念册已打包下载！");
+                      }}
                       className="w-full py-1.5 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/5 rounded font-bold text-xs flex items-center justify-center gap-1"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      打包下载我的对话纪念册 (TXT/PDF)
+                      打包下载我的对话纪念册 (TXT)
                     </button>
                   </div>
                 </div>
@@ -1294,7 +1425,8 @@ export default function CelestialV26Suite({
                     <div className="pt-2">
                       <button
                         onClick={triggerLegacyRitual}
-                        className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded font-bold text-xs text-white flex items-center justify-center gap-1"
+                        disabled={legacyRitualActive}
+                        className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded font-bold text-xs text-white flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {legacyRitualActive ? "🧬 星尘契约联合签名中..." : "🌌 签订并生成 3D 星尘传承誓约书"}
                       </button>
@@ -1316,19 +1448,28 @@ export default function CelestialV26Suite({
                         type="date"
                         value={timeCapsuleDate}
                         onChange={(e) => setTimeCapsuleDate(e.target.value)}
-                        className="w-full bg-[#120b2d] border border-slate-700 rounded p-2 text-xs text-white focus:outline-none"
+                        disabled={capsuleSealed}
+                        className="w-full bg-[#120b2d] border border-slate-700 rounded p-2 text-xs text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
 
                     <button
-                      onClick={() => triggerToast(`🔒 时光密封胶囊制作成功！它将在 ${timeCapsuleDate} 准时弹射开锁！`)}
-                      className="w-full py-1.5 border border-purple-500/20 text-purple-300 hover:bg-purple-500/5 rounded font-bold text-xs"
+                      onClick={() => {
+                        if (capsuleSealed) {
+                          triggerToast(`⏳ 胶囊已密封，静待 ${timeCapsuleDate} 解封时刻的到来。`);
+                          return;
+                        }
+                        playSound("chime");
+                        setCapsuleSealed(true);
+                        triggerToast(`🔒 时光密封胶囊制作成功！它将在 ${timeCapsuleDate} 准时弹射开锁！`);
+                      }}
+                      className={`w-full py-1.5 border rounded font-bold text-xs transition-colors ${capsuleSealed ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10 cursor-default" : "border-purple-500/20 text-purple-300 hover:bg-purple-500/5"}`}
                     >
-                      将胶囊安全铸造密封
+                      {capsuleSealed ? "✓ 已密封 · 静待解封" : "将胶囊安全铸造密封"}
                     </button>
 
                     <div className="p-2 bg-indigo-950/10 border border-indigo-900/30 text-[9px] text-indigo-300 rounded leading-relaxed">
-                      🎁 <strong>资费说明：</strong>家庭普通版支持 1 位受益继承人。 <strong>49.9 元至臻版</strong> 专属授权可解锁设定支持至多3人及多维度延期时光胶囊。
+                      🎁 <strong>资费说明：</strong>每个时光胶囊支持绑定至多 3 位受益继承人，可自由设定多维度延期解封时间。
                     </div>
                   </div>
                 </div>
@@ -1458,7 +1599,7 @@ export default function CelestialV26Suite({
                         disabled={mintLoading || nftMinted}
                         className="w-full py-2 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-600 rounded font-bold text-xs text-white"
                       >
-                        {mintLoading ? "正在签署智能灵信托契约..." : nftMinted ? "✓ 微信数藏认证核发" : "立即交纳 99.9 铸造费上链保护"}
+                        {mintLoading ? "正在签署智能灵信托契约..." : nftMinted ? "✓ 微信数藏认证核发" : `立即交纳 ${NFT_MINT_COST} 星尘币铸造费上链保护`}
                       </button>
                     </div>
                   </div>
@@ -1525,9 +1666,9 @@ export default function CelestialV26Suite({
                           onChange={(e) => setVideoLength(parseInt(e.target.value) as 15|30|60)}
                           className="w-full bg-black/40 border border-slate-705 rounded p-1.5 focus:outline-none"
                         >
-                          <option value="15">⏱️ 15秒 (29.9 元)</option>
-                          <option value="30">⏱️ 30秒 (49.9 元)</option>
-                          <option value="60">⏱️ 60秒 (99.9 元)</option>
+                          <option value="15">⏱️ 15秒 (30 星尘币)</option>
+                          <option value="30">⏱️ 30秒 (50 星尘币)</option>
+                          <option value="60">⏱️ 60秒 (100 星尘币)</option>
                         </select>
                       </div>
 
@@ -1548,7 +1689,7 @@ export default function CelestialV26Suite({
                     <button
                       onClick={startRenderingAIVideo}
                       disabled={isRenderingVideo}
-                      className="w-full py-2.5 bg-gradient-to-r from-fuchsia-500 to-indigo-600 hover:from-fuchsia-600 rounded-lg text-xs text-white font-bold"
+                      className="w-full py-2.5 bg-gradient-to-r from-fuchsia-500 to-indigo-600 hover:from-fuchsia-600 rounded-lg text-xs text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isRenderingVideo ? "🎥 正在进行云端引擎实时3D分镜渲染..." : "立即启动 AI 纪念片渲染并导出 mp4"}
                     </button>
@@ -1756,7 +1897,7 @@ export default function CelestialV26Suite({
                         onClick={startDnaKitOrder}
                         className="w-full py-2 bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-700 text-white font-bold rounded"
                       >
-                        {dnaTestingProgress === "idle" ? "📦 ¥999 购买试件盒并建立本底档案" : "✓ 已呼叫顺丰：空盒寄送中"}
+                        {dnaTestingProgress === "idle" ? "📦 预约试件盒并建立本底档案（演示）" : "✓ 已呼叫顺丰：空盒寄送中"}
                       </button>
                     </div>
                   </div>
@@ -1771,7 +1912,7 @@ export default function CelestialV26Suite({
                     </p>
 
                     <div>
-                      <span className="text-[10px] text-gray-400">签署克隆预约意向书（定金 ¥5000，随时可全额退还）：</span>
+                      <span className="text-[10px] text-gray-400">签署克隆预约意向书（演示流程，随时可取消）：</span>
                     </div>
 
                     <button
@@ -1779,7 +1920,7 @@ export default function CelestialV26Suite({
                       disabled={depositPaid}
                       className="w-full py-1.5 bg-pink-600 hover:bg-pink-700 disabled:bg-slate-800 rounded font-bold text-xs text-white cursor-pointer"
                     >
-                      {depositPaid ? "✓ 已付5000定金排队中 · 兑换码 A1024" : "确定提交签署意向 (定金5000)"}
+                      {depositPaid ? "✓ 已加入排队 · 兑换码 A1024" : "确定提交签署意向（演示）"}
                     </button>
                   </div>
                 </div>
@@ -1869,12 +2010,19 @@ export default function CelestialV26Suite({
                       模拟高维空间中宠物感知到宠幸动作时的微细脑电波释放频率。每次刺激指令均能诱发 stardust 物理矩阵闪频：
                     </p>
 
+                    {neuroFeedback && (
+                      <div className={`p-2 rounded border text-[10px] font-mono flex items-center gap-2 ${NEURO_TONE_CLASS[neuroFeedback.tone]}`}>
+                        <span className="animate-pulse">⚡</span>
+                        最新脑电波反馈：{neuroFeedback.label}
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="p-3 bg-black/20 rounded border border-slate-800 hover:border-pink-500/30 transition-all">
                         <span className="font-bold text-pink-300 block mb-1">💖 摸摸头部 (Head Stroke)</span>
                         <span className="text-[10px] text-gray-500 block leading-tight mb-2">产生心形 stardust 飞射粒子</span>
                         <button
-                          onClick={() => { playSound("chime"); triggerToast(`✨ 成功向天乐触发头部拥护指令！`); }}
+                          onClick={() => { playSound("chime"); setNeuroFeedback({ label: "头部拥护 · 心形星尘飞射粒子", tone: "pink" }); triggerToast(`✨ 成功向${pet.name}触发头部拥护指令！`); }}
                           className="py-1 px-2.5 bg-pink-900/40 text-pink-200 hover:bg-pink-700/30 transition-colors uppercase font-mono text-[9px] rounded font-bold border border-pink-500/20 cursor-pointer"
                         >
                           模拟触发
@@ -1885,7 +2033,7 @@ export default function CelestialV26Suite({
                         <span className="font-bold text-yellow-300 block mb-1">✨ 撸撸小背 (Back Stroke)</span>
                         <span className="text-[10px] text-gray-500 block leading-tight mb-2">留下金黄色闪存星体长尾航线</span>
                         <button
-                          onClick={() => { playSound("sparkle"); triggerToast(`💫 成功向天乐触发脊骨滑移抚摸！`); }}
+                          onClick={() => { playSound("sparkle"); setNeuroFeedback({ label: "脊骨滑移抚摸 · 金色长尾航线", tone: "yellow" }); triggerToast(`💫 成功向${pet.name}触发脊骨滑移抚摸！`); }}
                           className="py-1 px-2.5 bg-yellow-900/40 text-yellow-200 hover:bg-yellow-700/30 transition-colors uppercase font-mono text-[9px] rounded font-bold border border-yellow-500/20 cursor-pointer"
                         >
                           模拟触发
@@ -1896,7 +2044,7 @@ export default function CelestialV26Suite({
                         <span className="font-bold text-cyan-300 block mb-1">🧬 星能环护 (Shield Surge)</span>
                         <span className="text-[10px] text-gray-500 block leading-tight mb-2">铸造双重脉动蓝色守护星云盾</span>
                         <button
-                          onClick={() => { playSound("chime"); triggerToast(`🛡️ 成功释放守护星尘大空壳！`); }}
+                          onClick={() => { playSound("chime"); setNeuroFeedback({ label: "守护星云盾 · 蓝色脉动环", tone: "cyan" }); triggerToast(`🛡️ 成功释放守护星尘大空壳！`); }}
                           className="py-1 px-2.5 bg-cyan-900/40 text-cyan-200 hover:bg-cyan-700/30 transition-colors uppercase font-mono text-[9px] rounded font-bold border border-cyan-500/20 cursor-pointer"
                         >
                           模拟触发
@@ -1907,7 +2055,7 @@ export default function CelestialV26Suite({
                         <span className="font-bold text-purple-300 block mb-1">🌌 星雾融离 (Farewell Phase)</span>
                         <span className="text-[10px] text-gray-500 block leading-tight mb-2">宠物肉体完美分解并重新聚集</span>
                         <button
-                          onClick={() => { playSound("success"); triggerToast(`⏳ 发出星灵共生折跃重塑指令！`); }}
+                          onClick={() => { playSound("success"); setNeuroFeedback({ label: "星灵折跃重塑 · 紫雾融离", tone: "purple" }); triggerToast(`⏳ 发出星灵共生折跃重塑指令！`); }}
                           className="py-1 px-2.5 bg-purple-900/40 text-purple-200 hover:bg-purple-700/30 transition-colors uppercase font-mono text-[9px] rounded font-bold border border-purple-500/20 cursor-pointer"
                         >
                           模拟触发
@@ -2001,10 +2149,10 @@ export default function CelestialV26Suite({
 
                     <div className="flex gap-2.5">
                       <button
-                        onClick={() => { playSound("sparkle"); triggerToast("🎁 编译完成！第 #F122 动作 [撒娇打滑] 已载入天乐前台主视窗指令集！"); }}
-                        className="flex-1 py-1 px-2.5 bg-[#fc407a] hover:bg-[#ff558f] transition-all text-white font-bold rounded text-[11px] cursor-pointer text-center"
+                        onClick={() => { playSound("sparkle"); setMotionSynced(true); triggerToast("🎁 编译完成！第 #F122 动作 [撒娇打滑] 已载入天乐前台主视窗指令集！"); }}
+                        className={`flex-1 py-1 px-2.5 transition-all text-white font-bold rounded text-[11px] cursor-pointer text-center ${motionSynced ? "bg-emerald-600 hover:bg-emerald-500" : "bg-[#fc407a] hover:bg-[#ff558f]"}`}
                       >
-                        🧬 导出并同步至天乐主画布
+                        {motionSynced ? "✓ 已同步至天乐主画布" : "🧬 导出并同步至天乐主画布"}
                       </button>
                     </div>
                   </div>
@@ -2042,7 +2190,11 @@ export default function CelestialV26Suite({
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[10px] text-gray-500 mb-1 font-mono">背景宇宙氛围：</label>
-                          <select className="bg-black/45 border border-slate-700 text-[10px] p-1.5 rounded w-full text-purple-200">
+                          <select
+                            value={wallpaperBackground}
+                            onChange={(e) => setWallpaperBackground(e.target.value)}
+                            className="bg-black/45 border border-slate-700 text-[10px] p-1.5 rounded w-full text-purple-200 cursor-pointer"
+                          >
                             <option value="violet_nebula">🌌 紫罗兰玫瑰星云</option>
                             <option value="meadow">🏡 梦境晨曦大草场</option>
                             <option value="gate">⛩️ 星神宏伟神龛之殿</option>
@@ -2050,7 +2202,11 @@ export default function CelestialV26Suite({
                         </div>
                         <div>
                           <label className="block text-[10px] text-gray-500 mb-1 font-mono">输出目标规格：</label>
-                          <select className="bg-black/45 border border-slate-700 text-[10px] p-1.5 rounded w-full text-purple-200">
+                          <select
+                            value={wallpaperSpec}
+                            onChange={(e) => setWallpaperSpec(e.target.value)}
+                            className="bg-black/45 border border-slate-700 text-[10px] p-1.5 rounded w-full text-purple-200 cursor-pointer"
+                          >
                             <option value="iphone">4K 视网膜极清 (iOS)</option>
                             <option value="android">2K 宽幅 (Android 引擎)</option>
                             <option value="watch">512x512 小表盘 (Watch)</option>
@@ -2061,29 +2217,43 @@ export default function CelestialV26Suite({
                       <div>
                         <span className="block text-[10px] text-gray-500 mb-1 font-mono">壁纸渲染层类型：</span>
                         <div className="grid grid-cols-3 gap-2 font-mono text-[9px] text-center">
-                          <div className="p-2 bg-black/30 border border-slate-800 rounded hover:border-purple-500 cursor-pointer">
+                          <button
+                            type="button"
+                            onClick={() => { setWallpaperRenderType("static"); playSound("click"); }}
+                            className={`p-2 rounded border transition-all cursor-pointer ${wallpaperRenderType === "static" ? "bg-purple-500/20 border-purple-500 text-white" : "bg-black/30 border-slate-800 hover:border-purple-500"}`}
+                          >
                             <span className="block font-bold">平面超清图</span>
-                            <span className="text-[8px] text-gray-500">Static PNG</span>
-                          </div>
-                          <div className="p-2 bg-[#fc407a]/15 border border-[#fc407a]/30 text-pink-200 rounded cursor-pointer">
+                            <span className={`text-[8px] ${wallpaperRenderType === "static" ? "text-purple-300" : "text-gray-500"}`}>Static PNG</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setWallpaperRenderType("live"); playSound("click"); }}
+                            className={`p-2 rounded border transition-all cursor-pointer ${wallpaperRenderType === "live" ? "bg-[#fc407a]/25 border-[#fc407a] text-pink-100" : "bg-black/30 border-slate-800 hover:border-purple-500"}`}
+                          >
                             <span className="block font-bold">微粒动态壁纸</span>
-                            <span className="text-[8px] text-pink-400">Live Particle</span>
-                          </div>
-                          <div className="p-2 bg-black/30 border border-slate-800 rounded hover:border-purple-500 cursor-pointer">
+                            <span className={`text-[8px] ${wallpaperRenderType === "live" ? "text-pink-300" : "text-gray-500"}`}>Live Particle</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setWallpaperRenderType("interactive"); playSound("click"); }}
+                            className={`p-2 rounded border transition-all cursor-pointer ${wallpaperRenderType === "interactive" ? "bg-purple-500/20 border-purple-500 text-white" : "bg-black/30 border-slate-800 hover:border-purple-500"}`}
+                          >
                             <span className="block font-bold">Gaze重力跟随</span>
-                            <span className="text-[8px] text-gray-500">Interactive</span>
-                          </div>
+                            <span className={`text-[8px] ${wallpaperRenderType === "interactive" ? "text-purple-300" : "text-gray-500"}`}>Interactive</span>
+                          </button>
                         </div>
                       </div>
 
                       <button
                         onClick={() => {
                           playSound("chime");
-                          triggerToast("🔮 解析图谱渲染，正在打包下载极清 2.5D 微粒交互壁纸...");
-                          // Generate actual downloaded image!
+                          const theme = WALLPAPER_THEMES[wallpaperBackground] ?? WALLPAPER_THEMES.violet_nebula;
+                          const size = WALLPAPER_SIZES[wallpaperSpec] ?? WALLPAPER_SIZES.iphone;
+                          triggerToast(`🔮 正在打包【${theme.name}】${wallpaperRenderType} 壁纸 (${size.w}×${size.h})...`);
+                          const { href, filename } = buildWallpaperSvg();
                           const link = document.createElement("a");
-                          link.download = `${pet.name}_stardust_wallpaper.png`;
-                          link.href = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='1920' viewBox='0 0 1080 1920'><rect width='1080' height='1920' fill='%23080518'/><circle cx='540' cy='960' r='180' fill='%23fad0a3' opacity='0.35'/><circle cx='540' cy='960' r='150' fill='%23ffffff' opacity='0.5'/><text x='540' y='1200' fill='%23fbcfe8' font-size='42' font-family='sans-serif' text-anchor='middle'>STARDUST COMPANION: " + pet.name + "</text></svg>";
+                          link.download = filename;
+                          link.href = href;
                           link.click();
                         }}
                         className="w-full py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded text-center text-white font-bold hover:shadow-[0_0_12px_rgba(236,72,153,0.4)] transition-all cursor-pointer"
@@ -2163,41 +2333,39 @@ export default function CelestialV26Suite({
                     {/* Chat Board */}
                     <div className="h-44 bg-black/60 rounded border border-slate-800 p-3 overflow-y-auto custom-scrollbar font-mono text-[10px] space-y-2.5">
                       <div className="text-gray-500 text-[9px] text-center">--- 小屋创建密码锁定：已加入超距云共振加密 ---</div>
-                      
-                      <div className="flex gap-1.5 flex-col">
-                        <span className="text-pink-300 font-bold">悠悠家长 🌇 (金毛家长)：</span>
-                        <p className="text-gray-300 leading-relaxed bg-[#1b1540]/30 rounded-lg p-2">我家柴柴上星期也梦到了这个草莓海，大家一起加油！天乐好有灵气呀好可爱！</p>
-                      </div>
-
-                      <div className="flex gap-1.5 flex-col">
-                        <span className="text-cyan-300 font-bold">小白妈妈 🐶 (比熊家长)：</span>
-                        <p className="text-gray-300 leading-relaxed bg-[#1b1540]/30 rounded-lg p-2">看到它眨眼睛，眼框瞬间就红了，毛发一摆一摆的，跟它以前夏天吹风一模一样...</p>
-                      </div>
-
-                      <div className="flex gap-1.5 flex-col text-right">
-                        <span className="text-amber-400 font-bold">我 (天乐守护人)：</span>
-                        <p className="text-gray-200 leading-relaxed bg-indigo-900/30 rounded-lg p-2 text-left">刚刚给天乐喂了多维小银鱼，它大笑的时候尾巴摇得太可爱了，星环都大了一圈！</p>
-                      </div>
+                      {chatMessages.map((msg, i) => (
+                        <div key={i} className={`flex gap-1.5 flex-col ${msg.mine ? "text-right" : ""}`}>
+                          <span className={`font-bold ${msg.mine ? "text-amber-400" : "text-pink-300"}`}>{msg.sender}：</span>
+                          <p className={`leading-relaxed rounded-lg p-2 text-left ${msg.mine ? "bg-indigo-900/30 text-gray-200" : "bg-[#1b1540]/30 text-gray-300"}`}>{msg.text}</p>
+                        </div>
+                      ))}
                     </div>
 
                     {/* Chat form control */}
                     <div className="flex gap-2">
                       <input
                         type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
                         placeholder="说点暖心话慰藉彼此..."
                         className="flex-1 bg-black/40 border border-slate-700 text-xs p-2 rounded focus:outline-none"
-                        id="chat-input-field"
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
+                          if (e.key === "Enter" && chatInput.trim()) {
+                            setChatMessages(prev => [...prev, { sender: `我 (${pet.name}守护人)`, text: chatInput.trim(), mine: true }]);
+                            setChatInput("");
                             playSound("click");
                             triggerToast("💬 群聊发言同步成功！多端家长正在阅览陪伴中...");
-                            const input = e.target as HTMLInputElement;
-                            input.value = "";
                           }
                         }}
                       />
                       <button
-                        onClick={() => { playSound("click"); triggerToast("💬 群聊发言同步成功！"); }}
+                        onClick={() => {
+                          if (!chatInput.trim()) return;
+                          setChatMessages(prev => [...prev, { sender: `我 (${pet.name}守护人)`, text: chatInput.trim(), mine: true }]);
+                          setChatInput("");
+                          playSound("click");
+                          triggerToast("💬 群聊发言同步成功！");
+                        }}
                         className="py-1.5 px-3 bg-[#fc407a] hover:bg-pink-600 rounded font-bold text-white text-xs cursor-pointer"
                       >
                         发送
@@ -2218,11 +2386,12 @@ export default function CelestialV26Suite({
                         <button
                           onClick={() => {
                             playSound("sparkle");
+                            setRoomFireworks(true);
                             triggerToast("🎉 全房同步！释放十朵巨大的 stardust 闪频云大礼花！");
                           }}
-                          className="py-1 px-3 bg-gradient-to-r from-pink-600 to-indigo-600 text-white font-bold rounded text-[9px] uppercase cursor-pointer"
+                          className={`py-1 px-3 text-white font-bold rounded text-[9px] uppercase cursor-pointer transition-all ${roomFireworks ? "bg-emerald-600 hover:bg-emerald-500" : "bg-gradient-to-r from-pink-600 to-indigo-600"}`}
                         >
-                          集体投喂礼花 
+                          {roomFireworks ? "✓ 礼花已绽放" : "集体投喂礼花"}
                         </button>
                       </div>
 
@@ -2234,11 +2403,12 @@ export default function CelestialV26Suite({
                         <button
                           onClick={() => {
                             playSound("chime");
+                            setRoomFeed(true);
                             triggerToast("🍖 云投喂成功！所有家长屏幕里均落下了饱含爱意的彩虹银鱼串！");
                           }}
-                          className="py-1 px-3 bg-cyan-700 hover:bg-cyan-600 text-white font-bold rounded text-[9px] uppercase cursor-pointer"
+                          className={`py-1 px-3 text-white font-bold rounded text-[9px] uppercase cursor-pointer transition-all ${roomFeed ? "bg-emerald-600 hover:bg-emerald-500" : "bg-cyan-700 hover:bg-cyan-600"}`}
                         >
-                          在线投喂
+                          {roomFeed ? "✓ 已投喂" : "在线投喂"}
                         </button>
                       </div>
 

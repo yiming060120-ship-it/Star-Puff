@@ -20,7 +20,7 @@ import puffCatImage from "./assets/images/puff_cat_1779553092843.png";
 import NebulaGateCanvas from "./scenes/NebulaGateCanvas";
 import MemoryFlashbackModal, { PET_MEMORIES } from "./features/memorial/MemoryFlashbackModal";
 import MemoryAlbum from "./features/memorial/MemoryAlbum";
-import Pet3DReconstruction from "./pet3d/Pet3DReconstruction";
+
 import OnboardingGuide from "./features/system/OnboardingGuide";
 import CheckInCalendar from "./features/system/CheckInCalendar";
 import AnniversaryManager from "./features/memorial/AnniversaryManager";
@@ -53,6 +53,7 @@ import {
   LOGIN_DAILY_BONUS,
 } from "./data/companionEnergy";
 import ErrorBoundary from "./components/ErrorBoundary";
+import StarryBackground from "./components/background/StarryBackground";
 import { flushSaveToDisk } from "./persistence/saveManager";
 import {
   Sparkles,
@@ -245,6 +246,30 @@ export default function App() {
     };
   }, []);
 
+  // [UX 优化] 全局图片加载失败兜底：捕获所有 <img> 的 error（error 不冒泡，需捕获阶段），
+  // 失败时替换为星云风占位图，避免外链失效出现破图。
+  useEffect(() => {
+    const PLACEHOLDER =
+      "data:image/svg+xml," +
+      encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#1A1238"/><circle cx="100" cy="100" r="50" fill="rgba(139,111,184,0.25)"/><text x="100" y="110" text-anchor="middle" font-size="40">🌌</text></svg>`
+      );
+
+    const onError = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target && target.tagName === "IMG") {
+        const img = target as HTMLImageElement;
+        // 避免无限循环：占位图本身也走 error 的话不再替换
+        if (img.src !== PLACEHOLDER) {
+          img.src = PLACEHOLDER;
+        }
+      }
+    };
+
+    window.addEventListener("error", onError, true); // 捕获阶段
+    return () => window.removeEventListener("error", onError, true);
+  }, []);
+
   // User details with localStorage persistence
   const [user, setUser] = useState<StarPuffUser>(() => {
     const local = localStorage.getItem("starpuff_user");
@@ -259,7 +284,7 @@ export default function App() {
     const defaultVal: StarPuffUser = {
       ownerName: "星之守护者",
       membership: "free",
-      stardustCoins: 520, // free starter budget
+      stardustCoins: 100, // 普通用户上线即自动拥有 100 星尘币
       unlimitedTalks: false,
       dialogsRemaining: 5,
       dialogsMax: 5,
@@ -560,9 +585,16 @@ export default function App() {
   }, []);
 
   // 监测能量状态：沉睡弹沉睡窗、心寒告别(<20)弹低能量窗、委屈(20-50)弹委屈窗
+  // 用 ref 记录"已为当前状态弹过窗"，避免 energyTick 周期触发导致用户关闭后弹窗反复弹出（点了关闭像没反应）
+  const lastAlertStateRef = useRef<string>("");
   useEffect(() => {
     if (!user.activePet) return;
-    if (companionState.state === "sleeping" && !isSleepModalOpen) {
+    const state = companionState.state;
+    // 仅当能量状态"跨状态变化"时才弹窗一次；同一状态下关闭后不再反复弹
+    if (lastAlertStateRef.current === state) return;
+    lastAlertStateRef.current = state;
+
+    if (state === "sleeping") {
       // 进入沉睡时标记宠物 isSleeping
       if (!user.activePet.isSleeping) {
         updateCompanionEnergy(0);
@@ -570,13 +602,21 @@ export default function App() {
       setIsSleepModalOpen(true);
       setIsLowEnergyModalOpen(false);
       setIsHurtModalOpen(false);
-    } else if (companionState.state === "farewell" && !isSleepModalOpen && !isLowEnergyModalOpen) {
+    } else if (state === "farewell") {
       // 心寒告别（0-19）弹低能量提醒
+      setIsSleepModalOpen(false);
       setIsLowEnergyModalOpen(true);
       setIsHurtModalOpen(false);
-    } else if (companionState.state === "distant" && !isSleepModalOpen && !isLowEnergyModalOpen && !isHurtModalOpen) {
+    } else if (state === "distant") {
       // 失落疏离（20-49）弹委屈提醒（女性向：好虚弱，连尾巴都摇不动）
+      setIsSleepModalOpen(false);
+      setIsLowEnergyModalOpen(false);
       setIsHurtModalOpen(true);
+    } else {
+      // 恢复正常状态时关闭所有提醒弹窗
+      setIsSleepModalOpen(false);
+      setIsLowEnergyModalOpen(false);
+      setIsHurtModalOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companionState.state, energyTick]);
@@ -727,9 +767,6 @@ export default function App() {
       snack_biscuit: 2,
     };
   });
-
-  // Selected snack for feeding detail
-  const [selectedSnackForFeed, setSelectedSnackForFeed] = useState<StoreItem | null>(null);
 
   // VIP Dialog Modal
   const [isVipModalOpen, setIsVipModalOpen] = useState(false);
@@ -961,6 +998,17 @@ export default function App() {
   const [newPostText, setNewPostText] = useState("");
   // Stardust trigger for canvas spark burst
   const [confettiTrigger, setConfettiTrigger] = useState(0);
+  // [喂食功能区] 外部触发打开喂食菜单（星尘家园互动面板"喂食"按钮递增）
+  const [feedMenuTrigger, setFeedMenuTrigger] = useState(0);
+  // [BUG-FIX] 专属纪念定制服务：记录已购买的服务，避免"点了只 toast 无落地"的假支付
+  const [premiumServices, setPremiumServices] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("starpuff_premium_services");
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // --- PET MEMORY FLASHBACK SYSTEM STATES ---
   const [unlockedMemoryIds, setUnlockedMemoryIds] = useState<string[]>(() => {
@@ -1097,11 +1145,27 @@ export default function App() {
         ...prev,
         activePet: updatedPet,
         allPets: nextPets,
-        dialogsRemaining: prev.membership === "free" ? 5 : 999999
+        dialogsRemaining: prev.membership === "free" ? 5 : 999999,
+        // [BUG-FIX] 完成升星仪式即视为已走完新手流程，避免引导遮罩（z-[9999]）在仪式后误弹并拦截输入
+        onboardingCompleted: true
       };
     });
     playSound("success");
     triggerToast(`✨【${config.name}】升星汇聚成功！常驻暖阳家宿。`);
+  };
+
+  // 取消/退出升星仪式：恢复为 allPets 里的第一只宠物（用于"重新举行"场景）
+  const handleCancelCeremony = () => {
+    setUser(prev => {
+      const fallback = (prev.allPets && prev.allPets.length > 0) ? prev.allPets[0] : prev.activePet;
+      if (!fallback) return prev; // 完全没有宠物时无法退出（首次进入强制仪式）
+      return {
+        ...prev,
+        activePet: fallback
+      };
+    });
+    playSound("click");
+    triggerToast("已退出升星仪式，回到默影家宿。");
   };
 
   const handleCheckIn = (coinsAwarded: number, todayString: string) => {
@@ -1139,6 +1203,39 @@ export default function App() {
         ...prev,
         allPets: nextPets,
         activePet: petWithId
+      };
+    });
+  };
+
+  // 编辑宠物：更新 allPets 中对应 id 的宠物，若为当前活跃宠物则同步 activePet
+  const handleUpdatePet = (updatedPet: PetConfig) => {
+    setUser(prev => {
+      const key = updatedPet.id || updatedPet.name;
+      const nextPets = (prev.allPets || []).map(p =>
+        (p.id || p.name) === key ? { ...p, ...updatedPet, id: p.id || updatedPet.id } : p
+      );
+      const isActive = (prev.activePet?.id || prev.activePet?.name) === key;
+      return {
+        ...prev,
+        allPets: nextPets,
+        activePet: isActive ? { ...prev.activePet, ...updatedPet, id: prev.activePet?.id || updatedPet.id } : prev.activePet
+      };
+    });
+  };
+
+  // 删除宠物：从 allPets 移除；若删除的是活跃宠物，则切到第一只剩余宠物
+  const handleDeletePet = (petId: string) => {
+    setUser(prev => {
+      const nextPets = (prev.allPets || []).filter(p => (p.id || p.name) !== petId);
+      if (nextPets.length === 0) {
+        // 不允许删光，至少保留一只（前端已有拦截，这里兜底）
+        return prev;
+      }
+      const deletingActive = (prev.activePet?.id || prev.activePet?.name) === petId;
+      return {
+        ...prev,
+        allPets: nextPets,
+        activePet: deletingActive ? nextPets[0] : prev.activePet
       };
     });
   };
@@ -1214,13 +1311,12 @@ export default function App() {
     setUser(prev => {
       const nextUser = {
         ...prev,
-        onboardingCompleted: true,
-        stardustCoins: prev.stardustCoins + 100 // award 100 coins for completing the guide!
+        onboardingCompleted: true
       };
       localStorage.setItem("starpuff_user", JSON.stringify(nextUser));
       return nextUser;
     });
-    triggerToast("🏅 恭喜！你完成了星轨引航新手训练！温存相伴，获赠 100星尘币与向导的祝福！");
+    triggerToast("🏅 恭喜！你完成了星轨引航新手训练！");
     playSound("success");
   };
 
@@ -1352,6 +1448,13 @@ export default function App() {
       }));
     }
 
+    // 温暖/委屈状态：随机说一句日常话术（问候/撒娇/关心/碎碎念等，严格按当前能量状态取对应文案库）
+    const dailyPhrase = pickPhrase(getPhrasesForState(companionState.state));
+    if (dailyPhrase) {
+      triggerToast(`${user.activePet?.name}：「${dailyPhrase}」`);
+      playSound("chime");
+    }
+
     // Charge memory flashback energy
     incrementBondingCharge(15);
 
@@ -1390,7 +1493,6 @@ export default function App() {
     playSound("success");
     setConfettiTrigger(prev => prev + 1); // explode sparkles!
     incrementBondingCharge(25); // Feeding gives high bonding energy
-    setSelectedSnackForFeed(null);
   };
 
   // Buy Shop items
@@ -1571,11 +1673,25 @@ export default function App() {
 
   // Simulation buying direct RMB items
   const handleBuyPremiumService = (title: string, cost: number) => {
+    // [BUG-FIX] 已购买过则不再重复扣费/购买
+    if (premiumServices.includes(title)) {
+      triggerToast(`✅ 服务「${title}」已开通，无需重复购买。`);
+      playSound("beep");
+      return;
+    }
     playSound("bubble");
     const confirmPay = window.confirm(`【微信支付模拟】\n确定支付 ￥${cost} 购买并启动：\n「${title}」吗？`);
     if (confirmPay) {
       playSound("success");
-      triggerToast(`💎 支付成功！已经录入高级后台计算排程，服务「${title}」即刻生效。`);
+      // [BUG-FIX] 持久化购买记录，刷新/重开后仍保留"已开通"状态
+      const next = [...premiumServices, title];
+      setPremiumServices(next);
+      try {
+        localStorage.setItem("starpuff_premium_services", JSON.stringify(next));
+      } catch {
+        /* 忽略存储失败 */
+      }
+      triggerToast(`💎 支付成功！服务「${title}」已生效。`);
       if (title.includes("视频")) {
         triggerToast("📹 正在混合渲染15秒像素视频片段...成品已寄送至您的预留邮箱！");
       } else {
@@ -1593,6 +1709,10 @@ export default function App() {
     if (result.status === "error") {
       triggerToast(`⚠️ 购买失败：${result.error || "未知错误"}`);
       playSound("beep");
+    }
+    // [BUG-FIX] 成功分支兜底提示（handleGranted 正常会触发成功 toast，此处兜底防止边界情况下无反馈）
+    else if (result.status === "success") {
+      playSound("success");
     }
   };
 
@@ -1640,6 +1760,9 @@ export default function App() {
       <div className="absolute top-20 left-40 w-80 h-80 rounded-full blur-[140px] bg-[#7B61FF]/10 pointer-events-none" />
       <div className="absolute bottom-10 right-20 w-80 h-80 rounded-full blur-[120px] bg-[#F27D26]/10 pointer-events-none" />
 
+      {/* 动态星空背景（视觉焕新：闪烁星星 + 星云团，纯装饰不干扰交互） */}
+      <StarryBackground />
+
       {/* Main mockup device container */}
       <ErrorBoundary>
       <div className="w-full max-w-5xl bg-[#090715]/95 border border-white/10 rounded-2xl flex flex-col min-h-[780px] shadow-[0_0_50px_rgba(123,97,255,0.15)] relative overflow-hidden backdrop-blur-xl shrink-0">
@@ -1675,10 +1798,10 @@ export default function App() {
             {/* Stardust coins counter (Clickable to trigger charge) */}
             <button
               onClick={() => setActiveTab("store")}
-              className="flex items-center space-x-2 bg-white/5 border border-white/10 hover:border-orange-400/30 rounded-full px-3 py-1 transition-all"
+              className="flex items-center space-x-2 bg-white/5 border border-white/10 hover:border-orange-400/40 hover:shadow-[0_0_16px_rgba(251,146,60,0.25)] hover:scale-105 rounded-full px-3 py-1 transition-all duration-300"
               title="充值与任务商店"
             >
-              <Coins className="w-3.5 h-3.5 text-orange-400" />
+              <Coins className="w-3.5 h-3.5 text-orange-400 drop-shadow-[0_0_4px_rgba(251,146,60,0.6)]" />
               <span className="text-xs font-mono tracking-tighter text-orange-300 font-bold">
                 {user.stardustCoins} <span className="text-[8px] text-gray-400 font-normal">星尘币</span>
               </span>
@@ -1711,7 +1834,9 @@ export default function App() {
         </header>
 
         {/* TOP NAVIGATION TAB BAR */}
-        <nav className="h-16 border-b border-white/5 backdrop-blur-xl z-20 flex items-center justify-around px-2 md:px-12 bg-[#070314]/90 shrink-0">
+        <nav className="relative h-16 border-b border-white/5 backdrop-blur-xl z-20 flex items-center justify-around px-2 md:px-12 bg-[#070314]/90 shrink-0">
+          {/* 底部水晶光晕（视觉焕新：导航栏底部柔和紫光，增强质感） */}
+          <div className="absolute -bottom-1 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-[#8B6FB8]/60 to-transparent pointer-events-none" />
           
           <button
             onClick={() => {
@@ -1720,7 +1845,7 @@ export default function App() {
               triggerToast("💡 开启系统引航新手训练！");
             }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              !user.onboardingCompleted ? "text-yellow-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
+              !user.onboardingCompleted ? "text-yellow-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
@@ -1732,7 +1857,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("home"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "home" ? "text-orange-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
+              activeTab === "home" ? "text-orange-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
@@ -1744,7 +1869,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("galaxy"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "galaxy" ? "text-indigo-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
+              activeTab === "galaxy" ? "text-indigo-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
@@ -1756,7 +1881,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("community"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "community" ? "text-purple-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
+              activeTab === "community" ? "text-purple-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center text-md">
@@ -1768,7 +1893,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("store"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "store" ? "text-pink-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
+              activeTab === "store" ? "text-pink-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center text-md">
@@ -1780,7 +1905,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("profile"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "profile" ? "text-cyan-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
+              activeTab === "profile" ? "text-cyan-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center rounded-full border border-white/50 overflow-hidden bg-gradient-to-b from-slate-500 to-slate-700 w-4 h-4" />
@@ -1790,7 +1915,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("v26_suite"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "v26_suite" ? "text-pink-400 scale-110" : "opacity-75 hover:opacity-100 text-white"
+              activeTab === "v26_suite" ? "text-pink-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center text-xs animate-pulse">
@@ -1868,6 +1993,7 @@ export default function App() {
                 </div>
                 <StardustCeremony
                   onComplete={handleCeremonyComplete}
+                  onCancel={(user.allPets && user.allPets.length > 0) ? handleCancelCeremony : undefined}
                   playSparkleSound={() => playSound("sparkle")}
                 />
               </div>
@@ -1927,6 +2053,17 @@ export default function App() {
                         equipped={user.outfitsEquipped}
                         onClickPet={handleHomePetClick}
                         stardustSparkleTrigger={confettiTrigger}
+                        stardustCoins={user.stardustCoins}
+                        onSpendCoins={(amount) => {
+                          // 扣星尘币：余额不足返回 false
+                          if (user.stardustCoins < amount) {
+                            triggerToast(`⚠️ 星尘币不足，还差 ${amount - user.stardustCoins} 币。`);
+                            return false;
+                          }
+                          setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins - amount) }));
+                          return true;
+                        }}
+                        feedMenuTrigger={feedMenuTrigger}
                       />
 
                       {/* Display name plate and active info */}
@@ -2023,6 +2160,20 @@ export default function App() {
                         </div>
                         <span className="text-[10px] text-gray-400 group-hover:text-white">疗愈音乐</span>
                       </button>
+
+                      {/* [喂食功能区] 喂食按钮：打开食物选择菜单 */}
+                      <button
+                        onClick={() => {
+                          playSound("click");
+                          setFeedMenuTrigger(p => p + 1);
+                        }}
+                        className="flex flex-col items-center gap-1 group active:scale-95 transition-transform"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500/20 to-rose-500/20 border border-pink-500/30 group-hover:bg-pink-500/30 group-hover:border-pink-400 flex items-center justify-center text-sm transition-all shadow-[0_0_10px_rgba(236,72,153,0.3)]">
+                          🍖
+                        </div>
+                        <span className="text-[10px] text-pink-300 group-hover:text-white font-medium">喂食</span>
+                      </button>
                     </div>
 
                     {/* --- V2.0 ADVANCED PORTALS SECTIONS --- */}
@@ -2084,6 +2235,8 @@ export default function App() {
                         user={user}
                         onSelectPet={handleSelectPet}
                         onAddPet={handleAddPet}
+                        onUpdatePet={handleUpdatePet}
+                        onDeletePet={handleDeletePet}
                         triggerToast={triggerToast}
                       />
                     </div>
@@ -2313,7 +2466,12 @@ export default function App() {
                           <button
                             key={food.id}
                             onClick={() => handleFeedEnergy(food.id)}
-                            disabled={user.stardustCoins < food.price}
+                            disabled={
+                              // [BUG-FIX] 禁用条件与 handleFeedEnergy 内拦截逻辑对齐：满能量/沉睡时非唤醒剂禁用
+                              (food.id !== "energy_revive" && currentCompanionEnergy >= 100) ||
+                              (food.id !== "energy_revive" && companionState.state === "sleeping") ||
+                              (user.stardustCoins < food.price && !(food.id === "energy_revive" && !freeReviveUsed))
+                            }
                             className={`bg-black/40 border rounded-lg p-2.5 text-center space-y-1 transition-all ${
                               food.id === "energy_revive"
                                 ? "border-[#ef476f]/40 hover:border-[#ef476f]"
@@ -2485,7 +2643,7 @@ export default function App() {
                             <button
                               onClick={() => handleTopupCoins(pkg.itemId)}
                               disabled={purchaseState.status === "purchasing"}
-                              className="mt-2.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[9px] py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="shine-hover mt-2.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[9px] py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {purchaseState.status === "purchasing" ? "支付中…" : `微信闪付 ￥${pkg.rmb}`}
                             </button>
@@ -2578,9 +2736,9 @@ export default function App() {
                               </div>
                               <button
                                 onClick={() => handleBuyPremiumService("AI 纪念视频包", 29.9)}
-                                className="bg-[#f72585] hover:bg-[#b5179e] text-white font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all hover:scale-105 active:scale-95"
+                                className={`${premiumServices.includes("AI 纪念视频包") ? "bg-slate-700 text-slate-300 cursor-not-allowed" : "bg-[#f72585] hover:bg-[#b5179e] text-white hover:scale-105"} font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all active:scale-95`}
                               >
-                                ￥29.9
+                                {premiumServices.includes("AI 纪念视频包") ? "✓ 已开通" : "￥29.9"}
                               </button>
                             </div>
 
@@ -2593,50 +2751,15 @@ export default function App() {
                               </div>
                               <button
                                 onClick={() => handleBuyPremiumService("高级小窝孪生", 19.9)}
-                                className="bg-[#4cc9f0] hover:bg-[#4361ee] text-slate-900 font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all hover:scale-105 active:scale-95"
+                                className={`${premiumServices.includes("高级小窝孪生") ? "bg-slate-700 text-slate-300 cursor-not-allowed" : "bg-[#4cc9f0] hover:bg-[#4361ee] text-slate-900 hover:scale-105"} font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all active:scale-95`}
                               >
-                                ￥19.9
+                                {premiumServices.includes("高级小窝孪生") ? "✓ 已开通" : "￥19.9"}
                               </button>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
-
-                    {/* Section 2: AI 3D high-fidelity bone/voxel mesh modeling */}
-                    {user.activePet && (
-                      <div className="bg-gradient-to-tr from-purple-500/10 to-orange-400/15 border border-purple-500/20 rounded-2xl p-5" id="profile-reconstruct-3d-panel">
-                        <span className="text-[10px] font-bold tracking-wide text-orange-400 font-sans block mb-1">
-                          🎒 2、3D 星尘重建 · 从照片唤醒它的模样
-                        </span>
-                        <p className="text-[9px] text-gray-400 mb-4 font-sans max-w-xl leading-normal">
-                          上传它生前的照片，让小宝贝以 3D 星尘的模样重新回到你身边。合成后可在主页切换查看。
-                        </p>
-                        
-                        <Pet3DReconstruction 
-                          activePet={user.activePet} 
-                          onSync3DModelToPet={(newModel) => {
-                            setUser(prev => {
-                              if (!prev.activePet) return prev;
-                              const updatedPet = {
-                                ...prev.activePet,
-                                model3d: newModel
-                              };
-                              // 同步到 allPets 列表，避免切换宠物后 3D 模型丢失（原代码只写无效的独立 key，未同步列表）
-                              const allPets = (prev.allPets ?? []).map(p =>
-                                p.id === updatedPet.id ? updatedPet : p
-                              );
-                              return {
-                                ...prev,
-                                activePet: updatedPet,
-                                allPets
-                              };
-                            });
-                          }}
-                          triggerToast={triggerToast}
-                        />
-                      </div>
-                    )}
 
                     {/* Snacks interactive Feed bar */}
                     <div className="bg-gradient-to-b from-[#1a1140]/60 to-[#120c2e]/60 border border-purple-400/15 rounded-2xl p-4">
@@ -2686,6 +2809,19 @@ export default function App() {
                         <NotificationSettings
                           initialConfig={notificationConfig ?? undefined}
                           onSaveConfig={handleSaveNotificationConfig}
+                          triggerToast={triggerToast}
+                        />
+                        <MemorialZone
+                          activePet={user.activePet}
+                          stardustCoins={user.stardustCoins}
+                          onSpendCoins={(amount) => {
+                            if (user.stardustCoins < amount) {
+                              triggerToast(`⚠️ 星尘币不足，还差 ${amount - user.stardustCoins} 币。`);
+                              return false;
+                            }
+                            setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins - amount) }));
+                            return true;
+                          }}
                           triggerToast={triggerToast}
                         />
 
@@ -2912,12 +3048,7 @@ export default function App() {
                           <button
                             onClick={() => {
                               playSound("click");
-                              // trigger actions accordingly or help complete
-                              if (task.id === "task_share") {
-                                updateTaskProgress("task_share", 1);
-                              } else {
-                                updateTaskProgress(task.id, 1);
-                              }
+                              updateTaskProgress(task.id, 1);
                             }}
                             className="text-[9px] text-purple-300 hover:text-white bg-purple-500/20 border border-purple-500/30 px-1.5 py-0.5 rounded tracking-tighter"
                           >
@@ -2940,7 +3071,9 @@ export default function App() {
       {/* MEMBERSHIP CHECKOUT SELECTION MODAL */}
       {isVipModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" id="vip-checkout-modal">
-          <div className="bg-[#0f0a25] border border-purple-500/40 rounded-2xl p-6 w-full max-w-lg shadow-[0_0_50px_rgba(123,97,255,0.4)] space-y-5">
+          <div className="relative overflow-hidden bg-[#0f0a25] border border-purple-500/40 rounded-2xl p-6 w-full max-w-lg shadow-[0_0_50px_rgba(123,97,255,0.4)] space-y-5">
+            {/* 顶部装饰光带 */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-yellow-400 to-transparent" />
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-md md:text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-200 uppercase flex items-center gap-1.5">
@@ -3011,7 +3144,9 @@ export default function App() {
       {/* --- 沉睡弹窗（女性向版）--- */}
       {isSleepModalOpen && (
         <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#0a0718] border border-slate-700/60 rounded-2xl p-8 w-full max-w-md shadow-[0_0_60px_rgba(0,0,0,0.8)] text-center space-y-5">
+          <div className="relative overflow-hidden bg-[#0a0718] border border-slate-700/60 rounded-2xl p-8 w-full max-w-md shadow-[0_0_60px_rgba(0,0,0,0.8)] text-center space-y-5">
+            {/* 顶部装饰光带 */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
             <div className="text-5xl animate-pulse">💫</div>
             <div>
               <h3 className="text-lg font-bold text-gray-300">星尘散尽，它陷入了沉睡</h3>
@@ -3044,7 +3179,9 @@ export default function App() {
       {/* --- 低能量提醒弹窗（能量<20，女性向版）--- */}
       {isLowEnergyModalOpen && companionState.state === "farewell" && (
         <div className="fixed inset-0 bg-black/60 z-[55] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#0f0a25] border border-[#ef476f]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(239,71,111,0.3)] text-center space-y-4">
+          <div className="relative overflow-hidden bg-[#0f0a25] border border-[#ef476f]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(239,71,111,0.3)] text-center space-y-4">
+            {/* 顶部装饰光带 */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#ef476f] to-transparent" />
             <div className="text-4xl">😿</div>
             <div>
               <h3 className="text-base font-bold text-white">你的星宠...快要没有能量了</h3>
@@ -3076,7 +3213,9 @@ export default function App() {
       {/* --- 委屈提醒弹窗（能量<50，女性向版）--- */}
       {isHurtModalOpen && companionState.state === "distant" && (
         <div className="fixed inset-0 bg-black/50 z-[54] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#0f0a25] border border-[#fca3cc]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(252,163,204,0.25)] text-center space-y-4">
+          <div className="relative overflow-hidden bg-[#0f0a25] border border-[#fca3cc]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(252,163,204,0.25)] text-center space-y-4">
+            {/* 顶部装饰光带 */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#fca3cc] to-transparent" />
             <div className="text-4xl">🥺</div>
             <div>
               <h3 className="text-base font-bold text-white">你的星宠有点委屈了</h3>
@@ -3140,8 +3279,9 @@ export default function App() {
       )}
 
       {/* --- ONBOARDING GUIDE OVERLAY DIALOGUE (P0-1) --- */}
+      {/* [BUG-FIX] 升星仪式（activePet 为空）期间不渲染引导遮罩，避免 z-[9999] 全屏层拦截仪式输入框 */}
       <OnboardingGuide
-        isOpen={!user.onboardingCompleted}
+        isOpen={!user.onboardingCompleted && !!user.activePet}
         onComplete={handleOnboardingComplete}
         onNavigateTab={(tab) => {
           setActiveTab(tab);

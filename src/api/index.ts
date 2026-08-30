@@ -7,12 +7,51 @@
  */
 
 import type { PetConfig, Pet3DModelConfig } from "../types";
+import { NetworkError, ApiError, toAppError } from "../core/errors";
 
 /**
  * API 基址。默认同源：Electron 内嵌 Express / Vite 代理均为当前源。
  * 正式上架若迁移到自有托管后端（客户端零密钥），把此常量改为后端根 URL 即可，如 "https://api.starpuff.example.com"。
  */
 export const API_BASE = "";
+
+/**
+ * 统一请求底层：封装 fetch，把网络错误 / HTTP 错误 / JSON 解析失败
+ * 收敛为「带 success 字段的结构化结果」，绝不向上层抛出未捕获异常。
+ *
+ * 这样组件层无需在每次调用处重复写 try-catch，
+ * 也避免「fetch 因断网抛异常导致按钮点了没反应」的隐患。
+ */
+async function request<T>(
+  path: string,
+  options?: { method?: string; body?: unknown }
+): Promise<{ success: boolean; data?: T; error?: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: options?.method ?? "GET",
+      headers: options?.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (err) {
+    const e = toAppError(err, "NETWORK_ERROR");
+    const appErr = e instanceof NetworkError ? e : new NetworkError(undefined, e);
+    return { success: false, error: appErr.message };
+  }
+
+  if (!res.ok) {
+    const apiErr = new ApiError(`服务返回异常状态码 ${res.status}`, { status: res.status });
+    return { success: false, error: apiErr.message };
+  }
+
+  try {
+    const data = (await res.json()) as T;
+    return { success: true, data };
+  } catch (err) {
+    const e = toAppError(err, "PARSE_ERROR");
+    return { success: false, error: `响应解析失败：${e.message}` };
+  }
+}
 
 // ---- 耳语生成 ----
 
@@ -31,12 +70,12 @@ export async function generateWhispers(params: {
   recentEvents: string[];
   isVip: boolean;
 }): Promise<WhisperResponse> {
-  const res = await fetch(`${API_BASE}/api/whisper`, {
+  const result = await request<WhisperResponse>("/api/whisper", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: params,
   });
-  return res.json();
+  if (!result.success) return { success: false, provider: "Offline", whispers: [], error: result.error };
+  return result.data!;
 }
 
 // ---- AI 聊天 ----
@@ -58,12 +97,12 @@ export async function sendChatMessage(params: {
   lore: string;
   personality: string;
 }): Promise<ChatResponse> {
-  const res = await fetch(`${API_BASE}/api/chat`, {
+  const result = await request<ChatResponse>("/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: params,
   });
-  return res.json();
+  if (!result.success) return { success: false, provider: "Offline", text: "", error: result.error };
+  return result.data!;
 }
 
 // ---- 3D 重建 ----
@@ -81,12 +120,15 @@ export async function reconstruct3D(params: {
   primaryColor: string;
   base64Image: string;
 }): Promise<Reconstruct3DResponse> {
-  const res = await fetch(`${API_BASE}/api/reconstruct-3d`, {
+  const result = await request<Reconstruct3DResponse>("/api/reconstruct-3d", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: params,
   });
-  return res.json();
+  // 失败时返回一个可被调用方安全消费的空响应（不含模型字段，success=false 驱动兜底）
+  if (!result.success) {
+    return { success: false, provider: "Offline", model: null as unknown as Pet3DModelConfig, warning: result.error };
+  }
+  return result.data!;
 }
 
 // ---- 成长故事 ----
@@ -103,12 +145,12 @@ export async function generateGrowthStory(params: {
   breed: string;
   petType: string;
 }): Promise<GrowthStoryResponse> {
-  const res = await fetch(`${API_BASE}/api/growth-story`, {
+  const result = await request<GrowthStoryResponse>("/api/growth-story", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: params,
   });
-  return res.json();
+  if (!result.success) return { success: false, provider: "Offline", story: "", error: result.error };
+  return result.data!;
 }
 
 // ---- AI 模式配置 ----
@@ -121,18 +163,19 @@ export interface AiConfigStatus {
 
 /** 查询当前 AI 状态（离线模板 / Gemini 在线） */
 export async function getAiConfigStatus(): Promise<AiConfigStatus> {
-  const res = await fetch(`${API_BASE}/api/config/status`);
-  return res.json();
+  const result = await request<AiConfigStatus>("/api/config/status");
+  if (!result.success) return { success: false, aiEnabled: false, providerMode: "Offline" };
+  return result.data!;
 }
 
 /** 设置 Gemini key（空串 = 关闭在线 AI 回离线模式） */
 export async function setGeminiKey(key: string): Promise<AiConfigStatus> {
-  const res = await fetch(`${API_BASE}/api/config/gemini-key`, {
+  const result = await request<AiConfigStatus>("/api/config/gemini-key", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key }),
+    body: { key },
   });
-  return res.json();
+  if (!result.success) return { success: false, aiEnabled: false, providerMode: "Offline" };
+  return result.data!;
 }
 
 // ---- 微交易 API (microtransaction-api) ----
@@ -156,8 +199,7 @@ export interface MtxApiResponse<T = unknown> {
 
 /** 获取所有商品列表 */
 export async function getProducts(): Promise<MtxApiResponse<ProductItem[]>> {
-  const res = await fetch(`${API_BASE}/api/mtx/products`);
-  return res.json();
+  return request<ProductItem[]>("/api/mtx/products");
 }
 
 /** 初始化购买 */
@@ -169,12 +211,10 @@ export async function initPurchase(params: {
   language?: string;
   currency?: string;
 }): Promise<MtxApiResponse<{ orderId: string; requiresSteamOverlay: boolean; status: string }>> {
-  const res = await fetch(`${API_BASE}/api/mtx/init-purchase`, {
+  return request<{ orderId: string; requiresSteamOverlay: boolean; status: string }>("/api/mtx/init-purchase", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: params,
   });
-  return res.json();
 }
 
 /** 完成购买 */
@@ -182,12 +222,10 @@ export async function finalizePurchase(params: {
   steamId: string;
   orderId: string;
 }): Promise<MtxApiResponse<{ status: string }>> {
-  const res = await fetch(`${API_BASE}/api/mtx/finalize-purchase`, {
+  return request<{ status: string }>("/api/mtx/finalize-purchase", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: params,
   });
-  return res.json();
 }
 
 /** 查询购买状态 */
@@ -195,22 +233,18 @@ export async function checkPurchaseStatus(params: {
   steamId: string;
   orderId?: string;
 }): Promise<MtxApiResponse<{ orderId: string; status: string; itemId?: number; amountInCents?: number }>> {
-  const res = await fetch(`${API_BASE}/api/mtx/check-purchase`, {
+  return request<{ orderId: string; status: string; itemId?: number; amountInCents?: number }>("/api/mtx/check-purchase", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: params,
   });
-  return res.json();
 }
 
 /** 验证用户可靠性 */
 export async function verifyUser(steamId: string): Promise<MtxApiResponse<{ isReliable: boolean; steamId: string }>> {
-  const res = await fetch(`${API_BASE}/api/mtx/verify-user`, {
+  return request<{ isReliable: boolean; steamId: string }>("/api/mtx/verify-user", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ steamId }),
+    body: { steamId },
   });
-  return res.json();
 }
 
 // ---- 发放与对账 ----
@@ -236,20 +270,16 @@ export async function grantItems(params: {
   itemId: number;
   quantity?: number;
 }): Promise<MtxApiResponse<GrantResult>> {
-  const res = await fetch(`${API_BASE}/api/mtx/grant`, {
+  return request<GrantResult>("/api/mtx/grant", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: params,
   });
-  return res.json();
 }
 
 /** 回收权益（退款/拒付时调用） */
 export async function revokeGrant(orderId: string): Promise<MtxApiResponse<{ orderId: string; type: string; payload: GrantPayload }>> {
-  const res = await fetch(`${API_BASE}/api/mtx/revoke`, {
+  return request<{ orderId: string; type: string; payload: GrantPayload }>("/api/mtx/revoke", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orderId }),
+    body: { orderId },
   });
-  return res.json();
 }

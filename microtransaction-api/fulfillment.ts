@@ -15,11 +15,7 @@ import type { Product, ApiResponse } from "./types";
 import { findProduct } from "./service";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import * as db from "./db";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // ---- 发放权益定义 ----
 
@@ -86,8 +82,9 @@ function resolveMembershipLevel(product: Product): "vip_month" | "vip_year" {
 /** 已发放订单记录（内存） */
 const grantedOrders = new Map<string, GrantResult>();
 
-// 持久化路径：microtransaction-api/data/grants.json
-const GRANTS_DIR = path.join(__dirname, "data");
+// 持久化路径：与 db.ts 一致，用可写的数据根目录（避免打包后 asar 只读目录写失败）
+const DATA_ROOT = process.env.STARPUFF_DATA_DIR || path.join(process.cwd(), "microtransaction-data");
+const GRANTS_DIR = path.join(DATA_ROOT, "data");
 const GRANTS_FILE = path.join(GRANTS_DIR, "grants.json");
 
 function loadPersistedGrants(): void {
