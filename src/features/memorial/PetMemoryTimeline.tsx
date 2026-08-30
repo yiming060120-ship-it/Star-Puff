@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
 import { Star, Smile, Upload, Plus, Trash2, Heart, Award, ArrowRight, BookOpen } from "lucide-react";
@@ -41,7 +41,7 @@ const PRESET_MEM_IMAGES = [
 
 export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdateTags, triggerToast }: PetMemoryTimelineProps) {
   const currentTags = petConfig.personalityTags || ["傲娇小主子", "温柔精灵", "贴心小棉袄"];
-  const timelineList = petConfig.memoryTimelineList || [
+  const DEFAULT_TIMELINE = [
     {
       id: "seed_1",
       date: "2025-05-12",
@@ -57,6 +57,11 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
       image: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg"
     }
   ];
+  // [BUG-FIX] 用内部 state 维护时间线，useEffect 同步 props，增删用函数式更新避免过期快照丢失数据
+  const [timelineList, setTimelineList] = useState(petConfig.memoryTimelineList || DEFAULT_TIMELINE);
+  useEffect(() => {
+    setTimelineList(petConfig.memoryTimelineList || DEFAULT_TIMELINE);
+  }, [petConfig.memoryTimelineList]);
 
   const [selTags, setSelTags] = useState<string[]>(currentTags);
   const [logTitle, setLogTitle] = useState("");
@@ -65,22 +70,28 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
   const [logImage, setLogImage] = useState("");
   const [showAddLog, setShowAddLog] = useState(false);
 
-  // Toggle tag in 3-Max array
+  // [BUG-FIX] 外部 petConfig.personalityTags 变化时同步内部 selTags（切换宠物后标签刷新）
+  useEffect(() => {
+    setSelTags(petConfig.personalityTags || ["傲娇小主子", "温柔精灵", "贴心小棉袄"]);
+  }, [petConfig.personalityTags]);
+
+  // Toggle tag in 3-Max array（[BUG-FIX] 函数式更新，避免快速连点丢失更新）
   const handleToggleTag = (tagCode: string) => {
     playSound("click");
-    if (selTags.includes(tagCode)) {
-      const filtered = selTags.filter(t => t !== tagCode);
-      setSelTags(filtered);
-      onUpdateTags(filtered);
-    } else {
-      if (selTags.length >= 3) {
-        triggerToast("⚠️ 宝贝性格最多可以选 3 个最为匹配的核心标签哦");
-        return;
+    setSelTags(prev => {
+      if (prev.includes(tagCode)) {
+        const filtered = prev.filter(t => t !== tagCode);
+        onUpdateTags(filtered);
+        return filtered;
       }
-      const updated = [...selTags, tagCode];
-      setSelTags(updated);
+      if (prev.length >= 3) {
+        triggerToast("⚠️ 宝贝性格最多可以选 3 个最为匹配的核心标签哦");
+        return prev;
+      }
+      const updated = [...prev, tagCode];
       onUpdateTags(updated);
-    }
+      return updated;
+    });
   };
 
   const handleCreateLog = () => {
@@ -97,8 +108,11 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
       image: logImage || PRESET_MEM_IMAGES[Math.floor(Math.random() * PRESET_MEM_IMAGES.length)]
     };
 
-    const nextList = [newLog, ...timelineList].sort((a,b) => b.date.localeCompare(a.date));
-    onUpdateTimeline(nextList);
+    setTimelineList(prev => {
+      const nextList = [newLog, ...prev].sort((a, b) => b.date.localeCompare(a.date));
+      onUpdateTimeline(nextList);
+      return nextList;
+    });
 
     setLogTitle("");
     setLogDate("");
@@ -110,8 +124,11 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
   };
 
   const handleDeleteLog = (id: string) => {
-    const nextList = timelineList.filter(l => l.id !== id);
-    onUpdateTimeline(nextList);
+    setTimelineList(prev => {
+      const nextList = prev.filter(l => l.id !== id);
+      onUpdateTimeline(nextList);
+      return nextList;
+    });
     triggerToast("🗑️ 对应的星尘记忆已解除关联。");
     playSound("beep");
   };

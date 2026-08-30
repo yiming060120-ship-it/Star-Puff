@@ -5,7 +5,10 @@ import { playSound } from "../../audio/AudioSynth";
 
 interface MemorialZoneProps {
   activePet: PetConfig | null;
-  onGrantCoins: (amount: number) => void;
+  /** 当前星尘币余额（用于扣费校验） */
+  stardustCoins: number;
+  /** 扣星尘币（余额不足返回 false） */
+  onSpendCoins: (amount: number) => boolean;
   triggerToast: (msg: string) => void;
 }
 
@@ -28,13 +31,20 @@ const SAMPLE_SHRINES: MemorialStone[] = [
   { id: "ms_4", petName: "皮皮", breed: "金毛犬", passingDate: "2025-04-15", parentName: "皮皮大队长", eulogy: "皮皮，你是世界上最棒的狗狗。最后一次闭眼的时候你还冲我摇了尾巴，谢谢你留给我的全部治愈。爸想你。", tributesCount: 112, flamePulse: true, fruitsFed: 19 }
 ];
 
-export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: MemorialZoneProps) {
+export default function MemorialZone({ activePet, stardustCoins, onSpendCoins, triggerToast }: MemorialZoneProps) {
   const [shrines, setShrines] = useState<MemorialStone[]>(SAMPLE_SHRINES);
   const [activeStoneId, setActiveStoneId] = useState<string | null>(SAMPLE_SHRINES[0].id);
   const [isRegistering, setIsRegistering] = useState(false);
   const [customEulogy, setCustomEulogy] = useState("");
 
   const handleTributeFlower = (id: string) => {
+    // [BUG-FIX] 献花改为扣费（原为发币 +10，经济不对称）
+    if (stardustCoins < 5) {
+      triggerToast("⚠️ 星尘币不足，献花需要 5 星尘币。");
+      playSound("beep");
+      return;
+    }
+    if (!onSpendCoins(5)) return;
     playSound("sparkle");
     setShrines(prev => prev.map(s => {
       if (s.id === id) {
@@ -42,11 +52,17 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
       }
       return s;
     }));
-    onGrantCoins(10);
-    triggerToast("🌼 您献上了一束【星尘白菊】以致敬缅怀！赠予您星尘币 +10 ✨");
+    triggerToast("🌼 您献上了一束【星尘白菊】以致敬缅怀（-5 星尘币）✨");
   };
 
   const handleTributeStarFruit = (id: string) => {
+    // [BUG-FIX] 供奉仙果改为扣费（原为发币 +20）
+    if (stardustCoins < 15) {
+      triggerToast("⚠️ 星尘币不足，供奉仙果需要 15 星尘币。");
+      playSound("beep");
+      return;
+    }
+    if (!onSpendCoins(15)) return;
     playSound("success");
     setShrines(prev => prev.map(s => {
       if (s.id === id) {
@@ -54,8 +70,7 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
       }
       return s;
     }));
-    onGrantCoins(20);
-    triggerToast("🍒 您供奉了一枚【星河仙果】传递温暖！赠予您星尘币 +20 🍒");
+    triggerToast("🍒 您供奉了一枚【星河仙果】传递温暖（-15 星尘币）🍒");
   };
 
   const handleRegisterActivePet = (e: React.FormEvent) => {
@@ -215,7 +230,7 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
                   className="flex-1 bg-yellow-500/10 hover:bg-yellow-500/25 border border-yellow-500/30 text-yellow-300 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
                 >
                   <Flower className="w-4 h-4" />
-                  献上星光白菊纪念 (星尘币 +10)
+                  献上星光白菊纪念 (-5 星尘币)
                 </button>
 
                 <button
@@ -223,7 +238,7 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
                   className="flex-1 bg-pink-500/15 hover:bg-pink-500/35 border border-pink-500/30 text-pink-300 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all animate-pulse"
                 >
                   <Star className="w-4 h-4 fill-pink-300" />
-                  供奉仙星果实追忆 (星尘币 +20)
+                  供奉仙星果实追忆 (-15 星尘币)
                 </button>
               </div>
             </div>
@@ -256,7 +271,6 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
                   value={customEulogy}
                   onChange={(e) => setCustomEulogy(e.target.value)}
                   maxLength={110}
-                  required
                   placeholder="例如：毛球，谢谢你陪过我的那段阴郁冬天。你在彩虹桥那边好好的，多长草，少贪凉，要听银河图书馆张馆长的话哦。下辈子我们还要做最好的家人..."
                   className="w-full h-24 bg-black/50 border border-white/10 rounded-xl p-3 text-[11px] text-indigo-100 placeholder:text-gray-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 leading-relaxed resize-none custom-scrollbar"
                 />

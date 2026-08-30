@@ -29,9 +29,6 @@ export default function CheckInCalendar({ checkInCalendar = [], onCheckIn, trigg
   const todayStr = localDateString(); // 本地时区日期，避免 UTC 穿越导致重复/无法签到
   const hasCheckedInToday = checkInCalendar.includes(todayStr) || lastCheckInDate === todayStr;
 
-  // Let's compute current continuous streak index
-  const currentStreakCount = Math.min(7, checkInCalendar.length % 8 || (hasCheckedInToday ? 1 : 0));
-
   const handleCheckInNow = () => {
     if (hasCheckedInToday) {
       triggerToast("🛰️ 亲爱的，今天你已经收集过星海签到能量了，明天再来哦~");

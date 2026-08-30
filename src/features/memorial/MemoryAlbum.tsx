@@ -19,9 +19,11 @@ export default function MemoryAlbum({ petConfig, unlockedIds, onSelectMemory }: 
   const [filterType, setFilterType] = useState<"all" | "ours">("all");
 
   // Determine standard matched/potential records for current pet category
+  // [BUG-FIX] "其他"类型是兜底类型（未知/特殊物种），应视为对所有物种记忆都有共鸣，避免"本派系关联"过滤为空
+  const isOtherType = petConfig.type === "其他";
   const categorizedMemories = PET_MEMORIES.map(mem => {
     const isUnlocked = unlockedIds.includes(mem.id);
-    const categoryMatches = mem.category === petConfig.type || mem.category === "通用";
+    const categoryMatches = mem.category === petConfig.type || mem.category === "通用" || isOtherType;
     return {
       ...mem,
       isUnlocked,

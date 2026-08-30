@@ -9,7 +9,7 @@
  * 防崩溃：useFrame 内所有数值 clamp，材质克隆避免污染共享资源。
  */
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -45,12 +45,10 @@ export function AnimatedPetModel({
   const isSleepingRef = useRef(isSleeping);
   const moodRef = useRef(mood);
   const gestureRef = useRef(gesture);
-  const renderModeRef = useRef(renderMode);
   energyRef.current = energy;
   isSleepingRef.current = isSleeping;
   moodRef.current = mood;
   gestureRef.current = gesture;
-  renderModeRef.current = renderMode;
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
     clone.traverse((obj) => {
@@ -97,6 +95,22 @@ export function AnimatedPetModel({
     return geo;
   }, []);
 
+  // [BUG-FIX] 卸载时释放克隆的高精模型几何体/材质/纹理 + 粒子几何体，避免内存泄漏
+  useEffect(() => {
+    return () => {
+      clonedScene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh) {
+          mesh.geometry?.dispose();
+          const mat = mesh.material;
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+          else (mat as THREE.Material | undefined)?.dispose();
+        }
+      });
+      dustGeometry.dispose();
+    };
+  }, [clonedScene, dustGeometry]);
+
   const dustRef = useRef<THREE.Points>(null);
 
   // 光晕（呼吸脉动）
@@ -104,6 +118,33 @@ export function AnimatedPetModel({
 
   // 动画累计时间
   const timeRef = useRef(0);
+
+  // [性能优化] 渲染风格（wireframe/xray/rig/voxel/shaded）只在 renderMode 变化时设置一次，
+  // 原实现在 useFrame 里每帧重复遍历所有材质设置相同属性，纯属浪费。
+  useEffect(() => {
+    const mode = renderMode;
+    for (const m of materials) {
+      const mat = m as THREE.MeshStandardMaterial;
+      if (!mat) continue;
+      if (mode === "wireframe") {
+        mat.wireframe = true;
+        mat.transparent = false;
+      } else if (mode === "xray") {
+        mat.transparent = true;
+        mat.opacity = 0.45;
+        mat.emissive = mat.emissive ?? new THREE.Color(0x66ccff);
+        mat.emissiveIntensity = 0.6;
+      } else if (mode === "rig" || mode === "voxel") {
+        mat.wireframe = true;
+        mat.transparent = true;
+        mat.opacity = 0.7;
+      } else {
+        mat.wireframe = false;
+        mat.transparent = false;
+        mat.opacity = 1.0;
+      }
+    }
+  }, [renderMode, materials]);
 
   useFrame((state, delta) => {
     const t = (timeRef.current += delta);
@@ -164,32 +205,7 @@ export function AnimatedPetModel({
       }
     }
 
-    // ---- 2.5 渲染风格（写实动作指令集）----
-    const mode = renderModeRef.current;
-    for (const m of materials) {
-      const mat = m as THREE.MeshStandardMaterial;
-      if (!mat) continue;
-      if (mode === "wireframe") {
-        mat.wireframe = true;
-        mat.transparent = false;
-      } else if (mode === "xray") {
-        // X 光射线：半透明 + 发光，模拟透视
-        mat.transparent = true;
-        mat.opacity = 0.45;
-        mat.emissive = mat.emissive ?? new THREE.Color(0x66ccff);
-        mat.emissiveIntensity = 0.6;
-      } else if (mode === "rig" || mode === "voxel") {
-        // 骨架/体素：线框 + 低透明
-        mat.wireframe = true;
-        mat.transparent = true;
-        mat.opacity = 0.7;
-      } else {
-        // shaded / model3d / realistic-stardust：恢复实体
-        mat.wireframe = false;
-        mat.transparent = false;
-        mat.opacity = 1.0;
-      }
-    }
+    // ---- 2.5 渲染风格已移出 useFrame（见上方 useEffect），仅在 renderMode 变化时执行 ----
 
     // ---- 3. 低能量/沉睡变暗 ----
     const darken = lowEnergy * 0.6 + (liveSleeping ? 0.4 : 0);

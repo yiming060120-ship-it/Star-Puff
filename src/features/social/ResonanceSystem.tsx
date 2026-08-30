@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Sparkles, Heart, RefreshCw, Compass, Users, CheckCircle2, UserCheck, Flame } from "lucide-react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
@@ -32,24 +32,43 @@ export default function ResonanceSystem({ activePet, onUpdateCoins, triggerToast
   const [activeMatch, setActiveMatch] = useState<ResonanceMate | null>(null);
   const [isMatching, setIsMatching] = useState(false);
   const [cuddleSuccess, setCuddleSuccess] = useState(false);
+  // [BUG-FIX] 匹配定时器句柄 + 贴贴防重入 ref
+  const matchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cuddlingRef = useRef(false);
+
+  // [BUG-FIX] 组件卸载时清理匹配定时器
+  useEffect(() => {
+    return () => {
+      if (matchTimerRef.current) clearTimeout(matchTimerRef.current);
+    };
+  }, []);
 
   const handleMatchCompanion = () => {
+    if (isMatching) return; // 防重复点击
     playSound("click");
     setIsMatching(true);
     setCuddleSuccess(false);
+    // [BUG-FIX] 重新匹配时同步复位贴贴防重入锁，否则新同伴无法再次贴贴
+    cuddlingRef.current = false;
 
-    setTimeout(() => {
+    // [BUG-FIX] 清除上一次未完成的定时器
+    if (matchTimerRef.current) clearTimeout(matchTimerRef.current);
+    matchTimerRef.current = setTimeout(() => {
       // Pick random mate from array
       const chosen = MATCHES[Math.floor(Math.random() * MATCHES.length)];
       setActiveMatch(chosen);
       setIsMatching(false);
       playSound("success");
       triggerToast(`🌠 【魂魄共鸣】星空连系完成！您的宝贝与【${chosen.name}】共鸣度高达 ${chosen.resonanceScore}%！`);
+      matchTimerRef.current = null;
     }, 1500);
   };
 
   const handleCuddleAction = () => {
     if (!activeMatch) return;
+    // [BUG-FIX] 用 ref 做原子防重入，避免 React 批量更新间隙的极快连点重复发币
+    if (cuddlingRef.current) return;
+    cuddlingRef.current = true;
     playSound("chime");
     setCuddleSuccess(true);
     onUpdateCoins(15);

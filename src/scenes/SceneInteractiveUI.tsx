@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Sprout, Droplets, Store, BookOpen, Shell, Map as MapIcon, Crown, Clock, Zap, Coffee, Flame, Moon, Sun, Book, ArrowRight, Compass, Shield, Scissors } from 'lucide-react';
 import { playSound } from '../audio/AudioSynth';
 
@@ -12,6 +12,15 @@ interface SceneInteractiveUIProps {
 
 export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId, addLog, onGrantCoins, onSpendCoins, initialCoins }) => {
   const [coins, setCoins] = useState(initialCoins ?? 100);
+  // [BUG-FIX] 探索次数上限，防止"四处探索"按钮无限刷币
+  const [exploreCount, setExploreCount] = useState(0);
+  const EXPLORE_LIMIT = 3;
+
+  // [BUG-FIX] 本地 coins 仅作"显示镜像"，单向跟随全局 stardustCoins（initialCoins），
+  // 消除双账本不同步问题。所有交易只通过 onGrantCoins/onSpendCoins 操作全局唯一权威。
+  useEffect(() => {
+    setCoins(initialCoins ?? 100);
+  }, [initialCoins]);
   
   // === ROSE PARK (Farming & Harvesting) ===
   const [bed, setBed] = useState<{type: string, state: number, time: number}[]>(Array(6).fill({type: 'none', state: 0, time: 0}));
@@ -34,7 +43,6 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
       setBed(newBed);
       
       const reward = type === 'roseSeed' ? 10 : 30;
-      setCoins(c => c + reward);
       onGrantCoins(reward);
       setInventory(prev => ({ ...prev, flowers: prev.flowers + 1 }));
       addLog(`✨ 收获了盛开的花朵！获得 ${reward} 星尘币`);
@@ -93,7 +101,6 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
     if (breads.starCake > 0) total += breads.starCake * 40;
     
     if (total > 0) {
-      setCoins(c => c + total);
       onGrantCoins(total);
       setBreads({ croissant: 0, starCake: 0 });
       addLog(`💰 卖出了所有糕点，获得 ${total} 星尘币！`);
@@ -116,7 +123,6 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
       playSound("beep");
       return;
     }
-    setCoins(c => c - 200);
     setShopLevel(2);
     addLog("🎊 花费 200 星尘币，商店升级成功！解锁新食谱！");
     playSound("chime");
@@ -138,11 +144,24 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
       playSound("beep");
       return;
     }
-    setCoins(c => c - 20);
     setPetStats(prev => ({ ...prev, [stat]: prev[stat] + Math.floor(Math.random() * 3) + 1 }));
     addLog(`🏃 训练结束！宠物消耗 20 币，${stat === 'speed' ? '速度' : '耐力'}提升了！`);
     playSound("click");
   };
+
+  // [BUG-FIX] 定时器句柄 + petStats 最新值 ref（避免卸载后 setState 泄漏 + 闭包旧值）
+  const raceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const petStatsRef = useRef(petStats);
+  petStatsRef.current = petStats;
+
+  // [BUG-FIX] 组件卸载时清理所有定时器
+  useEffect(() => {
+    return () => {
+      if (raceTimerRef.current) clearTimeout(raceTimerRef.current);
+      if (bookTimerRef.current) clearTimeout(bookTimerRef.current);
+    };
+  }, []);
 
   const enterRace = () => {
     if (raceActive) return;
@@ -150,16 +169,16 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
     addLog("🏁 彗星杯竞速赛正式开始！");
     playSound("click");
     
-    setTimeout(() => {
+    // 用 ref 读取最新 petStats，避免闭包捕获旧值
+    raceTimerRef.current = setTimeout(() => {
       setRaceActive(false);
-      const score = (petStats.speed * 1.5) + petStats.stamina + (Math.random() * 10);
+      const latest = petStatsRef.current;
+      const score = (latest.speed * 1.5) + latest.stamina + (Math.random() * 10);
       if (score > 40) {
-        setCoins(c => c + 100);
         onGrantCoins(100);
         addLog("🏆 你的宠物获得了冠军！奖励 100 星尘币！");
         playSound("chime");
       } else if (score > 25) {
-        setCoins(c => c + 30);
         onGrantCoins(30);
         addLog("🥈 你的宠物获得了亚军！奖励 30 星尘币。");
       } else {
@@ -174,7 +193,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
 
   const readBook = () => {
     addLog("📖 正在翻阅古老的星际文献...");
-    setTimeout(() => {
+    bookTimerRef.current = setTimeout(() => {
       const points = Math.floor(Math.random() * 5) + 2;
       setResearchPoints(rp => rp + points);
       addLog(`💡 获得了 ${points} 点研究点数！`);
@@ -411,13 +430,21 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
                 <div className="text-sm font-bold text-indigo-200">这片星域正在苏醒中 ✨</div>
                 <p className="text-[11px] text-indigo-300/50 mt-1">更多奇妙玩法即将抵达，先四处走走看看吧</p>
               </div>
-              <button onClick={() => {
-                setCoins(c => c + 10);
-                onGrantCoins(10);
-                addLog("✨ 在未探索区域发现了一些星尘币！");
-                playSound("sparkle");
-              }} className="px-5 py-2 bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-full text-xs text-indigo-200 transition-all hover:scale-105 active:scale-95">
-                🌌 四处探索 (+10 币)
+              <button
+                onClick={() => {
+                  if (exploreCount >= EXPLORE_LIMIT) {
+                    addLog("🌌 这片星域已经探索完啦，明天再来看看吧～");
+                    return;
+                  }
+                  setExploreCount(c => c + 1);
+                  onGrantCoins(10);
+                  addLog("✨ 在未探索区域发现了一些星尘币！");
+                  playSound("sparkle");
+                }}
+                disabled={exploreCount >= EXPLORE_LIMIT}
+                className="px-5 py-2 bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-full text-xs text-indigo-200 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                🌌 四处探索 ({Math.max(0, EXPLORE_LIMIT - exploreCount)} 次)
               </button>
            </div>
         </div>

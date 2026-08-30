@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
 import { Calendar, Heart, Trash2, Plus, AlertCircle, Award, Sparkles, Smile, CloudRain } from "lucide-react";
@@ -22,7 +22,14 @@ interface AnniversaryManagerProps {
 }
 
 export default function AnniversaryManager({ petConfig, onUpdateAnniversaries, triggerToast }: AnniversaryManagerProps) {
-  const currentList = petConfig.anniversariesList || [];
+  // [BUG-FIX] 用内部 state 维护列表，useEffect 同步 props，增删用函数式更新避免基于过期快照丢失数据
+  const [list, setList] = useState<CustomAnniversary[]>(petConfig.anniversariesList || []);
+  
+  useEffect(() => {
+    setList(petConfig.anniversariesList || []);
+  }, [petConfig.anniversariesList]);
+
+  const currentList = list;
   
   // input states
   const [newTitle, setNewTitle] = useState("");
@@ -43,8 +50,11 @@ export default function AnniversaryManager({ petConfig, onUpdateAnniversaries, t
       desc: newDesc || "在这个特别的日子，宝贝在星云里静静陪你。"
     };
 
-    const updated = [newItem, ...currentList];
-    onUpdateAnniversaries(updated);
+    setList(prev => {
+      const updated = [newItem, ...prev];
+      onUpdateAnniversaries(updated);
+      return updated;
+    });
     
     setNewTitle("");
     setNewDate("");
@@ -55,8 +65,11 @@ export default function AnniversaryManager({ petConfig, onUpdateAnniversaries, t
   };
 
   const handleDelete = (id: string) => {
-    const updated = currentList.filter(item => item.id !== id);
-    onUpdateAnniversaries(updated);
+    setList(prev => {
+      const updated = prev.filter(item => item.id !== id);
+      onUpdateAnniversaries(updated);
+      return updated;
+    });
     triggerToast("🗑️ 成功解开相应的纪念日契约。");
     playSound("beep");
   };

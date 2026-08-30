@@ -10,6 +10,9 @@ import { AnimatedPetModel } from "../pet3d/AnimatedPetModel";
 import React, { useEffect, useRef, useState, Suspense } from "react";
 import { PetConfig } from "../types";
 import { playSound } from "../audio/AudioSynth";
+import { PHRASES, pickPhrase } from "../data/companionEnergy";
+import { useFeeding } from "../hooks/useFeeding";
+import FeedMenu from "../components/feed/FeedMenu";
 
 export function adjustBrightness(hex: string, percent: number): string {
   if (!hex || hex[0] !== '#') return hex || '#ffffff';
@@ -68,6 +71,11 @@ interface HomeCanvasProps {
   };
   onClickPet?: () => void;
   stardustSparkleTrigger?: number; // incremental trigger from outside
+  // [任务三] 喂食系统：星尘币余额 + 扣币回调
+  stardustCoins?: number;
+  onSpendCoins?: (amount: number) => boolean;
+  // 外部触发打开喂食菜单（星尘家园互动面板的"喂食"按钮递增此值）
+  feedMenuTrigger?: number;
 }
 
 // Visual Model engine visualization modes
@@ -75,7 +83,107 @@ type RenderingMode = "shaded" | "wireframe" | "rig" | "xray" | "model3d" | "voxe
 type WeatherType = "clear" | "star-rain" | "aurora" | "snow";
 type CycleTimeType = "day" | "sunset" | "night";
 
-export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSparkleTrigger }: HomeCanvasProps) {
+// 情景对话库：每种天气 × 物种，多句随机（避免固定一句显得单调）
+type SpeciesKey = "cat" | "dog" | "rabbit" | "hamster";
+const WEATHER_SPEECHES: Record<WeatherType, Record<SpeciesKey, string[]>> = {
+  snow: {
+    cat: [
+      "喵呜...天上下起冰凉的小雪花了！肉垫冷冰冰的，想躲在主人的星环守护里取暖 (..•˘_˘•..)",
+      "喵...好冷呀，星晶雪落到人家毛尖尖上了，快抱抱人家嘛～❄️",
+      "下雪啦下雪啦！人家要把自己团成一个毛球，滚进你怀里取暖！",
+    ],
+    dog: [
+      "汪汪！下雪啦！你看我的大尾巴都扫了一地亮晶晶的星雪！飞扑——！🐾❄️",
+      "嗷呜～星雪凉飕飕的，但踩上去嘎吱嘎吱超好玩！快出来陪人家打滚！",
+      "汪！人家接住了一片小雪花，它在你来之前就化掉了，好可惜哦...",
+    ],
+    rabbit: [
+      "咕，凉飕飕的星晶雪落在我的长耳朵上...肚子咕噜噜了，可以求主人的暖流饭饭吗 (๑•́ ₃ •̀๑)",
+      "兔兔的耳朵都冻僵啦...主人快把暖烘烘的毯子裹上人家嘛～",
+      "星雪好软好软，像主人铺的棉花垫子，人家想在上面踩个小窝～",
+    ],
+    hamster: [
+      "呜，天冷起来了，我要缩成一团星光棉花球睡觉觉，主人快来温柔摸摸我～",
+      "吱吱...人家囤了好多星尘瓜子，下雪天窝在暖房里吃最幸福啦！",
+      "好冷哦...主人把手伸进笼子暖暖人家嘛，就一下下～",
+    ],
+  },
+  "star-rain": {
+    cat: [
+      "喵！是五彩流星雨！我的瞳孔里倒映出亿万星屑！好兴奋啊，看我飞扑！🤩🎆",
+      "喵呜～好多小流星！人家追着尾巴绕圈圈，想抓住最亮的那一颗送你！",
+      "流星雨来了！快闭上眼睛许愿，人家已经替你许了一个啦～",
+    ],
+    dog: [
+      "汪汪汪！流星雨来啦！尾巴已经摇到冒火花啦！我们闭上眼和主人一起许愿！✨🚀",
+      "汪！一颗流星滑过去啦，人家跳起来想接住它，结果摔了个大跟头！",
+      "好多流星！主人快看快看，人家的眼睛都装不下这么多星星啦！",
+    ],
+    rabbit: [
+      "哇，好亮的小流星划过去啦！我的耳朵都跟着一动一动的呢 ( > ₃ <)⭐",
+      "兔兔数到第 9 颗流星啦，每一颗都像主人的眼睛一样亮晶晶～",
+      "流星雨下起来啦，人家要蹦得高高的，帮你摘一颗星星回来！",
+    ],
+    hamster: [
+      "智、多维星空掉下好吃的星屑啦！快帮我拿勺子接着！我要一口吞！🐾🍖",
+      "吱吱！星屑雨！人家的腮帮子已经准备好装下整个星空啦！",
+      "好多星星掉下来啦，人家要钻进软软的窝里，透过窗看流星～",
+    ],
+  },
+  aurora: {
+    cat: [
+      "喵哈～ 极光绿纱在天上飘来飘去，像超级大逗猫棒！心灵变得暖洋洋的 😌💖",
+      "极光在天上跳舞呢，人家看入迷了，连尾巴都不摇了～",
+      "绿莹莹的极光，像一条会发光的小鱼，人家好想扑上去～",
+    ],
+    dog: [
+      "嗷呜——！看到极光，我的上古狼魂仿佛在神圣咆哮！呼呼...开玩笑的啦汪 🐕🌈",
+      "汪！极光把天空染成彩虹啦，人家的尾巴也高兴得卷成螺旋桨！",
+      "极光好美呀，人家坐在窗边看，尾巴一直摇一直摇停不下来～",
+    ],
+    rabbit: [
+      "咕，极光的波浪好像仙境里的彩裙呀...在这样的星夜散步太有意境了 🌙✨",
+      "兔兔的耳朵被极光照得粉粉的，像两片会发光的云朵～",
+      "极光像一条条彩带飘过，人家想跟着它一起跳舞～",
+    ],
+    hamster: [
+      "吱！绿莹莹的光雾好神奇呀，像是夜空中飘满了亮晶晶的能量奶酪 🧀⚡",
+      "极光洒下来，人家的小窝都变成梦幻城堡啦，好开心～",
+      "绿光在人家的小爪子上跳舞呢，暖暖的，痒痒的～",
+    ],
+  },
+  clear: {
+    cat: [
+      "主人！天晴转明了！星能矩阵已经满格，最喜欢暖烘烘的贴贴啦 🚀💕",
+      "太阳公公出来啦，人家要趴在最暖的窗台上，等你回来摸头～",
+      "今天天气超好，人家把每一根毛都晒得蓬蓬松松的啦！",
+    ],
+    dog: [
+      "汪！大晴天！人家已经准备好去大世界跑个十圈啦，快来一起！",
+      "太阳暖暖的，人家躺在地上露出肚皮，等你来揉揉～",
+      "今天天气超棒，人家的尾巴从起床一直摇到现在呢！",
+    ],
+    rabbit: [
+      "天气放晴啦，兔兔要在草地上蹦蹦跳跳，把耳朵晒得暖烘烘的～",
+      "阳光好温柔呀，人家窝在草堆里，眼睛眯成一条线～",
+      "晴天最好啦，人家可以追着蝴蝶跑，还能晒晒软软的小肚子～",
+    ],
+    hamster: [
+      "吱吱！太阳出来啦，人家要把小窝搬到最暖的角落，舒舒服服打个盹～",
+      "天晴啦，人家要把储藏的瓜子搬到阳台上晒一晒，香喷喷的～",
+      "阳光暖暖的，人家团成一个小毛球，在窝里转圈圈～",
+    ],
+  },
+};
+
+/** 随机选取一句情景对话 */
+function pickWeatherSpeech(weather: WeatherType, species: SpeciesKey): string {
+  const list = WEATHER_SPEECHES[weather]?.[species];
+  if (!list || list.length === 0) return "";
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSparkleTrigger, stardustCoins = 0, onSpendCoins, feedMenuTrigger }: HomeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const threeCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -83,6 +191,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const [useReal3D, setUseReal3D] = useState<boolean>(false);
   const useReal3DRef = useRef(false);
   const animationRef = useRef<number | null>(null);
+
+  // [任务三] 喂食菜单开关
+  const [feedMenuOpen, setFeedMenuOpen] = useState<boolean>(false);
 
   // 沉睡状态 ref（由 petConfig.isSleeping 驱动，供 rAF 主循环读取）
   const isSleepingRef = useRef<boolean>(petConfig.isSleeping ?? false);
@@ -126,11 +237,34 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     }
   };
 
-  const [moodIndex, setMoodIndex] = useState<number>(() => readPetStat("mood", 75));
+  // [BUG-FIX] 读取某数值的"上次更新时间戳"，用于离线衰减计算
+  const readPetStatTs = (key: string): number => {
+    try {
+      const v = localStorage.getItem(`star_puff_${key}_ts_${petStorageKey}`);
+      return v ? parseInt(v, 10) : 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  // 每小时衰减速率（任务二：更敏感，尤其是饥饿值）
+  const DECAY_RATE = { hunger: 12, energy: 8, mood: 5, clean: 3 } as const;
+
+  // 计算离线衰减：根据上次时间戳到现在的小时数，按速率衰减，返回修正后的值
+  const applyOfflineDecay = (key: "hunger" | "mood" | "clean", current: number): number => {
+    const lastTs = readPetStatTs(key);
+    if (lastTs <= 0) return current;
+    const hours = (Date.now() - lastTs) / (1000 * 60 * 60);
+    if (hours <= 0) return current;
+    const rate = DECAY_RATE[key];
+    return Math.max(0, Math.round(current - hours * rate));
+  };
+
+  const [moodIndex, setMoodIndex] = useState<number>(() => applyOfflineDecay("mood", readPetStat("mood", 75)));
   // 能量值：以陪伴能量系统（companionEnergy）为单一真实来源，画布只做显示跟随
   const [energyIndex, setEnergyIndex] = useState<number>(() => petConfig.companionEnergy ?? petConfig.statusEnergy ?? 90);
-  const [hungerIndex, setHungerIndex] = useState<number>(() => readPetStat("hunger", petConfig.statusHunger ?? 80));
-  const [cleanIndex, setCleanIndex] = useState<number>(() => readPetStat("clean", petConfig.statusCleanliness ?? 95));
+  const [hungerIndex, setHungerIndex] = useState<number>(() => applyOfflineDecay("hunger", readPetStat("hunger", petConfig.statusHunger ?? 80)));
+  const [cleanIndex, setCleanIndex] = useState<number>(() => applyOfflineDecay("clean", readPetStat("clean", petConfig.statusCleanliness ?? 95)));
   const [petLevel, setPetLevel] = useState<number>(() => readPetStat("level", petConfig.level ?? 1));
   const [petExp, setPetExp] = useState<number>(() => readPetStat("exp", petConfig.exp ?? 0));
   const [intimacyIndex, setIntimacyIndex] = useState<number>(() => readPetStat("intimacy", 55));
@@ -149,6 +283,12 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const intimacyIndexRef = useRef<number>(intimacyIndex);
   intimacyIndexRef.current = intimacyIndex;
 
+  // [BUG-FIX] hunger/clean ref，供衰减逻辑读取最新值（避免闭包捕获旧值）
+  const hungerIndexRef = useRef<number>(hungerIndex);
+  hungerIndexRef.current = hungerIndex;
+  const cleanIndexRef = useRef<number>(cleanIndex);
+  cleanIndexRef.current = cleanIndex;
+
   const autoWeatherCycleRef = useRef<boolean>(autoWeatherCycle);
   autoWeatherCycleRef.current = autoWeatherCycle;
 
@@ -161,6 +301,11 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
       localStorage.setItem(`star_puff_level_${petStorageKey}`, petLevel.toString());
       localStorage.setItem(`star_puff_exp_${petStorageKey}`, petExp.toString());
       localStorage.setItem(`star_puff_intimacy_${petStorageKey}`, intimacyIndex.toString());
+      // [BUG-FIX] 记录数值更新时间戳，用于下次进入时的离线衰减计算
+      const now = Date.now().toString();
+      localStorage.setItem(`star_puff_mood_ts_${petStorageKey}`, now);
+      localStorage.setItem(`star_puff_hunger_ts_${petStorageKey}`, now);
+      localStorage.setItem(`star_puff_clean_ts_${petStorageKey}`, now);
     } catch (e) {
       console.warn("Storage write error", e);
     }
@@ -220,38 +365,26 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             return "cat";
           })();
 
-          let speechText = "";
+          // [BUG-FIX] 情景对话随机：从每种天气×物种的多句话术里随机选一句
+          const speechText = pickWeatherSpeech(nextWeather, species as SpeciesKey);
+
           if (nextWeather === "snow") {
-            if (species === "cat") speechText = "喵呜...天上下起冰凉的小雪花了！肉垫冷冰冰的，想躲在主人的星环守护里取暖 (..•˘_˘•..)";
-            else if (species === "dog") speechText = "汪汪！下雪啦！你看我的大尾巴都扫了一地亮晶晶的星雪！飞扑——！🐾❄️";
-            else if (species === "rabbit") speechText = "咕，凉飕飕的星晶雪落在我的长耳朵上...肚子咕噜噜了，可以求主人的暖流饭饭吗 (๑•́ ₃ •̀๑)";
-            else speechText = "呜，天冷起来了，我要缩成一团星光棉花球睡觉觉，主人快来温柔摸摸我～";
-            
             // Cold decreases indices naturally a bit
             setMoodIndex(m => Math.max(25, m - 5));
           } else if (nextWeather === "star-rain") {
-            if (species === "cat") speechText = "喵！是五彩流星雨！我的瞳孔里倒映出亿万星屑！好兴奋啊，看我飞扑！🤩🎆";
-            else if (species === "dog") speechText = "汪汪汪！流星雨来啦！尾巴已经摇到冒火花啦！我们闭上眼和主人一起许愿！✨🚀";
-            else if (species === "rabbit") speechText = "哇，好亮的小流星划过去啦！我的耳朵都跟着一动一动的呢 ( > ₃ <)⭐";
-            else speechText = "智、多维星空掉下好吃的星屑啦！快帮我拿勺子接着！我要一口吞！🐾🍖";
-
             setMoodIndex(m => Math.min(100, m + 15));
             setEnergyIndex(e => Math.min(100, e + 10));
           } else if (nextWeather === "aurora") {
-            if (species === "cat") speechText = "喵哈～ 极光绿纱在天上飘来飘去，像超级大逗猫棒！心灵变得暖洋洋的 😌💖";
-            else if (species === "dog") speechText = "嗷呜——！看到极光，我的上古狼魂仿佛在神圣咆哮！呼呼...开玩笑的啦汪 🐕🌈";
-            else if (species === "rabbit") speechText = "咕，极光的波浪好像仙境里的彩裙呀...在这样的星夜散步太有意境了 🌙✨";
-            else speechText = "吱！绿莹莹的光雾好神奇呀，像是夜空中飘满了亮晶晶的能量奶酪 🧀⚡";
-
             setMoodIndex(m => Math.min(100, m + 8));
             setIntimacyIndex(i => Math.min(100, i + 12));
           } else {
-            speechText = `主人！天晴转明了！星能矩阵已经满格，最喜欢暖烘烘的贴贴啦 🚀💕`;
             setMoodIndex(m => Math.min(100, m + 6));
           }
 
-          setWhisperBubbleText(speechText);
-          setWhisperTimer(220); // Longer show time for climate dialogue
+          if (speechText) {
+            setWhisperBubbleText(speechText);
+            setWhisperTimer(220); // Longer show time for climate dialogue
+          }
 
           return 45; // Reset back to 45 seconds climate phase
         }
@@ -261,26 +394,36 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     return () => clearInterval(interval);
   }, [autoWeatherCycle, petConfig.name, petConfig.type]);
 
-  // Pet natural metabolic indexes decay
+  // Pet natural metabolic indexes decay（任务二：更敏感，尤其饥饿值，基于真实时间衰减）
   useEffect(() => {
+    // 每 60 秒衰减一次；速率按"每小时"换算到每分钟
     const metabolism = setInterval(() => {
-      setEnergyIndex((prev) => {
-        const next = Math.max(10, prev - 1);
+      // 饥饿值：-12/小时 = -0.2/分钟
+      setHungerIndex(prev => {
+        let next = Math.max(0, prev - 0.2);
+        // 饥饿值过低时联动：心情加速衰减
         if (next < 30) {
-          // high fatigue drops mood faster
-          setMoodIndex(m => Math.max(12, m - 1));
+          setMoodIndex(m => Math.max(0, m - 0.05)); // 额外 -3/小时
         }
-        return next;
+        return Math.round(next * 10) / 10;
       });
 
-      setMoodIndex((prev) => {
-        // Slow natural mood decay if left solitary
-        if (energyIndexRef.current > 70) {
-          return Math.max(15, prev - 1);
-        }
-        return Math.max(10, prev - 2);
+      // 能量值：-8/小时 = -0.133/分钟（保留下限 10，能量归零由陪伴能量系统处理）
+      setEnergyIndex(prev => {
+        const next = Math.max(0, prev - 0.133);
+        return Math.round(next * 10) / 10;
       });
-    }, 8500); // execute every 8.5 seconds
+
+      // 心情值：-5/小时 = -0.083/分钟
+      setMoodIndex(prev => {
+        let next = prev - 0.083;
+        if (cleanIndexRef.current < 20) next -= 0.033; // 清洁度低，额外 -2/小时
+        return Math.round(Math.max(0, next) * 10) / 10;
+      });
+
+      // 清洁度：-3/小时 = -0.05/分钟
+      setCleanIndex(prev => Math.round(Math.max(0, prev - 0.05) * 10) / 10);
+    }, 60000); // 每 60 秒执行一次
     return () => clearInterval(metabolism);
   }, []);
 
@@ -316,6 +459,38 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const [whisperTimer, setWhisperTimer] = useState<number>(0);
   const [feedingItem, setFeedingItem] = useState<string | null>(null);
 
+  // [任务一] 待机随机对话：最近 5 条历史（避免重复），每 15-45 秒随机冒泡一次
+  const recentIdleDialoguesRef = useRef<string[]>([]);
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleNext = () => {
+      // 随机 15-45 秒间隔
+      const delay = 15000 + Math.random() * 30000;
+      timeoutId = setTimeout(() => {
+        // 宠物沉睡时不冒泡
+        if (!petConfig.isSleeping) {
+          // 从 warm 文案库随机选一句（与最近 5 条不重复）
+          const pool = PHRASES.warm.filter(t => !recentIdleDialoguesRef.current.includes(t));
+          const source = pool.length > 0 ? pool : PHRASES.warm;
+          const text = pickPhrase(source);
+          if (text) {
+            setWhisperBubbleText(text);
+            setWhisperTimer(220);
+            // 记录最近 5 条
+            recentIdleDialoguesRef.current = [text, ...recentIdleDialoguesRef.current].slice(0, 5);
+          }
+        }
+        scheduleNext();
+      }, delay);
+    };
+
+    scheduleNext();
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [petConfig.isSleeping, petConfig.id]);
+
   // Synchronized refs mirroring reactive states to bypass requestAnimationFrame closure capture limits
   const skyTimeRef = useRef<CycleTimeType>(skyTime);
   skyTimeRef.current = skyTime;
@@ -343,6 +518,10 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
   const whisperTimerRef = useRef<number>(whisperTimer);
   whisperTimerRef.current = whisperTimer;
+
+  // [打字机效果] 已显示的字符数（按帧递增），以及上一次气泡文字（检测换新文字时重置）
+  const whisperTypeProgressRef = useRef<number>(0);
+  const whisperPrevTextRef = useRef<string>("");
 
   const feedingItemRef = useRef<string | null>(feedingItem);
   feedingItemRef.current = feedingItem;
@@ -435,6 +614,14 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     }
   }, [stardustSparkleTrigger]);
 
+  // [喂食功能区] 外部（星尘家园互动面板）触发打开喂食菜单
+  useEffect(() => {
+    if (feedMenuTrigger && feedMenuTrigger > 0) {
+      setFeedMenuOpen(true);
+      playSound("click");
+    }
+  }, [feedMenuTrigger]);
+
   const triggerStardustExplosion = () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
@@ -468,6 +655,48 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     playSound("sparkle");
   };
 
+  // [任务三] 喂食逻辑 hook：管理背包 + 购买，喂食时恢复数值并触发动画
+  const feeding = useFeeding({
+    stardustCoins,
+    onSpendCoins: (amount) => (onSpendCoins ? onSpendCoins(amount) : false),
+    onFeed: (_foodId, hungerRestore, energyRestore, moodRestore) => {
+      // 恢复数值
+      setHungerIndex((prev) => Math.min(100, prev + hungerRestore));
+      setEnergyIndex((prev) => Math.min(100, prev + energyRestore));
+      setMoodIndex((prev) => Math.min(100, prev + moodRestore));
+      setIntimacyIndex((prev) => Math.min(100, prev + 4));
+      // 触发喂食动画
+      foodDropProgress.current = 0.0;
+      chewRemainingFrames.current = 0;
+      feedRecordCount.current += 1;
+      setTouchEffect("feed");
+      setFeedingItem("snack");
+      setActiveExp("happy");
+      // [音效增强] 喂食瞬间：星尘音 + 物种咀嚼音
+      playSound("sparkle");
+      triggerStardustExplosion();
+      // [语言互动增强] 喂食瞬间宠物先"啊呜"接食物，咀嚼结束后再说恢复对话
+      const openMouthPhrase = pickPhrase([
+        "啊呜～张嘴接住啦！",
+        "啊～人家要一口吃掉咯！",
+        "嗯嗯～好吃的东西来啦！",
+        "啊呜啊呜～快到我嘴里来！"
+      ]);
+      setWhisperBubbleText(openMouthPhrase);
+      setWhisperTimer(90);
+      // 咀嚼结束后（约 1.5 秒）说恢复对话
+      setTimeout(() => {
+        const feedPhrase = pickPhrase(PHRASES.recovery);
+        if (feedPhrase) {
+          setWhisperBubbleText(feedPhrase);
+          setWhisperTimer(200);
+        }
+      }, 1500);
+      // 关闭菜单
+      setFeedMenuOpen(false);
+    },
+  });
+
   const triggerGesture = (type: "nod" | "wag" | "roll" | "jump" | "dance") => {
     playSound("click");
     setActiveGesture(type);
@@ -480,6 +709,13 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
       }
     } else {
       triggerStardustExplosion();
+    }
+
+    // [内容扩充] 动作触发时随机说一句配套撒娇对话
+    const gesturePhrase = pickPhrase(PHRASES.gestures[type]);
+    if (gesturePhrase) {
+      setWhisperBubbleText(gesturePhrase);
+      setWhisperTimer(150);
     }
   };
 
@@ -875,6 +1111,16 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // [BUG-FIX] 坐标缩放：canvas 内部分辨率为 900×640，但 CSS 显示为 w-full×320px，
+    // 直接拿 CSS 像素做部位判定会导致命中严重偏移（Y 方向差 2 倍、X 方向随容器宽度变化）。
+    // 统一在此把 CSS 坐标换算为内部坐标后再做 detectTouchedPart 判定。
+    const toCanvasCoord = (clientX: number, clientY: number): { x: number; y: number } => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / (rect.width || 1);
+      const scaleY = canvas.height / (rect.height || 1);
+      return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+    };
+
     // Track state of touches inside listeners to avoid stale values
     let touchStartPt: { x: number; y: number } | null = null;
     let touchStartT: number = 0;
@@ -896,10 +1142,8 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
       // Handle long press scheduling
       if (longPressTimerRef) clearTimeout(longPressTimerRef);
       longPressTimerRef = window.setTimeout(() => {
-        const rect = canvas.getBoundingClientRect();
         if (touchStartPt) {
-          const rx = touchStartPt.x - rect.left;
-          const ry = touchStartPt.y - rect.top;
+          const { x: rx, y: ry } = toCanvasCoord(touchStartPt.x, touchStartPt.y);
           const part = detectTouchedPart(rx, ry, canvas.width, canvas.height);
           triggerSpeciesReaction("long-press", part);
 
@@ -971,9 +1215,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         const dx = e.clientX - touchStartPt.x;
         const dist = Math.hypot(dx, e.clientY - touchStartPt.y);
 
-        const rect = canvas.getBoundingClientRect();
-        const rx = touchStartPt.x - rect.left;
-        const ry = touchStartPt.y - rect.top;
+        const { x: rx, y: ry } = toCanvasCoord(touchStartPt.x, touchStartPt.y);
         const part = detectTouchedPart(rx, ry, canvas.width, canvas.height);
 
         if (dist > 30) {
@@ -1040,10 +1282,8 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
         if (longPressTimerRef) clearTimeout(longPressTimerRef);
         longPressTimerRef = window.setTimeout(() => {
-          const rect = canvas.getBoundingClientRect();
           if (touchStartPt) {
-            const rx = touchStartPt.x - rect.left;
-            const ry = touchStartPt.y - rect.top;
+            const { x: rx, y: ry } = toCanvasCoord(touchStartPt.x, touchStartPt.y);
             const part = detectTouchedPart(rx, ry, canvas.width, canvas.height);
             triggerSpeciesReaction("long-press", part);
 
@@ -1139,8 +1379,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         const dx = endX - touchStartPt.x;
         const dist = Math.hypot(dx, endY - touchStartPt.y);
 
-        const rx = touchStartPt.x - rect.left;
-        const ry = touchStartPt.y - rect.top;
+        const { x: rx, y: ry } = toCanvasCoord(touchStartPt.x, touchStartPt.y);
         const part = detectTouchedPart(rx, ry, canvas.width, canvas.height);
 
         if (dist > 30) {
@@ -1224,6 +1463,12 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     }> = [];
 
     const mainLoop = () => {
+      // [性能优化] 页面隐藏（切到后台/最小化）时跳过绘制，减少发热耗电
+      if (document.hidden) {
+        animationRef.current = requestAnimationFrame(mainLoop);
+        return;
+      }
+
       // 3D 模式下跳过 2D 绘制（节省性能），但仍保持 rAF 循环以便切回
       if (useReal3DRef.current) {
         animationRef.current = requestAnimationFrame(mainLoop);
@@ -2161,12 +2406,20 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         ctx.scale(finalStretchX, finalStretchY);
         ctx.translate(-shiftX, -shiftY);
 
-        const tailSegmentLength = 12;
+        // [视觉焕新] 尾巴差异化：猫细长卷尾 / 狗上翘摇尾 / 兔短圆尾 / 鼠短小尾
+        const petTypeTail = petConfig.type || "";
+        const isDogTail = petTypeTail.includes("狗");
+        const isRabbitTail = petTypeTail.includes("兔");
+        const isHamsterTail = petTypeTail.includes("鼠") || petTypeTail.includes("仓鼠");
+        const tailSegCount = isRabbitTail ? 3 : isHamsterTail ? 2 : 5;
+        const tailBaseAngle = isDogTail ? Math.PI * 1.35 : Math.PI * 0.95; // 狗尾上翘
+
+        const tailSegmentLength = isHamsterTail ? 7 : 12;
         const tailPointList: Array<{ x: number; y: number }> = [{ x: tailBaseX, y: tailBaseY }];
-        for (let i = 1; i <= 5; i++) {
+        for (let i = 1; i <= tailSegCount; i++) {
           const wagMultiplier = activeGesture === "wag" ? 1.8 : 1.0;
           const configWagSway = activeGesture === "wag" ? Math.sin(frame * 0.85 - i * 0.6) * 0.88 : Math.sin(frame * 0.15 - i * 0.8) * 0.25;
-          let segAngle = Math.PI * 0.95 + (tailSway.current * 0.45 * wagMultiplier) + configWagSway;
+          let segAngle = tailBaseAngle + (tailSway.current * 0.45 * wagMultiplier) + configWagSway;
           
           if (touchPartAnimation.current === "tail") {
             // Rigid vertical upright tail with rapid high-frequency defensive vibration!
@@ -2191,11 +2444,14 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         }
         ctx.stroke();
 
+        // 尾巴尖端白色（用动态索引避免短尾越界）
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 8;
         ctx.beginPath();
-        ctx.moveTo(tailPointList[3].x, tailPointList[3].y);
-        ctx.lineTo(tailPointList[5].x, tailPointList[5].y);
+        const tailLast = tailPointList.length - 1;
+        const tailThird = Math.max(0, tailPointList.length - 3);
+        ctx.moveTo(tailPointList[tailThird].x, tailPointList[tailThird].y);
+        ctx.lineTo(tailPointList[tailLast].x, tailPointList[tailLast].y);
         ctx.stroke();
 
         // 2.2 Tail Mid hair fibers waving (中层)
@@ -2339,6 +2595,40 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         ctx.arc(0, 0, bodyR, 0, Math.PI * 2);
         ctx.fill();
 
+        // [视觉焕新] 身体花纹差异化：基于 stardustMatrixHex 提取的色系叠加柔和斑块，
+        // 让每只宠物（不同照片提取不同色系）都有独特的花纹，不再"千猫一面"。
+        {
+          const hex = petConfig.stardustMatrixHex;
+          if (hex && hex.length >= 2) {
+            // 用色系中与主色差异较大的第 2、3 色画斑块
+            const patchColors = [hex[1], hex[2] || hex[1], hex[3] || hex[0]];
+            ctx.save();
+            // 裁剪到身体圆内，避免斑块溢出
+            ctx.beginPath();
+            ctx.arc(0, 0, bodyR - 2, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.shadowBlur = 0;
+            // 用稳定的伪随机（基于颜色字符串哈希）生成斑块位置，保证同一只宠物每次渲染斑块一致
+            let seed = 0;
+            for (let i = 0; i < hex.length; i++) seed = (seed * 31 + hex[i].charCodeAt(1)) % 997;
+            const rnd = (n: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return (seed / 2147483648) * n; };
+            const patchCount = 4 + Math.floor(rnd(3)); // 4-6 个斑块
+            for (let p = 0; p < patchCount; p++) {
+              const color = patchColors[p % patchColors.length];
+              const px = (rnd(2) - 1) * bodyR * 0.65;
+              const py = (rnd(2) - 1) * bodyR * 0.55;
+              const pr = bodyR * (0.18 + rnd(0.22));
+              ctx.globalAlpha = 0.5 + rnd(0.25);
+              ctx.fillStyle = color;
+              ctx.beginPath();
+              ctx.arc(px, py, pr, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+          }
+        }
+
         // Body Mid fibers waving ±2px (中层)
         ctx.shadowBlur = 0;
         ctx.lineWidth = 1.0;
@@ -2478,8 +2768,25 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             flattenDelta -= 0.08 * dir - Math.sin(frame * 0.22) * 0.02;
           }
 
-          const earAng = (Math.PI / 4) * dir + (earSway.current * 0.15 * dir) + flattenDelta;
-          const earLen = 30;
+          // [视觉焕新] 耳朵差异化：猫尖耳 / 狗垂耳 / 兔长耳 / 鼠小圆耳
+          const petType = petConfig.type || "";
+          const isDogEar = petType.includes("狗");
+          const isRabbitEar = petType.includes("兔");
+          const isHamsterEar = petType.includes("鼠") || petType.includes("仓鼠");
+
+          let earAng = (Math.PI / 4) * dir + (earSway.current * 0.15 * dir) + flattenDelta;
+          let earLen = 30;
+          if (isDogEar) {
+            // 狗：耳朵下垂（角度向下）
+            earAng = (Math.PI / 2.2) * dir + flattenDelta * 0.5;
+            earLen = 34;
+          } else if (isRabbitEar) {
+            // 兔：长耳朵
+            earLen = 55;
+          } else if (isHamsterEar) {
+            // 鼠/仓鼠：小圆耳
+            earLen = 18;
+          }
 
           const eTipX = ebX + Math.sin(earAng) * earLen;
           const eTipY = ebY - Math.cos(earAng) * earLen;
@@ -2877,9 +3184,10 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             // Collision contact sweet spot! Pet bites the snack!
             playSound("sparkle");
             
-            // Adjust pet emotion stats!
+            // Adjust pet emotion stats!（任务二：喂食同时恢复饥饿值）
             setEnergyIndex(prev => Math.min(100, prev + 22));
             setMoodIndex(prev => Math.min(100, prev + 12));
+            setHungerIndex(prev => Math.min(100, prev + 30));
             setIntimacyIndex(prev => Math.min(100, prev + 4));
             
             // Stardust eating burst explosion!
@@ -3003,14 +3311,28 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           ctx.shadowBlur = 10;
           ctx.shadowColor = "rgba(0,0,0,0.5)";
 
-          const textWidth = ctx.measureText(whisperBubbleTextRef.current).width;
-          const bubbleW = Math.min(340, textWidth + 30);
-          const bubbleH = textWidth > 300 ? 55 : 32;
+          // [打字机效果] 检测新气泡文字时重置进度；否则每帧递增已显示字符数（约每 2 帧 1 字 ≈ 30ms/字）
+          const fullText = whisperBubbleTextRef.current;
+          if (whisperPrevTextRef.current !== fullText) {
+            whisperPrevTextRef.current = fullText;
+            whisperTypeProgressRef.current = 0;
+          } else if (whisperTypeProgressRef.current < fullText.length) {
+            whisperTypeProgressRef.current += 0.5; // 每帧 +0.5 字
+          }
+          const shownChars = Math.min(fullText.length, Math.floor(whisperTypeProgressRef.current));
+          const displayText = fullText.slice(0, shownChars);
+
+          // [任务一] 耳语气泡放大：字号 15px，气泡宽度 280-420px
+          const bubbleFontSize = 15;
+          ctx.font = `${bubbleFontSize}px sans-serif`;
+          const textWidth = ctx.measureText(displayText).width;
+          const bubbleW = Math.max(280, Math.min(420, textWidth + 40));
+          const bubbleH = textWidth > 360 ? 72 : 44;
           const bubbleX = cx - bubbleW / 2;
-          const bubbleY = cy - bodyR - 85 + Math.sin(frame * 0.05) * 2;
+          const bubbleY = cy - bodyR - 100 + Math.sin(frame * 0.05) * 2;
 
           ctx.beginPath();
-          ctx.roundRect ? ctx.roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 8) : ctx.rect(bubbleX, bubbleY, bubbleW, bubbleH);
+          ctx.roundRect ? ctx.roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18) : ctx.rect(bubbleX, bubbleY, bubbleW, bubbleH);
           ctx.fill();
           ctx.stroke();
 
@@ -3023,15 +3345,15 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           ctx.fill();
 
           ctx.fillStyle = "#fbcfe8";
-          ctx.font = "10px sans-serif";
+          ctx.font = `${bubbleFontSize}px sans-serif`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           
-          if (textWidth > 300) {
-            ctx.fillText(whisperBubbleTextRef.current.slice(0, 20), cx, bubbleY + 16);
-            ctx.fillText(whisperBubbleTextRef.current.slice(20), cx, bubbleY + 36);
+          if (textWidth > 360) {
+            ctx.fillText(displayText.slice(0, 16), cx, bubbleY + 24);
+            ctx.fillText(displayText.slice(16), cx, bubbleY + 48);
           } else {
-            ctx.fillText(whisperBubbleTextRef.current, cx, bubbleY + bubbleH / 2);
+            ctx.fillText(displayText, cx, bubbleY + bubbleH / 2);
           }
           ctx.restore();
         }
@@ -3925,6 +4247,15 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
         {/* The interactive main drawing viewport */}
         <div className="relative flex justify-center bg-black overflow-hidden group">
+          {/* [喂食功能区] 喂食按钮：放在 2D 形象画布右上角（而非页面最下方） */}
+          <button
+            onClick={() => { setFeedMenuOpen(true); playSound("click"); }}
+            className="absolute top-3 right-3 z-[65] w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-2xl flex items-center justify-center shadow-[0_0_16px_rgba(236,72,153,0.55)] hover:scale-110 active:scale-95 transition-all border-2 border-pink-300/50"
+            title="喂食"
+          >
+            🍖
+          </button>
+
           {/* 2D 核心渲染画布（含天气系统、情绪动画等旧版配件） */}
           <canvas
             ref={canvasRef}
@@ -3940,6 +4271,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               className="w-full h-full cursor-pointer select-none border-b border-white/5 transition-transform duration-100"
               id="rendering-canvas-viewport"
               camera={{ position: [0, 0, 5] }}
+              dpr={[1, 2]} // [性能优化] 限制像素比，Retina 屏最多 2x，避免 4x 渲染拖慢性能
             >
               <ambientLight intensity={0.5} />
               <directionalLight position={[10, 10, 10]} intensity={1} />
@@ -4426,6 +4758,21 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           </div>
         </div>
       </div>
+
+      {/* 食物选择底部弹窗 */}
+      {feedMenuOpen && (
+        <FeedMenu
+          inventory={feeding.inventory}
+          stardustCoins={stardustCoins}
+          onFeed={(foodId) => feeding.feed(foodId)}
+          onBuy={(foodId) => {
+            if (!feeding.buy(foodId)) {
+              playSound("beep");
+            }
+          }}
+          onClose={() => setFeedMenuOpen(false)}
+        />
+      )}
     </div>
   );
 }

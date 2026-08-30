@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Sparkles, Send, Coins, Compass, Heart, HeartOff, User, MessageCircle, HelpCircle } from "lucide-react";
 import { playSound } from "../../audio/AudioSynth";
 
@@ -35,6 +35,19 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
   const [mySentWishes, setMySentWishes] = useState<WishBottle[]>([]);
   const [blessedIds, setBlessedIds] = useState<string[]>([]);
   const [isSpinningWell, setIsSpinningWell] = useState(false);
+  // [BUG-FIX] 定时器句柄，卸载时统一清理
+  const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retrieveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // [BUG-FIX] 祝福防重入原子锁（Set），避免闭包快照 blessedIds 被双击绕过导致重复 +10 币
+  const blessedIdsRef = useRef<Set<string>>(new Set());
+
+  // [BUG-FIX] 组件卸载时清理所有定时器
+  useEffect(() => {
+    return () => {
+      if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+      if (retrieveTimerRef.current) clearTimeout(retrieveTimerRef.current);
+    };
+  }, []);
 
   const handleThrowWish = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,16 +81,20 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
     
     // Simulating particle effect spin
     setIsSpinningWell(true);
-    setTimeout(() => {
+    if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+    spinTimerRef.current = setTimeout(() => {
       setIsSpinningWell(false);
+      spinTimerRef.current = null;
     }, 1800);
   };
 
   const handleRetrieveBottle = () => {
+    if (isSpinningWell) return; // 防重复点击
     playSound("bubble");
     setIsSpinningWell(true);
     
-    setTimeout(() => {
+    if (retrieveTimerRef.current) clearTimeout(retrieveTimerRef.current);
+    retrieveTimerRef.current = setTimeout(() => {
       setIsSpinningWell(false);
       // Pick a random bottle ensuring we don't repeat the current one immediately if possible
       const filtered = bottles.filter(b => b.id !== currentRetrieved?.id);
@@ -88,10 +105,14 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
       setCurrentRetrieved(chosen);
       playSound("success");
       triggerToast(`🎣 成功捞起一枚来自【${chosen.senderName}】写给小宠【${chosen.petName}】的思念之瓶！`);
+      retrieveTimerRef.current = null;
     }, 1200);
   };
 
   const handleBlessBottle = (bottleId: string) => {
+    // [BUG-FIX] 用 Set ref 做原子防重入，双击也不会重复发币
+    if (blessedIdsRef.current.has(bottleId)) return;
+    blessedIdsRef.current.add(bottleId);
     if (blessedIds.includes(bottleId)) return;
 
     playSound("success");

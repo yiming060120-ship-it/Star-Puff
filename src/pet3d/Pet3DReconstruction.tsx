@@ -115,6 +115,12 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
 
   // Extract foreground background removal logic via Canvas
   const processBackgroundRemoval = async () => {
+    const srcUrl = getCurrentImageUrl();
+    if (!srcUrl) {
+      triggerToast("⚠️ 请先上传爱宠照片或选择一张示例图，再进行背景抠除哦。");
+      playSound("beep");
+      return;
+    }
     setIsBgRemoving(true);
     setShowSegmentProgress(true);
     setExtractLogs([]);
@@ -245,6 +251,11 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
 
   // Run the API based or fallbacked reconstructed 3D simulation
   const handleReconstruct = async () => {
+    if (!getCurrentImageUrl()) {
+      triggerToast("⚠️ 请先上传爱宠照片或选择一张示例图，再进行 3D 重构哦。");
+      playSound("beep");
+      return;
+    }
     setIsProcessing(true);
     setProcessStep(0);
     setStatusLogs([]);
@@ -1329,6 +1340,23 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       pmremGenerator.dispose();
       if (particleGeometry) particleGeometry.dispose();
       if (particleMaterial) particleMaterial.dispose();
+      // [BUG-FIX] 递归释放场景内所有几何体/材质/纹理，避免高精模型内存泄漏
+      const disposeObject = (obj: THREE.Object3D) => {
+        obj.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (mesh.isMesh) {
+            mesh.geometry?.dispose();
+            const mat = mesh.material;
+            if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+            else (mat as THREE.Material | undefined)?.dispose();
+          }
+        });
+      };
+      disposeObject(scene);
+      if (catModel) disposeObject(catModel);
+      scene.environment?.dispose();
+      floorGeometry.dispose();
+      floorMaterial.dispose();
     };
   }, [useReal3D]);
 

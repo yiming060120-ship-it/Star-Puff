@@ -8,6 +8,8 @@ import { SPECIES_MODELS, getSpeciesModelPath } from "../../data/speciesModels";
 
 interface StardustCeremonyProps {
   onComplete: (config: PetConfig) => void;
+  /** 取消/退出升星仪式（用于"重新举行"场景，返回已有宠物；首次进入时无需传入） */
+  onCancel?: () => void;
   playSparkleSound?: () => void;
 }
 
@@ -48,7 +50,7 @@ function ModelPreview({ modelPath }: { modelPath: string }) {
   return <primitive object={scene} position={[0, 0, 0]} />;
 }
 
-export default function StardustCeremony({ onComplete, playSparkleSound }: StardustCeremonyProps) {
+export default function StardustCeremony({ onComplete, onCancel, playSparkleSound }: StardustCeremonyProps) {
   const [step, setStep] = useState<"info" | "analyze" | "constellation" | "crystallize">("info");
   
   // Form fields
@@ -78,6 +80,13 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
   const crystallizationRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
 
+  // [BUG-FIX] colorsList 提前声明：原声明位于 handlePhotoSelect 之后，存在 TDZ 隐患
+  // （虽然箭头函数延迟调用暂不报错，但重构后极易触发 ReferenceError）
+  const colorsList = ["#ffccd5", "#ffb3c1", "#ff85a1", "#f9bec7", "#fbc3bc", "#e8e8e4", "#d8e2dc", "#b6e2d3", "#faedcd", "#a8dadc", "#d8f3dc", "#00b4d8"];
+
+  // [BUG-FIX] 分析定时器句柄：组件卸载/重复点击时清理，避免 setState 泄漏
+  const analysisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Auto analyzer effect
   const handlePhotoSelect = (imgUrl: string, presetColors?: string[]) => {
     setSelectedPhoto(imgUrl);
@@ -88,12 +97,12 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
     }
   };
 
-  const colorsList = ["#ffccd5", "#ffb3c1", "#ff85a1", "#f9bec7", "#fbc3bc", "#e8e8e4", "#d8e2dc", "#b6e2d3", "#faedcd", "#a8dadc", "#d8f3dc", "#00b4d8"];
-
   // Analyze Step simulation
   const startAnalysis = () => {
     setAnalyzing(true);
-    setTimeout(() => {
+    // [BUG-FIX] 清除上一次未完成的定时器，防止重复点击产生多个定时器
+    if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
+    analysisTimerRef.current = setTimeout(() => {
       // Simulate color selection based on pet choices if not preset
       if (!PRESET_PETS.some(p => p.img === selectedPhoto)) {
         const list = ["猫", "兔", "鸟", "狗"];
@@ -108,8 +117,16 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
       setAnalyzing(false);
       setStep("analyze");
       if (playSparkleSound) playSparkleSound();
+      analysisTimerRef.current = null;
     }, 1800);
   };
+
+  // [BUG-FIX] 组件卸载时清理分析定时器
+  useEffect(() => {
+    return () => {
+      if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
+    };
+  }, []);
 
   // Base upload trigger
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,11 +172,12 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
     if (step === "constellation" && constellationCanvasRef.current) {
       const ctx = constellationCanvasRef.current.getContext("2d");
       if (ctx) {
-        ctx.clearRect(0, 0, 500, 400);
+        // [BUG-FIX] clearRect/fillRect 高度与 canvas 高度保持一致（350 而非 400）
+        ctx.clearRect(0, 0, 500, 350);
         
         // Draw space backgrounds
         ctx.fillStyle = "rgba(12, 6, 26, 0.4)";
-        ctx.fillRect(0, 0, 500, 400);
+        ctx.fillRect(0, 0, 500, 350);
 
         // Draw faint guide lines matching pet shape (e.g., puppy outline)
         ctx.beginPath();
@@ -428,8 +446,21 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
 
   return (
     <div className="w-full bg-[#0c0624] text-gray-200 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative" id="stardust-ceremony-frame">
-      <div className="absolute top-0 right-0 p-4 font-sans text-[10px] text-indigo-400/70 pointer-events-none select-none z-10">
-        ✨ 星尘升星仪式
+      <div className="absolute top-0 right-0 p-3 z-20 flex items-center gap-2">
+        <span className="font-sans text-[10px] text-indigo-400/70 pointer-events-none select-none">
+          ✨ 星尘升星仪式
+        </span>
+        {/* [BUG-FIX] 退出按钮：仅"重新举行"场景（onCancel 存在）显示，避免首次进入被强制走完仪式 */}
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-[10px] text-gray-500 hover:text-white border border-white/10 hover:border-white/30 rounded px-2 py-0.5 transition-colors"
+            title="退出升星仪式，返回已有宠物"
+          >
+            ✕ 退出
+          </button>
+        )}
       </div>
       
       {/* Step Indicators */}
@@ -514,7 +545,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
                   {/* 预览区（按需加载） */}
                   {previewModelPath && (
                     <div className="h-40 bg-black/40 border border-purple-500/20 rounded-xl overflow-hidden relative">
-                      <Canvas camera={{ position: [0, 0, 4], fov: 45 }} className="w-full h-full">
+                      <Canvas camera={{ position: [0, 0, 4], fov: 45 }} className="w-full h-full" dpr={[1, 2]}>
                         <ambientLight intensity={1.5} />
                         <directionalLight position={[5, 5, 5]} intensity={1.5} />
                         <Suspense fallback={null}>
@@ -534,14 +565,20 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
                           setModelFile(m.file);
                           setPreviewModelPath(getSpeciesModelPath(m.file));
                         }}
-                        className={`p-1.5 rounded-lg border text-center transition-all ${
+                        title={`${m.label}（${m.file}）`}
+                        className={`p-1 rounded-lg border text-center transition-all overflow-hidden ${
                           modelFile === m.file
-                            ? "border-pink-400 bg-pink-500/20 text-white"
+                            ? "border-pink-400 bg-pink-500/20 text-white ring-1 ring-pink-400"
                             : "border-slate-700 bg-[#120b2d]/60 text-gray-400 hover:border-pink-400/50"
                         }`}
                       >
-                        <div className="text-base leading-none">🐾</div>
-                        <div className="text-[9px] font-bold mt-1">{m.label}</div>
+                        <img
+                          src={m.thumbnail}
+                          alt={m.label}
+                          className="w-full aspect-square object-cover rounded mb-1 bg-[#1a1133]"
+                          loading="lazy"
+                        />
+                        <div className="text-[9px] font-bold leading-tight truncate">{m.label}</div>
                       </button>
                     ))}
                   </div>
@@ -736,7 +773,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
                 ref={constellationCanvasRef}
                 width={500}
                 height={350}
-                className="rounded-xl border border-[#1a123f] cursor-pointer bg-[#000]"
+                className="rounded-xl border border-[#1a123f] cursor-pointer bg-[#000] w-full max-w-[500px] h-auto"
                 id="constellation-puzzle-canvas"
               />
 

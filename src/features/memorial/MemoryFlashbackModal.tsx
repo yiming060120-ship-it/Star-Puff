@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
 import { Camera, Sparkles, Heart, Gift, BookOpen, Download } from "lucide-react";
@@ -96,6 +96,15 @@ export default function MemoryFlashbackModal({ petConfig, onClose, onCollectRewa
   const [stardustGlowVal, setStardustGlowVal] = useState(0);
   const [hasCollected, setHasCollected] = useState(false);
 
+  // [BUG-FIX] 粒子位置用 useMemo 缓存，避免每次重渲染（stardustGlowVal 变化）都重新 Math.random 导致闪烁
+  const sparkParticles = useMemo(() => {
+    return Array.from({ length: 12 }, () => ({
+      top: Math.random() * 85 + 5,
+      left: Math.random() * 90 + 5,
+      scale: 0.5 + Math.random(),
+    }));
+  }, []);
+
   useEffect(() => {
     playSound("chime");
     playSound("sparkle");
@@ -148,14 +157,14 @@ export default function MemoryFlashbackModal({ petConfig, onClose, onCollectRewa
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-1/4 left-1/5 w-60 h-60 rounded-full bg-pink-500/10 blur-3xl animate-pulse" />
         <div className="absolute bottom-1/4 right-1/5 w-72 h-72 rounded-full bg-purple-500/10 blur-3xl animate-pulse" />
-        {[...Array(12)].map((_, i) => (
+        {sparkParticles.map((spark, i) => (
           <span
             key={i}
             className="absolute text-[8px] opacity-20 animate-bounce"
             style={{
-              top: `${Math.random() * 85 + 5}%`,
-              left: `${Math.random() * 90 + 5}%`,
-              transform: `scale(${0.5 + Math.random()}) rotate(${stardustGlowVal}deg)`,
+              top: `${spark.top}%`,
+              left: `${spark.left}%`,
+              transform: `scale(${spark.scale}) rotate(${stardustGlowVal}deg)`,
               color: petConfig.primaryColor,
               animationDelay: `${i * 0.3}s`
             }}

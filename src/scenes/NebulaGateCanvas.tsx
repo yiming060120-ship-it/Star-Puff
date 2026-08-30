@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { PetConfig, PetType } from "../types";
 import { playSound } from "../audio/AudioSynth";
 import { Compass, Sparkles, Trophy, ChevronLeft, Image as ImageIcon } from "lucide-react";
@@ -709,12 +709,13 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
   const [adventureSeconds, setAdventureSeconds] = useState(0);
   const [adventureDone, setAdventureDone] = useState(isTaskAlreadyCompleted);
 
-  const addLog = (msg: string) => {
+  // [BUG-FIX] 用 useCallback 稳定 addLog 引用，避免 effect 依赖缺失 + 闭包捕获旧 onLoggedEvent
+  const addLog = useCallback((msg: string) => {
     const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
     const fullMsg = `[${time}] ${msg}`;
     setInternalLogs(prev => [fullMsg, ...prev].slice(0, 50));
     onLoggedEvent(fullMsg);
-  };
+  }, [onLoggedEvent]);
 
   useEffect(() => {
     let list: ExplorerPet[] = [];
@@ -733,25 +734,31 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
     });
     petsRef.current = list;
     addLog(`✨ 欢迎来到【${sceneMeta.name}】！星宠们已降落，开始自由探索。`);
-  }, [userPet, sceneMeta]);
+  }, [userPet, sceneMeta, addLog]);
+
+  // [BUG-FIX] 用 ref 防重入，避免 StrictMode 下 setState updater 内副作用被双调用导致双倍发币
+  const adventureRewardedRef = useRef(false);
 
   useEffect(() => {
     if (adventureDone) return;
+    // 倒计时每 1 秒 +1，到 30 封顶
     const timer = setInterval(() => {
-      setAdventureSeconds(prev => {
-        if (prev >= 29) {
-          clearInterval(timer);
-          setAdventureDone(true);
-          onTaskCompleted();
-          onGrantCoins(20);
-          addLog("🏆 达成星云漫步30秒成就！奖励 20 星尘币！");
-          return 30;
-        }
-        return prev + 1;
-      });
+      setAdventureSeconds(prev => (prev >= 30 ? 30 : prev + 1));
     }, 1000);
     return () => clearInterval(timer);
-  }, [adventureDone, onTaskCompleted, onGrantCoins]);
+  }, [adventureDone]);
+
+  // 倒计时到 30 时发放奖励（副作用独立，用 ref 保证只发一次）
+  useEffect(() => {
+    if (adventureDone) return;
+    if (adventureSeconds >= 30 && !adventureRewardedRef.current) {
+      adventureRewardedRef.current = true;
+      setAdventureDone(true);
+      onTaskCompleted();
+      onGrantCoins(20);
+      addLog("🏆 达成星云漫步30秒成就！奖励 20 星尘币！");
+    }
+  }, [adventureSeconds, adventureDone, onTaskCompleted, onGrantCoins, addLog]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
