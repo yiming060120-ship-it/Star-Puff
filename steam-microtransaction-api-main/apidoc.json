@@ -1,0 +1,7 @@
+{
+  "name": "Steam Microtransaction API",
+  "version": "2.0.0",
+  "description": "An intermediate API to handle Steam microtransactions and subscriptions using Steam web services.",
+  "title": "Steam Microtransaction API",
+  "url": "https://<your-api-url>"
+}
