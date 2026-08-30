@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Single Species Thumbnail</title>
+<style>
+  body { margin: 0; background: #1a1133; overflow: hidden; }
+  #c { width: 256px; height: 256px; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+const idx = parseInt(new URLSearchParams(location.search).get("i") || "1", 10);
+const canvas = document.getElementById("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(1);
+renderer.setSize(256, 256, false);
+renderer.setClearColor(0x1a1133, 1);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 0.2, 4);
+camera.lookAt(0, 0, 0);
+scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+const dir = new THREE.DirectionalLight(0xffffff, 1.6);
+dir.position.set(5, 5, 5);
+scene.add(dir);
+const loader = new GLTFLoader();
+loader.load(
+  `models/species/species_${String(idx).padStart(2,"0")}.glb`,
+  (gltf) => {
+    scene.add(gltf.scene);
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    const size = box.getSize(new THREE.Vector3()).length();
+    const center = box.getCenter(new THREE.Vector3());
+    gltf.scene.position.sub(center);
+    gltf.scene.scale.setScalar(2.4 / size);
+    gltf.scene.position.set(0, -0.3, 0);
+    // 渲染几帧稳定后标记
+    let n = 0;
+    function tick() {
+      n++;
+      renderer.render(scene, camera);
+      if (n < 4) requestAnimationFrame(tick);
+      else window.__ready = true;
+    }
+    tick();
+  }
+);
+</script>
+</body>
+</html>
