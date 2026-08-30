@@ -1,0 +1,62 @@
+
+> starpuff@0.0.0 dev
+> tsx server.ts
+
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+[report-scheduler] skipping: mockMode or missing webApiKey
+StarPuff full-stack server running on http://localhost:3000
+[2m00:22:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mpublic/species-preview.html[22m
+[2m00:22:33[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mpublic/species-preview.html[22m
+[2m00:23:18[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mpublic/species-preview.html[22m
+[2m00:24:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mpublic/species-thumb.html[22m
+[2m00:32:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/system/MultiPetSelector.tsx, /src/index.css, /src/features/memorial/StardustCeremony.tsx[22m
+[2m00:32:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:32:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:32:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:32:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:32:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:32:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/system/MultiPetSelector.tsx, /src/index.css[22m
+[2m00:33:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/memorial/StardustCeremony.tsx, /src/index.css[22m
+[2m00:33:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:28[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:28[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mglb-inspect-result.json[22m
+[2m00:33:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:33:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdev-log.txt[22m
+[2m00:34:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mrelease/win-unpacked/LICENSES.chromium.html[22m
+[2m00:34:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mrelease/win-unpacked/resources/dist/index.html[22m
+node:internal/fs/watchers:323
+    const error = new UVException({
+                  ^
+
+Error: EBUSY: resource busy or locked, watch 'C:\Users\一鸣\Documents\game\Star-Puff\release\win-unpacked\dxcompiler.dll'
+    at FSWatcher.<computed> (node:internal/fs/watchers:323:19)
+    at Object.watch (node:fs:2609:36)
+    at createFsWatchInstance (C:\Users\一鸣\Documents\game\Star-Puff\node_modules\vite\dist\node\chunks\dep-Dm0c1Wj2.js:22195:17)
+    at setFsWatchListener (C:\Users\一鸣\Documents\game\Star-Puff\node_modules\vite\dist\node\chunks\dep-Dm0c1Wj2.js:22242:15)
+    at NodeFsHandler._watchWithNodeFs (C:\Users\一鸣\Documents\game\Star-Puff\node_modules\vite\dist\node\chunks\dep-Dm0c1Wj2.js:22397:14)
+    at NodeFsHandler._handleFile (C:\Users\一鸣\Documents\game\Star-Puff\node_modules\vite\dist\node\chunks\dep-Dm0c1Wj2.js:22461:23)
+    at NodeFsHandler._addToNodeFs (C:\Users\一鸣\Documents\game\Star-Puff\node_modules\vite\dist\node\chunks\dep-Dm0c1Wj2.js:22703:21)
+Emitted 'error' event on FSWatcher instance at:
+    at FSWatcher._handleError (C:\Users\一鸣\Documents\game\Star-Puff\node_modules\vite\dist\node\chunks\dep-Dm0c1Wj2.js:23896:10)
+    at NodeFsHandler._addToNodeFs (C:\Users\一鸣\Documents\game\Star-Puff\node_modules\vite\dist\node\chunks\dep-Dm0c1Wj2.js:22711:18) {
+  errno: -4082,
+  syscall: 'watch',
+  code: 'EBUSY',
+  path: 'C:\\Users\\一鸣\\Documents\\game\\Star-Puff\\release\\win-unpacked\\dxcompiler.dll',
+  filename: 'C:\\Users\\一鸣\\Documents\\game\\Star-Puff\\release\\win-unpacked\\dxcompiler.dll'
+}
+
+Node.js v24.19.0

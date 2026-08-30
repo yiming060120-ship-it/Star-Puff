@@ -6,15 +6,25 @@
 
 appId: com.starpuff.game
 productName: StarPuff
+# better-sqlite3 为 N-API 预编译模块（v13+），跨 Electron 版本 ABI 稳定，无需 node-gyp 重编译；
+# 禁用 rebuild 可避免本机缺少 Visual Studio 导致打包失败
+npmRebuild: false
 directories:
   buildResources: build
   output: release
 files:
   - electron/**
   - package.json
-# steamworks.js 原生 .node 必须解包到真实文件系统（asar 内 dlopen 会失败）
+  - "node_modules/steamworks.js/**/*"
+  - "node_modules/better-sqlite3/**/*"
+  - "node_modules/bindings/**/*"
+  - "node_modules/file-uri-to-path/**/*"
+# 原生 .node 模块必须解包到真实文件系统（asar 内 dlopen 会失败）
+# steamworks.js、better-sqlite3 都是 native 模块，bindings 是 better-sqlite3 的依赖
 asarUnpack:
   - "node_modules/steamworks.js/**/*"
+  - "node_modules/better-sqlite3/**/*"
+  - "node_modules/bindings/**/*"
 extraResources:
   - from: dist
     to: dist
@@ -22,6 +32,8 @@ extraResources:
       - "**/*"
 win:
   icon: build/icon.ico
+  # 免签名打包：不配置证书则无需下载 winCodeSign，避免中国大陆网络下从 GitHub 下载卡住
+  signAndEditExecutable: false
   target:
     - target: nsis
       arch:

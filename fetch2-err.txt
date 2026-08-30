@@ -1,0 +1,1 @@
+失败: HTTP 404 for https://cdn.npmmirror.com/binaries/electron-builder-binaries/winCodeSign-2.6.0.7z

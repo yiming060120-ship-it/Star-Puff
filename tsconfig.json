@@ -22,5 +22,18 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "src",
+    "microtransaction-api",
+    "server.ts",
+    "electron",
+    "vite.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "steam-microtransaction-api-main",
+    "scripts"
+  ]
 }

@@ -1,0 +1,12 @@
+[
+  {
+    "orderId": "1786783616152770231",
+    "steamId": "76561198000000000",
+    "itemId": 100,
+    "payload": {
+      "kind": "stardust_coins",
+      "amount": 180
+    },
+    "grantedAt": "2026-08-15T08:46:56.159Z"
+  }
+]

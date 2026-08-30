@@ -12,7 +12,8 @@
     "clean": "node -e \"const fs=require('fs');const p='dist';fs.rmSync(p,{recursive:true,force:true});console.log('dist cleaned')\"",
     "lint": "tsc --noEmit",
     "electron:dev": "npm run build && node scripts/run-electron.cjs",
-    "dist": "npm run clean && npm run build && electron-builder --win"
+    "make-icon": "node scripts/make-icon.mjs",
+    "dist": "npm run clean && npm run make-icon && npm run build && electron-builder --win"
   },
   "dependencies": {
     "steamworks.js": "^0.4.0",

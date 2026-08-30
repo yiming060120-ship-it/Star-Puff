@@ -112,6 +112,9 @@ async function startEmbeddedServer() {
   process.env.NODE_ENV = "production";
   // 标记内嵌：server.ts 检测到后不自动 listen，改由本进程调用工厂函数
   process.env.STARPUFF_EMBEDDED = "1";
+  // 数据目录指向 userData（可写），供微交易 SQLite 数据库/发放账本落盘，
+  // 避免打包后 __dirname 指向 asar 只读目录导致写库失败
+  process.env.STARPUFF_DATA_DIR = app.getPath("userData");
 
   const distDir = app.isPackaged
     ? path.join(process.resourcesPath, "dist")
