@@ -141,10 +141,10 @@ Gemini API              ← AI 引擎
 |------|------|
 | 目录分层重构 | ✅ ADR-0001 |
 | 数据完整性修复 | ✅ ADR-0002 |
-| 文档体系标准化 | ⏳ 进行中（ADR-0003） |
-| core/ 抽象层 | ⏳ 进行中 |
-| api/ 请求封装层 | 待开始 |
-| ErrorBoundary + 代码拆分 | 待开始 |
+| 文档体系标准化 | ✅ ADR-0003 |
+| core/ 抽象层 | ✅ `src/core/errors.ts` + `validators.ts` |
+| api/ 请求封装层 | ✅ 底层 `request()` 统一错误契约 |
+| ErrorBoundary + 代码拆分 | 🟡 ErrorBoundary 已建，错误体系待接入消费 |
 | App/HomeCanvas 上帝组件拆分 | 待开始 |
 | 自动化测试 | 未开始 |
 

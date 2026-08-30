@@ -34,6 +34,9 @@ npm run dev     # tsx server.ts，前后端一体启动
 - ✅ ErrorBoundary 组件（2026-08-10）：`src/components/ErrorBoundary.tsx` 捕获 WebGL 渲染崩溃，防止低端设备白屏。
 - ✅ 跨平台 clean 脚本（2026-08-10）：`package.json` clean 使用 Node.js 内置 API，兼容 Windows/Linux/macOS。
 - ✅ metadata.json 修正（2026-08-10）：移除"微信小程序"描述，与当前 Web SPA 实现一致。
+- ✅ core/ 抽象层建立（2026-08-15，见 `docs/decisions/ADR-0003`）：`src/core/errors.ts`（结构化错误体系）+ `src/core/validators.ts`（校验工具）。
+- ✅ API 层错误契约增强（2026-08-15）：`src/api/index.ts` 新增底层 `request()`，网络/HTTP/解析错误统一收敛为结构化结果，fetch 断网不再向上抛异常。
+- ✅ 内购微交易链路完整（后端 mock 模式全通，前端 useMicrotransaction 六步闭环 + mtxLogger 日志面板）。
 
 ## 5. 未完成事项 / 已知欠账
 
@@ -43,6 +46,7 @@ npm run dev     # tsx server.ts，前后端一体启动
 - 🟡 每日任务仅在应用加载时跨天重置；若用户挂机跨过零点，需刷新后才重置。
 - 🟡 商店"永结星缘礼包"（combo）不解锁单件槽位，依赖渲染侧特判，需核对 `HomeCanvas` 对 combo 的渲染是否完整。
 - 🟡 耳语封面图使用 Unsplash 外链，图床不可用时破图；无图片本地化/兜底。
+- 🟡 ErrorBoundary 已建立，但错误体系（core/errors.ts）尚未在组件层全面接入消费，多数 catch 仍直接读 `error.message`。
 - 🔴 无持久化数据库，用户数据仅存于浏览器本地（localStorage），刷新设备即丢失。
 
 ## 6. 未知项清单（遇到请先问人类，不要猜）
