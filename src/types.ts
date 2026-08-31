@@ -128,6 +128,7 @@ export interface PetWhisper {
   coverImage: string; // pixel art cover style
   likes: number;
   hasLiked: boolean;
+  slotLabel?: string; // 来信时段标签（如 ☀️ 晨光来信 / 🌙 暮色来信）
   comments: Array<{
     id: string;
     authorName: string;
