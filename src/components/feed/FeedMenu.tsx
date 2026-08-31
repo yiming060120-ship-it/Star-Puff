@@ -6,7 +6,8 @@
  */
 
 import React, { useRef } from "react";
-import { foodItems, findFoodById, type FoodInventory } from "../../data/foodItems";
+// [CLEANUP] 已移除未使用的 findFoodById（组件直接遍历 foodItems）
+import { foodItems, type FoodInventory } from "../../data/foodItems";
 import { Coins, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface FeedMenuProps {

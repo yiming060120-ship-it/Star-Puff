@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React from "react";
 import { playSound } from "../../audio/AudioSynth";
 import { localDateString } from "../../utils/date";
-import { Calendar, CheckCircle, Award, Star, ArrowRight, Zap, Gift } from "lucide-react";
+// [CLEANUP] 已移除未使用的 useState 与图标 ArrowRight
+import { Calendar, CheckCircle, Award, Star, Zap, Gift } from "lucide-react";
 
 interface CheckInCalendarProps {
   checkInCalendar: string[]; // list of dates, e.g. ["2026-05-21"]

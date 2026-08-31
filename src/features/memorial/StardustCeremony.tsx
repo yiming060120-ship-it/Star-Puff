@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, Suspense } from "react";
 import { PetConfig, PetType } from "../../types";
-import { Sparkles, Upload, Flame, Paintbrush, Heart, Music, Check } from "lucide-react";
-import { motion } from "motion/react";
+// [CLEANUP] 已移除 3 个未使用的图标：Music / Check；以及未使用的 motion 导入
+import { Sparkles, Upload, Flame, Paintbrush, Heart } from "lucide-react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import { SPECIES_MODELS, getSpeciesModelPath } from "../../data/speciesModels";

@@ -5,8 +5,10 @@
 
 import React, { useState } from "react";
 import { PetConfig } from "../../types";
-import { PET_MEMORIES, MemorySegment } from "./MemoryFlashbackModal";
-import { Lock, Eye, BookOpen, Clock, Heart, Award } from "lucide-react";
+import { PET_MEMORIES } from "./MemoryFlashbackModal";
+// [CLEANUP] 已移除未使用的导入：MemorySegment（类型未用）、Heart（图标未用）
+// 注意：Award 在 99 行有实际使用，保留
+import { Lock, Eye, BookOpen, Clock, Award } from "lucide-react";
 import { playSound } from "../../audio/AudioSynth";
 
 interface MemoryAlbumProps {

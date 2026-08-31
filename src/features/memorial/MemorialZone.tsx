@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Sparkles, Flower, Star, Heart, Edit3, Calendar, PlusCircle, CheckCircle2, Eye, Award } from "lucide-react";
+// [CLEANUP] 已移除 5 个未使用的图标导入：Sparkles / Heart / Calendar / CheckCircle2 / Award
+import { Flower, Star, Edit3, PlusCircle, Eye } from "lucide-react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
 
