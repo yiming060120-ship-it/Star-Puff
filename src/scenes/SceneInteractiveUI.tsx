@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Sprout, Droplets, Store, BookOpen, Shell, Map as MapIcon, Crown, Clock, Zap, Coffee, Flame, Moon, Sun, Book, ArrowRight, Compass, Shield, Scissors } from 'lucide-react';
+// [CLEANUP] 已移除 10 个未使用的图标：Sprout / Shell / Crown / Clock / Coffee /
+// Moon / Sun / ArrowRight / Shield / Scissors
+import { Sparkles, Droplets, Store, BookOpen, Map as MapIcon, Zap, Flame, Book, Compass } from 'lucide-react';
 import { playSound } from '../audio/AudioSynth';
 
 interface SceneInteractiveUIProps {
@@ -68,29 +70,41 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   // === VEGA TOWN (Baking & Shop Management) ===
   const [shopLevel, setShopLevel] = useState(1);
   const [breads, setBreads] = useState({ croissant: 0, starCake: 0 });
-  const [bakingTask, setBakingTask] = useState<{type: string, timeLeft: number} | null>(null);
+  const [bakingTask, setBakingTask] = useState<{type: string, timeLeft: number, total: number} | null>(null);
 
+  // [BUG-FIX] 倒计时只做纯计数，依赖改为「是否在烘焙中」而非整个 bakingTask。
+  // 原实现依赖整个 bakingTask，导致每秒变化都重建 interval（计时漂移）。
+  const isBaking = bakingTask !== null;
   useEffect(() => {
-    if (!bakingTask) return;
+    if (!isBaking) return;
     const interval = setInterval(() => {
-      setBakingTask(prev => {
-        if (!prev) return null;
-        if (prev.timeLeft <= 1) {
-          setBreads(b => ({ ...b, [prev.type]: b[prev.type as keyof typeof b] + 1 }));
-          addLog(`🍞 ${prev.type === 'croissant' ? '星空牛角包' : '星云蛋糕'} 烘焙完成！`);
-          playSound("chime");
-          return null;
-        }
-        return { ...prev, timeLeft: prev.timeLeft - 1 };
-      });
+      setBakingTask(prev => (!prev ? null : { ...prev, timeLeft: prev.timeLeft - 1 }));
     }, 1000);
     return () => clearInterval(interval);
+  }, [isBaking]);
+
+  // [BUG-FIX] 产出/日志/音效原本写在 setBakingTask 的 updater 内部，
+  // StrictMode 下 updater 会被双调用 → 烤 1 个面包实际产出 2 个、音效叠放。
+  // 改为在 updater 外由独立 effect 负责，并用 ref 防重入。
+  const bakedRef = useRef(false);
+  useEffect(() => {
+    if (!bakingTask) {
+      bakedRef.current = false;
+      return;
+    }
+    if (bakingTask.timeLeft > 0 || bakedRef.current) return;
+    bakedRef.current = true;
+    setBreads(b => ({ ...b, [bakingTask.type]: (b[bakingTask.type as keyof typeof b] ?? 0) + 1 }));
+    addLog(`🍞 ${bakingTask.type === 'croissant' ? '星空牛角包' : '星云蛋糕'} 烘焙完成！`);
+    playSound("chime");
+    setBakingTask(null);
   }, [bakingTask, addLog]);
 
   const startBaking = (type: 'croissant' | 'starCake') => {
     if (bakingTask) return addLog("⚠️ 烤箱正在使用中！");
     if (type === 'starCake' && shopLevel < 2) return addLog("⚠️ 商店需要达到2级才能制作蛋糕！");
-    setBakingTask({ type, timeLeft: type === 'croissant' ? 5 : 10 });
+    const total = type === 'croissant' ? 5 : 10;
+    setBakingTask({ type, timeLeft: total, total });
     addLog(`🔥 开始烘焙 ${type === 'croissant' ? '牛角包' : '蛋糕'}...`);
     playSound("click");
   };
@@ -322,7 +336,10 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
                  <div className="mt-4 bg-white/5 rounded-lg p-2 flex items-center gap-3">
                     <Flame className="w-4 h-4 text-orange-500 animate-pulse" />
                     <div className="flex-1 h-2 bg-black rounded-full overflow-hidden">
-                       <div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${((bakingTask.timeLeft === 10 ? 10 : 5 - bakingTask.timeLeft) / (bakingTask.type === 'croissant' ? 5 : 10)) * 100}%` }} />
+                       {/* [BUG-FIX] 原公式分子写死 5 秒且对 timeLeft===10 特判成满格，
+                           导致星云蛋糕(10s) 一开始就是 100% 随后变负数、牛角包(5s) 最多只到 80%。
+                           改为与时长无关的通用公式。 */}
+                       <div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${((bakingTask.total - bakingTask.timeLeft) / bakingTask.total) * 100}%` }} />
                     </div>
                     <span className="text-xs text-white/50">{bakingTask.timeLeft}s</span>
                  </div>

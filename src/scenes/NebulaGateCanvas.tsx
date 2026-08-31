@@ -709,32 +709,47 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
   const [adventureSeconds, setAdventureSeconds] = useState(0);
   const [adventureDone, setAdventureDone] = useState(isTaskAlreadyCompleted);
 
-  // [BUG-FIX] 用 useCallback 稳定 addLog 引用，避免 effect 依赖缺失 + 闭包捕获旧 onLoggedEvent
+  // [BUG-FIX] onLoggedEvent 是父组件的内联箭头函数（每次渲染都是新引用）。
+  // 若直接把它放进 addLog 的依赖，addLog 会随父组件每次渲染而变，
+  // 令下方的初始化 effect 反复重跑 → 内部又调用 addLog → 父组件 setState →
+  // 父组件重渲染 → addLog 再次变化 → 闭环，最终抛 "Maximum update depth exceeded" 卡死。
+  // 改用 ref 稳定转发，使 addLog 的引用永久不变。
+  const onLoggedEventRef = useRef(onLoggedEvent);
+  useEffect(() => {
+    onLoggedEventRef.current = onLoggedEvent;
+  }, [onLoggedEvent]);
+
   const addLog = useCallback((msg: string) => {
     const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
     const fullMsg = `[${time}] ${msg}`;
     setInternalLogs(prev => [fullMsg, ...prev].slice(0, 50));
-    onLoggedEvent(fullMsg);
-  }, [onLoggedEvent]);
+    onLoggedEventRef.current(fullMsg);
+  }, []);
 
+  // [BUG-FIX] 按场景去重防重入：即使上游 userPet / sceneMeta 引用意外变化，
+  // 也不会在同一个场景下反复重建宠物、把欢迎日志刷屏
+  const initSceneRef = useRef<string | null>(null);
   useEffect(() => {
+    if (initSceneRef.current === sceneId) return;
+    initSceneRef.current = sceneId;
+
     let list: ExplorerPet[] = [];
     if (userPet) {
       list.push({
         name: userPet.name, type: userPet.type, x: 350, y: 200,
-        vx: (Math.random() - 0.5) * 1.5, vy: (Math.random() - 0.5) * 1.5,
+        vx: (Math.random() - 0.5) * 0.5, vy: (Math.random() - 0.5) * 0.5,
         primaryColor: userPet.primaryColor, size: 11, isUser: true
       });
     }
     BACKEND_BOTS.forEach(bot => {
       list.push({
         ...bot, x: 50 + Math.random() * 600, y: 50 + Math.random() * 320,
-        vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, isUser: false
+        vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6, isUser: false
       });
     });
     petsRef.current = list;
     addLog(`✨ 欢迎来到【${sceneMeta.name}】！星宠们已降落，开始自由探索。`);
-  }, [userPet, sceneMeta, addLog]);
+  }, [userPet, sceneMeta, addLog, sceneId]);
 
   // [BUG-FIX] 用 ref 防重入，避免 StrictMode 下 setState updater 内副作用被双调用导致双倍发币
   const adventureRewardedRef = useRef(false);
@@ -833,14 +848,14 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
         if (pet.x < 20 || pet.x > canvas.width - 20) pet.vx *= -1;
         if (pet.y < 20 || pet.y > canvas.height - 20) pet.vy *= -1;
         
-        // Randomly change direction occasionally
-        if (Math.random() < 0.01) {
-          pet.vx += (Math.random() - 0.5);
-          pet.vy += (Math.random() - 0.5);
+        // Randomly change direction occasionally（降低频率与幅度，让星宠在地标停留更久，便于产生社交交集）
+        if (Math.random() < 0.004) {
+          pet.vx += (Math.random() - 0.5) * 0.2;
+          pet.vy += (Math.random() - 0.5) * 0.2;
           const speed = Math.hypot(pet.vx, pet.vy);
-          if (speed > 2) {
-             pet.vx = (pet.vx / speed) * 1.5;
-             pet.vy = (pet.vy / speed) * 1.5;
+          if (speed > 0.6) {
+             pet.vx = (pet.vx / speed) * 0.45;
+             pet.vy = (pet.vy / speed) * 0.45;
           }
         }
         
@@ -850,8 +865,8 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
           const cx = canvas.width/2;
           const cy = canvas.height/2;
           const angle = Math.atan2(pet.y - cy, pet.x - cx);
-          pet.vx = -Math.sin(angle) * 2.5;
-          pet.vy = Math.cos(angle) * 2.5;
+          pet.vx = -Math.sin(angle) * 0.7;
+          pet.vy = Math.cos(angle) * 0.7;
         }
         
         // Occasional scene interaction log using SCENE_DESIGNS data

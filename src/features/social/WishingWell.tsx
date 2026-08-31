@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, Send, Coins, Compass, Heart, HeartOff, User, MessageCircle, HelpCircle } from "lucide-react";
+// [CLEANUP] 已移除 3 个未使用的图标导入：HeartOff / MessageCircle / HelpCircle
+import { Sparkles, Send, Coins, Compass, Heart, User } from "lucide-react";
 import { playSound } from "../../audio/AudioSynth";
 
 interface WishingWellProps {
@@ -28,18 +29,57 @@ const INITIAL_BOTTLES: WishBottle[] = [
   { id: "wb_5", senderName: "七七爸", petName: "糯米", petType: "兔", message: "糯米糯米！爸爸在双子座沙滩给你洒了大把大把甜苜蓿草！快去吃，别被别的小猫抢走啦。", blessingsCount: 37, date: "半天前" }
 ];
 
+// [BUG-FIX] 许愿池数据持久化：原本 blessedIds / mySentWishes 全靠组件内存态，
+// 切 Tab 或刷新页面后组件重建即失效 —— 花 200 币投的漂流瓶凭空消失，
+// 且同一批瓶子可反复祝福无限刷币（经济系统崩坏）。改为落 localStorage。
+const BLESSED_KEY = "starpuff_wish_blessed";
+const SENT_KEY = "starpuff_wish_sent";
+
+const loadBlessedIds = (): string[] => {
+  try {
+    const raw = localStorage.getItem(BLESSED_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+const loadSentWishes = (): WishBottle[] => {
+  try {
+    const raw = localStorage.getItem(SENT_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+};
+
 export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast, isGodMode }: WishingWellProps) {
   const [myWishText, setMyWishText] = useState("");
   const [bottles, setBottles] = useState<WishBottle[]>(INITIAL_BOTTLES);
   const [currentRetrieved, setCurrentRetrieved] = useState<WishBottle | null>(null);
-  const [mySentWishes, setMySentWishes] = useState<WishBottle[]>([]);
-  const [blessedIds, setBlessedIds] = useState<string[]>([]);
+  const [mySentWishes, setMySentWishes] = useState<WishBottle[]>(loadSentWishes);
+  const [blessedIds, setBlessedIds] = useState<string[]>(loadBlessedIds);
   const [isSpinningWell, setIsSpinningWell] = useState(false);
   // [BUG-FIX] 定时器句柄，卸载时统一清理
   const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retrieveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // [BUG-FIX] 祝福防重入原子锁（Set），避免闭包快照 blessedIds 被双击绕过导致重复 +10 币
-  const blessedIdsRef = useRef<Set<string>>(new Set());
+  // [BUG-FIX] 祝福防重入原子锁（Set），避免闭包快照 blessedIds 被双击绕过导致重复 +10 币。
+  // 初值从持久化数据恢复，否则切 Tab 重建组件后锁失效，可反复刷同一批瓶子。
+  const blessedIdsRef = useRef<Set<string>>(new Set(loadBlessedIds()));
+
+  // 持久化：祝福记录与已投递的漂流瓶
+  useEffect(() => {
+    try {
+      localStorage.setItem(BLESSED_KEY, JSON.stringify(blessedIds));
+    } catch (e) {}
+  }, [blessedIds]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(SENT_KEY, JSON.stringify(mySentWishes));
+    } catch (e) {}
+  }, [mySentWishes]);
 
   // [BUG-FIX] 组件卸载时清理所有定时器
   useEffect(() => {
@@ -190,8 +230,10 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
             <div className="space-y-2">
               <div className="text-[10px] font-mono text-purple-300">📬 我的流浪星瓶 ({mySentWishes.length}) :</div>
               <div className="max-h-24 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-                {mySentWishes.map((w, idx) => (
-                  <div key={idx} className="bg-white/[0.02] border border-white/5 rounded-lg p-2 text-[10px] text-gray-400 hover:border-pink-500/10 transition-colors">
+                {/* [BUG-FIX] 新瓶子是 unshift 到列表开头的，用 index 作 key 会让所有元素的 key
+                    整体后移一位，导致每项都被销毁重建（状态/动画错乱）。改用瓶子自带 id。 */}
+                {mySentWishes.map((w) => (
+                  <div key={w.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-2 text-[10px] text-gray-400 hover:border-pink-500/10 transition-colors">
                     <div className="flex items-center justify-between font-mono text-[8px] text-gray-500 mb-0.5">
                       <span>🐾 飘往仙女座之桥</span>
                       <span>{w.date}</span>

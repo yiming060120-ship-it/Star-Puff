@@ -2,7 +2,7 @@
  * GeneratingOverlay - 生成中的全屏 loading 遮罩（旋转光环 + 进度条 + 阶段文案）
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 
 const STEPS = ["正在提取宠物特征...", "正在绘制星尘粒子...", "正在注入星云能量...", "即将完成..."];
@@ -21,14 +21,10 @@ export default function GeneratingOverlay({ onComplete }: GeneratingOverlayProps
     }, 800);
 
     const progressTimer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressTimer);
-          setTimeout(onComplete, 300);
-          return 100;
-        }
-        return prev + 2;
-      });
+      // [BUG-FIX] clearInterval / setTimeout(onComplete) 原本写在 setProgress 的 updater 内，
+      // StrictMode 下 updater 双调用 → onComplete 触发两次，并泄漏一个未清理的 timer。
+      // 改为纯计数，完成动作交给下方独立 effect。
+      setProgress((prev) => Math.min(prev + 2, 100));
     }, 60);
 
     return () => {
@@ -36,6 +32,15 @@ export default function GeneratingOverlay({ onComplete }: GeneratingOverlayProps
       clearInterval(progressTimer);
     };
   }, [onComplete]);
+
+  // 进度到达 100% 后延迟收尾（独立 effect + ref 防重入，避免重复回调）
+  const completedRef = useRef(false);
+  useEffect(() => {
+    if (progress < 100 || completedRef.current) return;
+    completedRef.current = true;
+    const doneTimer = setTimeout(onComplete, 300);
+    return () => clearTimeout(doneTimer);
+  }, [progress, onComplete]);
 
   return (
     <div className="fixed inset-0 z-[80] bg-[#1A1238]/95 backdrop-blur-md flex flex-col items-center justify-center">

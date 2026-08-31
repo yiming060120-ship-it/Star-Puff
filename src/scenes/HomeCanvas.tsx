@@ -317,20 +317,28 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   }, [petConfig.companionEnergy, petConfig.statusEnergy, petConfig.id]);
 
   // Automated Real-world Weather & Climate evolution wheel
+  // [BUG-FIX] 原实现把 setSkyWeather / setMoodIndex / setEnergyIndex / setIntimacyIndex /
+  // playSound 等十余个副作用全部写在 setTimeToNextWeather 的 updater 内部。
+  // StrictMode 下 updater 会被双调用 → 每次天气切换心情/能量/亲密加成全部翻倍、音效叠放两次。
+  // 改为：副作用移到 interval 回调中直接执行（回调只跑一次，不会双调用），
+  // 倒计时用 ref 镜像当前值，避免闭包快照过期。
+  const timeToNextWeatherRef = useRef(timeToNextWeather);
   useEffect(() => {
-    if (!autoWeatherCycle) return;
-    const interval = setInterval(() => {
-      setTimeToNextWeather((prev) => {
-        if (prev <= 1) {
-          const weathers: WeatherType[] = ["clear", "star-rain", "aurora", "snow"];
-          const times: CycleTimeType[] = ["day", "sunset", "night"];
+    timeToNextWeatherRef.current = timeToNextWeather;
+  }, [timeToNextWeather]);
 
-          const nextWeather = weathers[Math.floor(Math.random() * weathers.length)];
-          const nextTime = times[Math.floor(Math.random() * times.length)];
+  // 天气切换的全部副作用。每次渲染刷新该 ref，确保能读到最新的 petConfig
+  const runWeatherSwitchRef = useRef<() => void>(() => {});
+  runWeatherSwitchRef.current = () => {
+    const weathers: WeatherType[] = ["clear", "star-rain", "aurora", "snow"];
+    const times: CycleTimeType[] = ["day", "sunset", "night"];
 
-          setSkyWeather(nextWeather);
-          setSkyTime(nextTime);
-          playSound("chime");
+    const nextWeather = weathers[Math.floor(Math.random() * weathers.length)];
+    const nextTime = times[Math.floor(Math.random() * times.length)];
+
+    setSkyWeather(nextWeather);
+    setSkyTime(nextTime);
+    playSound("chime");
 
           const advisories: Record<string, string[]> = {
             clear: [
@@ -351,48 +359,58 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             ]
           };
 
-          const adviceList = advisories[nextWeather];
-          const chosenAdvice = adviceList[Math.floor(Math.random() * adviceList.length)];
-          setWeatherAdviceText(chosenAdvice);
+    const adviceList = advisories[nextWeather];
+    const chosenAdvice = adviceList[Math.floor(Math.random() * adviceList.length)];
+    setWeatherAdviceText(chosenAdvice);
 
-          // Customize speeches based on pet types
-          const species = (() => {
-            const t = petConfig.type || "";
-            if (t.includes("猫")) return "cat";
-            if (t.includes("狗")) return "dog";
-            if (t.includes("兔")) return "rabbit";
-            if (t.includes("鼠")) return "hamster";
-            return "cat";
-          })();
+    // Customize speeches based on pet types
+    const species = (() => {
+      const t = petConfig.type || "";
+      if (t.includes("猫")) return "cat";
+      if (t.includes("狗")) return "dog";
+      if (t.includes("兔")) return "rabbit";
+      if (t.includes("鼠")) return "hamster";
+      return "cat";
+    })();
 
-          // [BUG-FIX] 情景对话随机：从每种天气×物种的多句话术里随机选一句
-          const speechText = pickWeatherSpeech(nextWeather, species as SpeciesKey);
+    // [BUG-FIX] 情景对话随机：从每种天气×物种的多句话术里随机选一句
+    const speechText = pickWeatherSpeech(nextWeather, species as SpeciesKey);
 
-          if (nextWeather === "snow") {
-            // Cold decreases indices naturally a bit
-            setMoodIndex(m => Math.max(25, m - 5));
-          } else if (nextWeather === "star-rain") {
-            setMoodIndex(m => Math.min(100, m + 15));
-            setEnergyIndex(e => Math.min(100, e + 10));
-          } else if (nextWeather === "aurora") {
-            setMoodIndex(m => Math.min(100, m + 8));
-            setIntimacyIndex(i => Math.min(100, i + 12));
-          } else {
-            setMoodIndex(m => Math.min(100, m + 6));
-          }
+    if (nextWeather === "snow") {
+      // Cold decreases indices naturally a bit
+      setMoodIndex(m => Math.max(25, m - 5));
+    } else if (nextWeather === "star-rain") {
+      setMoodIndex(m => Math.min(100, m + 15));
+      setEnergyIndex(e => Math.min(100, e + 10));
+    } else if (nextWeather === "aurora") {
+      setMoodIndex(m => Math.min(100, m + 8));
+      setIntimacyIndex(i => Math.min(100, i + 12));
+    } else {
+      setMoodIndex(m => Math.min(100, m + 6));
+    }
 
-          if (speechText) {
-            setWhisperBubbleText(speechText);
-            setWhisperTimer(220); // Longer show time for climate dialogue
-          }
+    if (speechText) {
+      setWhisperBubbleText(speechText);
+      setWhisperTimer(220); // Longer show time for climate dialogue
+    }
+  };
 
-          return 45; // Reset back to 45 seconds climate phase
-        }
-        return prev - 1;
-      });
+  useEffect(() => {
+    if (!autoWeatherCycle) return;
+    const interval = setInterval(() => {
+      const next = timeToNextWeatherRef.current - 1;
+      if (next <= 0) {
+        // Reset back to 45 seconds climate phase
+        timeToNextWeatherRef.current = 45;
+        setTimeToNextWeather(45);
+        runWeatherSwitchRef.current();
+      } else {
+        timeToNextWeatherRef.current = next;
+        setTimeToNextWeather(next);
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, [autoWeatherCycle, petConfig.name, petConfig.type]);
+  }, [autoWeatherCycle]);
 
   // Pet natural metabolic indexes decay（任务二：更敏感，尤其饥饿值，基于真实时间衰减）
   useEffect(() => {
@@ -448,7 +466,12 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   // Viewport Engine state variables
   const [renderMode, setRenderMode] = useState<RenderingMode>("realistic-stardust");
   const [furDensity, setFurDensity] = useState<number>(360);
-  const [physicsTension, setPhysicsTension] = useState<number>(0.12);
+  // [CLEANUP] 已删除完全死亡的 `physicsTension`（变量从未被读取、setter 从未调用）
+
+  // [BUG-FIX] isJumping 是 ref（供 rAF 循环高频读写），但 JSX 里直接读 isJumping.current 时，
+  // ref 变化不会触发重渲染 → 底部「状态：跳跃/呼吸漫舞」与跳跃按钮高亮会卡住不更新。
+  // 用镜像 state 驱动 UI，且只在状态真正翻转时更新（非每帧），不影响性能。
+  const [isJumpingState, setIsJumpingState] = useState<boolean>(false);
 
   // V2.7 Advanced Interactive States for Ultra-Realistic 2D Stardust Pet
   const [activeExp, setActiveExp] = useState<"blinking" | "curious" | "alert" | "happy">("curious");
@@ -704,6 +727,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     if (type === "jump") {
       if (!isJumping.current) {
         isJumping.current = true;
+        setIsJumpingState(true); // 同步镜像 state，驱动 UI 显示
         jumpVelocity.current = -9.2;
         triggerStardustExplosion();
       }
@@ -1869,6 +1893,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           currentYOffset = 0;
           jumpVelocity.current = 0;
           isJumping.current = false;
+          setIsJumpingState(false); // 同步镜像 state，驱动 UI 显示
           landingSquash.current = 0.28; // high fidelity impact squish
           playSound("beep");
           // Splat puff particle release on ground impact
@@ -2417,8 +2442,11 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         const tailSegmentLength = isHamsterTail ? 7 : 12;
         const tailPointList: Array<{ x: number; y: number }> = [{ x: tailBaseX, y: tailBaseY }];
         for (let i = 1; i <= tailSegCount; i++) {
-          const wagMultiplier = activeGesture === "wag" ? 1.8 : 1.0;
-          const configWagSway = activeGesture === "wag" ? Math.sin(frame * 0.85 - i * 0.6) * 0.88 : Math.sin(frame * 0.15 - i * 0.8) * 0.25;
+          // [BUG-FIX] 绘制闭包内必须读 ref 而非 state：rAF 循环捕获的是创建时的快照，
+          // 导致「摇尾巴 / 打滚 / 跳舞」指令下发后画面毫无反应（与 1497 行主循环保持一致）。
+          const currentGesture = activeGestureRef.current;
+          const wagMultiplier = currentGesture === "wag" ? 1.8 : 1.0;
+          const configWagSway = currentGesture === "wag" ? Math.sin(frame * 0.85 - i * 0.6) * 0.88 : Math.sin(frame * 0.15 - i * 0.8) * 0.25;
           let segAngle = tailBaseAngle + (tailSway.current * 0.45 * wagMultiplier) + configWagSway;
           
           if (touchPartAnimation.current === "tail") {
@@ -2485,7 +2513,8 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
                 alpha: 0.8
               });
               
-              if (activeGesture === "wag" && Math.random() < 0.4) {
+              // [BUG-FIX] 同上：读 ref 才能让摇尾时的粒子特效真正触发
+              if (activeGestureRef.current === "wag" && Math.random() < 0.4) {
                 sparkParticles.current.push({
                   x: shiftX + pt.x - 16,
                   y: shiftY + pt.y + h + windOsc * 1.5,
@@ -2511,9 +2540,11 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           ctx.rotate(rollAngle.current);
 
           let oscLimb = Math.sin(frame * 0.12) * 5;
-          if (activeGesture === "roll") {
+          // [BUG-FIX] 同上：读 ref 才能让打滚 / 跳舞的腿部动作真正生效
+          const limbGesture = activeGestureRef.current;
+          if (limbGesture === "roll") {
             oscLimb = isBack ? -14 : 14; // leg splay when rolling happily
-          } else if (activeGesture === "dance") {
+          } else if (limbGesture === "dance") {
             oscLimb = Math.sin(frame * 0.28 + (isBack ? Math.PI : 0)) * 14; // moon walk strides
           }
 
@@ -4239,7 +4270,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             <div className="text-gray-400 font-mono flex items-center gap-1">
               <span>状态:</span>
               <span className="text-amber-400 font-medium">
-                {isJumping.current ? "跳跃" : "呼吸漫舞"}
+                {isJumpingState ? "跳跃" : "呼吸漫舞"}
               </span>
             </div>
           </div>
@@ -4560,7 +4591,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             </button>
             <button
               onClick={() => triggerGesture("jump")}
-              className={`py-1 rounded text-center transition-colors border ${isJumping.current ? "bg-purple-600/30 border-purple-450 text-white font-bold" : "bg-black/30 border-white/5 text-gray-300 hover:text-white"}`}
+              className={`py-1 rounded text-center transition-colors border ${isJumpingState ? "bg-purple-600/30 border-purple-450 text-white font-bold" : "bg-black/30 border-white/5 text-gray-300 hover:text-white"}`}
               id="btn-gesture-jump"
             >
               跃起 (Jump)
@@ -4675,7 +4706,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               id="btn-v27-ear-whisper"
             >
               <span className="text-sm">🎙️</span>
-              <span>AI声纹耳语</span>
+              <span>灵犀声纹耳语</span>
             </button>
           </div>
 

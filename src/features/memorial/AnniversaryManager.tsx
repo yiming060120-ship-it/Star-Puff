@@ -6,7 +6,9 @@
 import React, { useState, useEffect } from "react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
-import { Calendar, Heart, Trash2, Plus, AlertCircle, Award, Sparkles, Smile, CloudRain } from "lucide-react";
+// [CLEANUP] 已移除 4 个未使用的图标导入：Calendar / AlertCircle / Award / Sparkles
+import { Heart, Trash2, Plus, Smile, CloudRain } from "lucide-react";
+import { localDateString } from "../../utils/date";
 
 interface CustomAnniversary {
   id: string;
@@ -50,12 +52,12 @@ export default function AnniversaryManager({ petConfig, onUpdateAnniversaries, t
       desc: newDesc || "在这个特别的日子，宝贝在星云里静静陪你。"
     };
 
-    setList(prev => {
-      const updated = [newItem, ...prev];
-      onUpdateAnniversaries(updated);
-      return updated;
-    });
-    
+    // [BUG-FIX] onUpdateAnniversaries 原本写在 setList 的 updater 内，
+    // StrictMode 下双调用 → 持久化两次。改为在 updater 外计算。
+    const updated = [newItem, ...list];
+    setList(updated);
+    onUpdateAnniversaries(updated);
+
     setNewTitle("");
     setNewDate("");
     setNewDesc("");
@@ -65,17 +67,18 @@ export default function AnniversaryManager({ petConfig, onUpdateAnniversaries, t
   };
 
   const handleDelete = (id: string) => {
-    setList(prev => {
-      const updated = prev.filter(item => item.id !== id);
-      onUpdateAnniversaries(updated);
-      return updated;
-    });
+    // [BUG-FIX] 同上：持久化移到 updater 外，避免 StrictMode 双调用
+    const updated = list.filter(item => item.id !== id);
+    setList(updated);
+    onUpdateAnniversaries(updated);
     triggerToast("🗑️ 成功解开相应的纪念日契约。");
     playSound("beep");
   };
 
   // Helper to check what kind of day today is relative to anniversaries
-  const todayStr = new Date().toISOString().split("T")[0].substring(5); // MM-DD
+  // [BUG-FIX] 原用 toISOString()（UTC 日期），东八区在早 8 点前会被判成"昨天"，
+  // 导致纪念日当天不触发（或提前一天触发）。改用本地时区的 localDateString()。
+  const todayStr = localDateString().substring(5); // MM-DD（本地时区）
   const birthDayMMDD = petConfig.birthDay ? petConfig.birthDay.substring(5) : "";
   const passingDayMMDD = petConfig.passingDate ? petConfig.passingDate.substring(5) : "";
 

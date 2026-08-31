@@ -6,7 +6,8 @@
 import React, { useState, useEffect } from "react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
-import { Star, Smile, Upload, Plus, Trash2, Heart, Award, ArrowRight, BookOpen } from "lucide-react";
+// [CLEANUP] 已移除 5 个未使用的图标导入：Star / Upload / Heart / Award / ArrowRight
+import { Smile, Plus, Trash2, BookOpen } from "lucide-react";
 
 interface TimelineLog {
   id: string;
@@ -75,23 +76,25 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
     setSelTags(petConfig.personalityTags || ["傲娇小主子", "温柔精灵", "贴心小棉袄"]);
   }, [petConfig.personalityTags]);
 
-  // Toggle tag in 3-Max array（[BUG-FIX] 函数式更新，避免快速连点丢失更新）
+  // Toggle tag in 3-Max array
+  // [BUG-FIX] onUpdateTags / triggerToast 原本写在 setSelTags 的 updater 内部，
+  // StrictMode 下 updater 双调用 → 持久化调用两次、同一操作弹两个 toast。
+  // 改为在 updater 外基于当前 selTags 计算，updater 只做纯赋值。
   const handleToggleTag = (tagCode: string) => {
     playSound("click");
-    setSelTags(prev => {
-      if (prev.includes(tagCode)) {
-        const filtered = prev.filter(t => t !== tagCode);
-        onUpdateTags(filtered);
-        return filtered;
-      }
-      if (prev.length >= 3) {
-        triggerToast("⚠️ 宝贝性格最多可以选 3 个最为匹配的核心标签哦");
-        return prev;
-      }
-      const updated = [...prev, tagCode];
-      onUpdateTags(updated);
-      return updated;
-    });
+    if (selTags.includes(tagCode)) {
+      const filtered = selTags.filter(t => t !== tagCode);
+      setSelTags(filtered);
+      onUpdateTags(filtered);
+      return;
+    }
+    if (selTags.length >= 3) {
+      triggerToast("⚠️ 宝贝性格最多可以选 3 个最为匹配的核心标签哦");
+      return;
+    }
+    const updated = [...selTags, tagCode];
+    setSelTags(updated);
+    onUpdateTags(updated);
   };
 
   const handleCreateLog = () => {
@@ -108,11 +111,11 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
       image: logImage || PRESET_MEM_IMAGES[Math.floor(Math.random() * PRESET_MEM_IMAGES.length)]
     };
 
-    setTimelineList(prev => {
-      const nextList = [newLog, ...prev].sort((a, b) => b.date.localeCompare(a.date));
-      onUpdateTimeline(nextList);
-      return nextList;
-    });
+    // [BUG-FIX] onUpdateTimeline 原本写在 setTimelineList 的 updater 内，
+    // StrictMode 下双调用 → 持久化两次。改为在 updater 外计算。
+    const nextList = [newLog, ...timelineList].sort((a, b) => b.date.localeCompare(a.date));
+    setTimelineList(nextList);
+    onUpdateTimeline(nextList);
 
     setLogTitle("");
     setLogDate("");

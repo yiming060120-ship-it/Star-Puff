@@ -6,7 +6,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
-import { Camera, Sparkles, Heart, Gift, BookOpen, Download } from "lucide-react";
+// [CLEANUP] 已移除 3 个未使用的图标导入：Camera / Sparkles / Download
+import { Heart, Gift, BookOpen } from "lucide-react";
 
 export interface MemorySegment {
   id: string;
