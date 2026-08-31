@@ -5,7 +5,8 @@
 
 import React, { useState } from "react";
 import { playSound } from "../../audio/AudioSynth";
-import { Bell, ShieldCheck, Volume2, Moon, Clock, Sparkles } from "lucide-react";
+// [CLEANUP] 已移除未使用的图标 Sparkles
+import { Bell, ShieldCheck, Volume2, Moon, Clock } from "lucide-react";
 
 interface NotificationConfig {
   aiWhisperEnabled: boolean;
@@ -53,7 +54,7 @@ export default function NotificationSettings({ initialConfig, onSaveConfig, trig
     const updated = { ...cfg, whisperTime: time };
     setCfg(updated);
     onSaveConfig(updated);
-    triggerToast(`⏰ AI耳语推送已对准到每日【${time}】！`);
+    triggerToast(`⏰ 星尘来信推送已对准到每日【${time}】！`);
   };
 
   return (
@@ -78,7 +79,7 @@ export default function NotificationSettings({ initialConfig, onSaveConfig, trig
         <div className="space-y-3 bg-black/20 p-3 rounded-2xl border border-white/5">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold block">🌌 AI耳语每日呼唤</span>
+              <span className="text-xs font-bold block">🌌 星尘来信每日呼唤</span>
               <span className="text-[9px] text-gray-400">设定每天它给你说秘密的时刻</span>
             </div>
             <input 

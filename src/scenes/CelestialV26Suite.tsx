@@ -1,30 +1,23 @@
 import React, { useState, useEffect, useRef } from "react";
-import { PetConfig, StarPuffUser, StoreItem } from "../types";
+import { PetConfig, StarPuffUser } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 import { playSound } from "../audio/AudioSynth";
+// [CLEANUP] 已移除 9 个未使用的图标导入：Layers / Heart / MessageSquare / Share2、
+// Dna / ShieldAlert / HelpCircle / UserCheck / Music
 import {
   Sparkles,
   RefreshCw,
   Gift,
   Flame,
   Camera,
-  Layers,
-  Heart,
-  MessageSquare,
   BookOpen,
-  Share2,
   Sliders,
-  Dna,
-  ShieldAlert,
   Download,
   Send,
   Zap,
   CheckCircle,
-  HelpCircle,
-  UserCheck,
   Compass,
   Tv,
-  Music,
   Plus
 } from "lucide-react";
 
@@ -45,7 +38,7 @@ type ActiveSubTab =
   | "heritage"       // 2.7 遗产传承与时光胶囊
   | "public_wall"    // 2.8 集体纪念墙与互动
   | "web3_nft"       // 2.9 3D数字藏品
-  | "ai_video"       // 2.10 AI 3D 纪念视频
+  | "ai_video"       // 2.10 星尘织梦 3D 纪念视频
   | "cloud_editor"   // 2.11 云端3D编辑器
   | "dna_archive"    // 2.12 基因数字存档
   | "micro_expression" // 3.1 & 3.3 微表情与触控粒子
@@ -113,7 +106,7 @@ export default function CelestialV26Suite({
     // Fallback stories
     const fallbacks = [
       `【${pet.name}的成长绘卷】\n\n幼崽期（0-6个月）：当初缩在怀里怯生生地像个温暖的蒲公英团，最喜欢吮吸奶嘴，玩任何毛线球都会滑倒；\n\n成长青年期（1-2岁）：变成了矫捷的精灵，尾巴在餐桌旁欢快抖动，总是偷偷咬碎窗帘，每晚踩着我的肚子呼噜睡去；\n\n成熟暮年：目光里多出了慈爱与深重。直到升星那天，它已经重组成温暖无病且会永久飞行的超现实多维恒星级守护者啦。`,
-      `【${pet.name}之星光誓约】\n\n那时你还只是几个月大，眼睛里满是对世界的好奇，耳朵毛茸茸地支棱着。你陪我搬了三次家，见过最深的深夜。如今在星河中，在AI性格算法的深度渲染下，你已经从初生的虚粒子变为了星辰家宿里的不朽星云兽，永远1岁，永远散发琥珀温光守在我枕边。`
+      `【${pet.name}之星光誓约】\n\n那时你还只是几个月大，眼睛里满是对世界的好奇，耳朵毛茸茸地支棱着。你陪我搬了三次家，见过最深的深夜。如今在星河中，在星尘感应的深度渲染下，你已经从初生的虚粒子变为了星辰家宿里的不朽星云兽，永远1岁，永远散发琥珀温光守在我枕边。`
     ];
 
     try {
@@ -132,7 +125,7 @@ export default function CelestialV26Suite({
       setGrowthStory(fallbacks[Math.floor(Math.random() * fallbacks.length)]);
     } finally {
       setLoadingStory(false);
-      triggerToast("✨ AI 成功演算生命成长轨迹故事！");
+      triggerToast("✨ 星尘感应已织就它的生命成长轨迹故事！");
     }
   };
 
@@ -272,7 +265,7 @@ export default function CelestialV26Suite({
     setTimeout(() => {
       setDailyMoment(moments[Math.floor(Math.random() * moments.length)]);
       setIsSynthesizingMoment(false);
-      triggerToast("🍃 AI已刷新出它在当前场景下的专属暖萌互动日常！");
+      triggerToast("🍃 星尘感应已刷新出它在当前场景下的专属暖萌互动日常！");
     }, 1200);
   };
 
@@ -293,10 +286,11 @@ export default function CelestialV26Suite({
   const [wallpaperBackground, setWallpaperBackground] = useState("violet_nebula");
   const [wallpaperSpec, setWallpaperSpec] = useState("iphone");
   // [BUG-FIX] 聊天室消息列表 + 输入框受控（原聊天板硬编码、发送不更新）
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: string; text: string; mine: boolean }>>([
-    { sender: "悠悠家长 🌇 (金毛家长)", text: "我家柴柴上星期也梦到了这个草莓海，大家一起加油！天乐好有灵气呀好可爱！", mine: false },
-    { sender: "小白妈妈 🐶 (比熊家长)", text: "看到它眨眼睛，眼框瞬间就红了，毛发一摆一摆的，跟它以前夏天吹风一模一样...", mine: false },
-    { sender: "我 (天乐守护人)", text: "刚刚给天乐喂了多维小银鱼，它大笑的时候尾巴摇得太可爱了，星环都大了一圈！", mine: true },
+  // 增加 id 字段：列表渲染需要用稳定 key，index 在消息增删时会错乱
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string; sender: string; text: string; mine: boolean }>>([
+    { id: "cm_1", sender: "悠悠家长 🌇 (金毛家长)", text: "我家柴柴上星期也梦到了这个草莓海，大家一起加油！天乐好有灵气呀好可爱！", mine: false },
+    { id: "cm_2", sender: "小白妈妈 🐶 (比熊家长)", text: "看到它眨眼睛，眼框瞬间就红了，毛发一摆一摆的，跟它以前夏天吹风一模一样...", mine: false },
+    { id: "cm_3", sender: "我 (天乐守护人)", text: "刚刚给天乐喂了多维小银鱼，它大笑的时候尾巴摇得太可爱了，星环都大了一圈！", mine: true },
   ]);
   const [chatInput, setChatInput] = useState("");
   // [BUG-FIX] 壁纸渲染层类型三选一（原为无 onClick 的装饰卡片，点了没反应）
@@ -372,8 +366,8 @@ export default function CelestialV26Suite({
     setTimeout(() => {
       setIsCloningVoice(false);
       setVoiceUploaded(true);
-      setVoiceStatusText("🟢 声卡AI克隆完毕：已锁存暖萌声纹（100%还原纯净小羽颤音）");
-      triggerToast("🔊 宠物叫声/声线深度AI还原克隆成功！点击可自由播放耳语音色！");
+      setVoiceStatusText("🟢 声纹灵犀复刻完毕：已锁存暖萌声纹（100%还原纯净小羽颤音）");
+      triggerToast("🔊 宠物叫声/声线经灵犀深度复刻成功！点击可自由播放耳语音色！");
     }, 2000);
   };
 
@@ -428,9 +422,14 @@ export default function CelestialV26Suite({
   const [legacyRitualActive, setLegacyRitualActive] = useState(false);
   const [timeCapsuleDate, setTimeCapsuleDate] = useState(() => {
     // 默认锁定 10 年后解封，动态计算避免硬编码年份随时间失效
+    // [BUG-FIX] 原用 toISOString()（UTC 日期），东八区在早 8 点前会算成前一天。
+    // 改为按本地时区拼装 YYYY-MM-DD（与 utils/date.ts 的 localDateString 保持一致）。
     const d = new Date();
     d.setFullYear(d.getFullYear() + 10);
-    return d.toISOString().split("T")[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   });
 
   const handleAddHeir = () => {
@@ -521,7 +520,7 @@ export default function CelestialV26Suite({
   };
 
   // ------------------------------------------------------------------
-  // 9. AI 3D 纪念视频 (2.10) state
+  // 9. 星尘织梦 3D 纪念视频 (2.10) state
   // ------------------------------------------------------------------
   const [videoLength, setVideoLength] = useState<15 | 30 | 60>(15);
   const [videoTemplate, setVideoTemplate] = useState("all_life"); // all_life, sweet_memories, say_goodbye
@@ -693,7 +692,7 @@ export default function CelestialV26Suite({
                 activeSub === "ai_video" ? "bg-gradient-to-r from-pink-500/20 to-indigo-500/10 border-l-4 border-pink-500 text-white font-bold" : "hover:bg-white/5 text-gray-400"
               }`}
             >
-              <span>🎬 2.10 AI 一生纪念视频</span>
+              <span>🎬 2.10 星尘织梦·一生纪念视频</span>
               <span className="text-[8px] bg-fuchsia-950 text-fuchsia-200 px-1 py-0.5 rounded">渲染</span>
             </button>
             {/* 10 */}
@@ -838,7 +837,7 @@ export default function CelestialV26Suite({
                   {/* AI GROWTH STORY */}
                   <div className="space-y-3">
                     <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
-                      ★ 2.2.3 AI 演算生命完整成长故事书
+                      ★ 2.2.3 星尘感应·生命完整成长故事书
                     </h4>
                     <p className="text-xs text-gray-400 leading-relaxed">
                       云端大语言模型检索记忆时间点日志，为小宠合成令人泪目的回忆绘卷，带3D偏振动作模拟。
@@ -1100,7 +1099,7 @@ export default function CelestialV26Suite({
 
                     <div className="p-3 bg-[#0d0924]/80 border border-slate-800 rounded-lg space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-sky-300 font-mono">★ AI 演算当下的温煦日常瞬间</span>
+                        <span className="text-[10px] font-bold text-sky-300 font-mono">★ 星尘感应·当下的温煦日常瞬间</span>
                         <button
                           onClick={recomputeDailyMoment}
                           disabled={isSynthesizingMoment}
@@ -1159,7 +1158,7 @@ export default function CelestialV26Suite({
                   {/* CHARTS */}
                   <div className="p-4 bg-[#120b2d] rounded-xl border border-slate-800 space-y-4">
                     <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-1">
-                      📊 2.5.1 AI 学习性格报告折射图
+                      📊 2.5.1 星尘感应·性格报告折射图
                     </h4>
 
                     {/* Progress meters */}
@@ -1224,7 +1223,7 @@ export default function CelestialV26Suite({
                         📢 2.5.3 宠物语音克隆发声舱
                       </h4>
                       <p className="text-xs text-gray-400 leading-normal">
-                        上传短于 1 分钟的宠物生前日常叫声、哈气声或呼噜气流音频，AI通过波形参数合成让它可以在大世界用自己的专属声音对您说话。
+                        上传短于 1 分钟的宠物生前日常叫声、哈气声或呼噜气流音频，灵犀通过波形参数合成让它可以在大世界用自己的专属声音对您说话。
                       </p>
 
                       <div className="text-[10px] font-mono p-2 bg-black/40 rounded text-gray-300 border border-slate-850">
@@ -1644,10 +1643,10 @@ export default function CelestialV26Suite({
                 <div className="border-b border-white/5 pb-3">
                   <span className="text-xs font-mono text-fuchsia-400 uppercase">System 2.10</span>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    🎬 2.10 AI 智能生成 3D 暖情纪念视频
+                    🎬 2.10 星尘织梦·3D 暖情纪念视频
                   </h3>
                   <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                    由 Astrocade 深度情感视频模型在云端为您的爱宠生成一键纪念短片。AI将自主归纳它的生前照片序列、纪念相册、以及每日治愈耳语文字脚本，搭配唯美管弦伴奏，一键直达成片。
+                    由星尘织梦情感影像在云端为您的爱宠织就一键纪念短片。它将自主归纳它的生前照片序列、纪念相册、以及每日陪伴私语文字脚本，搭配唯美管弦伴奏，一键直达成片。
                   </p>
                 </div>
 
@@ -1691,7 +1690,7 @@ export default function CelestialV26Suite({
                       disabled={isRenderingVideo}
                       className="w-full py-2.5 bg-gradient-to-r from-fuchsia-500 to-indigo-600 hover:from-fuchsia-600 rounded-lg text-xs text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isRenderingVideo ? "🎥 正在进行云端引擎实时3D分镜渲染..." : "立即启动 AI 纪念片渲染并导出 mp4"}
+                      {isRenderingVideo ? "🎥 星尘织梦正在进行云端实时3D分镜渲染..." : "立即启动星尘织梦纪念片渲染并导出 mp4"}
                     </button>
                   </div>
 
@@ -2079,7 +2078,7 @@ export default function CelestialV26Suite({
                 <div className="border-b border-white/5 pb-3">
                   <span className="text-xs font-mono text-cyan-400 uppercase">System 3.2</span>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    📹 3.2 AI 现实短视频动作提取与 12帧像素循环同步
+                    📹 3.2 星尘感应·现实短视频动作提取与 12帧像素循环同步
                   </h3>
                   <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                     生前活泼的旧镜头，就是它今日复生的灵魂姿态。支持拖拽上传不超过 10 秒的实拍宠物短视频，由云端多维骨骼跟踪算法，自动抽取头、颚、腕关节和尾骨 18 点物理质子轨道，重组为流畅的 12帧像素骨架同步循环。
@@ -2099,7 +2098,7 @@ export default function CelestialV26Suite({
                       onChange={(e) => {
                         if (e.target.files && e.target.files.length > 0) {
                           playSound("click");
-                          triggerToast("⚡ 现实实拍视频投递成功！正在唤醒 AI 骨架追踪解码器...");
+                          triggerToast("⚡ 现实实拍视频投递成功！正在唤醒星尘感应骨架追踪解码器...");
                           // trigger parse sequence
                           setTimeout(() => {
                             playSound("sparkle");
@@ -2118,7 +2117,7 @@ export default function CelestialV26Suite({
                   {/* SKELETAL SIMULATOR */}
                   <div className="p-4 bg-[#110c2c]/85 ring-1 ring-white/10 rounded-xl space-y-3">
                     <span className="text-[10px] font-mono text-cyan-300 font-bold uppercase block tracking-wide">
-                      ★ AI 骨架动态重建演示舱 (Tracking Simulator)
+                      ★ 星尘感应骨架动态重建演示舱 (Tracking Simulator)
                     </span>
 
                     {/* Simple live line skeletal rendering */}
@@ -2333,8 +2332,8 @@ export default function CelestialV26Suite({
                     {/* Chat Board */}
                     <div className="h-44 bg-black/60 rounded border border-slate-800 p-3 overflow-y-auto custom-scrollbar font-mono text-[10px] space-y-2.5">
                       <div className="text-gray-500 text-[9px] text-center">--- 小屋创建密码锁定：已加入超距云共振加密 ---</div>
-                      {chatMessages.map((msg, i) => (
-                        <div key={i} className={`flex gap-1.5 flex-col ${msg.mine ? "text-right" : ""}`}>
+                      {chatMessages.map((msg) => (
+                        <div key={msg.id} className={`flex gap-1.5 flex-col ${msg.mine ? "text-right" : ""}`}>
                           <span className={`font-bold ${msg.mine ? "text-amber-400" : "text-pink-300"}`}>{msg.sender}：</span>
                           <p className={`leading-relaxed rounded-lg p-2 text-left ${msg.mine ? "bg-indigo-900/30 text-gray-200" : "bg-[#1b1540]/30 text-gray-300"}`}>{msg.text}</p>
                         </div>
@@ -2351,7 +2350,7 @@ export default function CelestialV26Suite({
                         className="flex-1 bg-black/40 border border-slate-700 text-xs p-2 rounded focus:outline-none"
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && chatInput.trim()) {
-                            setChatMessages(prev => [...prev, { sender: `我 (${pet.name}守护人)`, text: chatInput.trim(), mine: true }]);
+                            setChatMessages(prev => [...prev, { id: `cm_${Date.now()}`, sender: `我 (${pet.name}守护人)`, text: chatInput.trim(), mine: true }]);
                             setChatInput("");
                             playSound("click");
                             triggerToast("💬 群聊发言同步成功！多端家长正在阅览陪伴中...");
@@ -2361,7 +2360,7 @@ export default function CelestialV26Suite({
                       <button
                         onClick={() => {
                           if (!chatInput.trim()) return;
-                          setChatMessages(prev => [...prev, { sender: `我 (${pet.name}守护人)`, text: chatInput.trim(), mine: true }]);
+                          setChatMessages(prev => [...prev, { id: `cm_${Date.now()}`, sender: `我 (${pet.name}守护人)`, text: chatInput.trim(), mine: true }]);
                           setChatInput("");
                           playSound("click");
                           triggerToast("💬 群聊发言同步成功！");
@@ -2426,7 +2425,7 @@ export default function CelestialV26Suite({
 
         {/* FOOTER METRICS */}
         <div className="mt-4 pt-3 border-t border-white/5 flex flex-wrap justify-between items-center text-[10px] text-gray-500 font-mono">
-          <span>AI 运算引擎: Gemini-3.5-Flash (离线规则级自适应双重保底)</span>
+          <span>星尘共鸣引擎：灵犀双通道（离线自适应保底）</span>
           <span>喵汪星云 (StarPuff) V2.6 全功能模拟套件</span>
         </div>
       </div>

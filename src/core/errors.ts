@@ -78,7 +78,7 @@ export class NetworkError extends AppError {
 
 /** 服务端返回非 2xx 或业务失败 */
 export class ApiError extends AppError {
-  constructor(message = "AI 服务暂时不可用，请稍后重试", context?: unknown) {
+  constructor(message = "星尘感应服务暂时不可用，请稍后重试", context?: unknown) {
     super("API_ERROR", message, "use_fallback", context);
   }
 }

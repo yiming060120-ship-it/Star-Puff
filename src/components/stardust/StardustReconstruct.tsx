@@ -133,7 +133,7 @@ export default function StardustReconstruct({ isVip, stardustCoins, onSpendCoins
       {/* 说明区 */}
       <div className="text-center">
         <h4 className="text-lg font-bold gradient-text mb-1">重建你的星尘伙伴</h4>
-        <p className="text-purple-300 text-xs">上传宠物照片，AI 将它化为星云间的永恒画像</p>
+        <p className="text-purple-300 text-xs">上传宠物照片，星尘感应将它化为星云间的永恒画像</p>
       </div>
 
       {/* 上传区 */}

@@ -7,7 +7,8 @@ import React, { useState } from "react";
 import { StarPuffUser, PetConfig, PetType } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
 import { SPECIES_MODELS } from "../../data/speciesModels";
-import { Sparkles, Users, Plus, Star, Heart, CheckCircle2, UserCheck, RefreshCw, Pencil, Trash2, X } from "lucide-react";
+// [CLEANUP] 已移除 6 个未使用的图标导入：Star / Heart / CheckCircle2 / UserCheck / RefreshCw / X
+import { Sparkles, Users, Plus, Pencil, Trash2 } from "lucide-react";
 
 interface MultiPetSelectorProps {
   user: StarPuffUser;
@@ -166,7 +167,7 @@ export default function MultiPetSelector({ user, onSelectPet, onAddPet, onUpdate
                 {allPets.length} / {slotLimit} SLOTS
               </span>
             </h4>
-            <p className="text-[10px] text-gray-400">支持独立生成AI耳语、分别记录回忆，开启“星尘共舞”互动。</p>
+            <p className="text-[10px] text-gray-400">支持独立生成陪伴私语、分别记录回忆，开启“星尘共舞”互动。</p>
           </div>
         </div>
 

@@ -74,7 +74,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
   // Animations & Rigging States
   const [activeAnimation, setActiveAnimation] = useState<"stand" | "walk" | "wag_tail" | "sit" | "pet">("stand");
   const [showBoneSkeleton, setShowBoneSkeleton] = useState<boolean>(true);
-  const [isHoveringPetInteraction, setIsHoveringPetInteraction] = useState<boolean>(false);
+  // [CLEANUP] 已删除完全死亡的 `isHoveringPetInteraction`（变量从未被读取、setter 从未调用）
 
 
 
@@ -1636,7 +1636,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
               ) : (
                 <>
                   <Cpu className="w-4 h-4 text-emerald-300 animate-pulse" />
-                  <span>一键启动 AI 3D 骨骼重构绑定</span>
+                  <span>一键启动星尘感应 3D 骨骼重构绑定</span>
                 </>
               )}
             </button>

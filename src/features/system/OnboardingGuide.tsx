@@ -3,9 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { playSound } from "../../audio/AudioSynth";
-import { Sparkles, ArrowRight, X, Compass, Cookie, Smile, Star, Trophy, Heart } from "lucide-react";
+// [CLEANUP] 已移除未使用的 useEffect，以及 7 个未使用的图标：
+// Sparkles / Compass / Cookie / Smile / Star / Trophy / Heart
+import { ArrowRight, X } from "lucide-react";
 
 interface OnboardingGuideProps {
   onComplete: () => void;
@@ -24,7 +26,7 @@ const GUIDE_STEPS = [
   },
   {
     title: "🐾 第一步：星尘默影与暖心互动 🐾",
-    description: "在家园主页，你可以看到在星云深处凝聚出实体的小生命。试着【点击爱宠默影】，这能发出共振，宠物的脑电波将会化作【每日AI耳语】推送到你的终端，向你诉说星空里的秘密与思念。",
+    description: "在家园主页，你可以看到在星云深处凝聚出实体的小生命。试着【点击爱宠默影】，这能发出共振，宠物的脑电波将会化作【每日星尘来信】推送到你的终端，向你诉说星空里的秘密与思念。",
     targetText: "我知道了，去试一下",
     highlightId: "pet-canvas",
     actionDesc: "点击默影获取温存日记",
@@ -49,7 +51,7 @@ const GUIDE_STEPS = [
   {
     title: "🏅 任务与 3D 重建：新星勋章! 🏅",
     description: "通过【每日星海签到】和【3D照片重建】，你可以上传爱宠照片，瞬时转化出旋转回弹的 3D 立体模型。恭喜你完成星魂新手训练！系统为你转化了【100枚星尘币】新手礼物！",
-    targetText: "点亮命星，开始陪伴",
+    targetText: "点亮星尘，开始陪伴",
     highlightId: "finish",
     actionDesc: "完成仪式，获得 100 币奖励",
     image: "/assets/images/unsplash/1446776811953-b23d57bd21aa.jpg"

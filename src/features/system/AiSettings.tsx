@@ -40,7 +40,7 @@ export default function AiSettings({ triggerToast }: Props) {
       await setGeminiKeyRemote(newKey); // 让运行中的服务立即生效（浏览器模式也适用）
       setKey(newKey);
       await refreshStatus();
-      triggerToast(newKey ? "✨ 已开启 Gemini 在线 AI" : "🌙 已切回离线模板模式");
+      triggerToast(newKey ? "✨ 已开启 Gemini 在线灵犀" : "🌙 已切回离线模板模式");
     } finally {
       setSaving(false);
     }
@@ -49,7 +49,7 @@ export default function AiSettings({ triggerToast }: Props) {
   return (
     <div className="bg-black/30 border border-cyan-500/20 rounded-xl p-4 space-y-3">
       <span className="text-[10px] uppercase tracking-widest text-[#06d6a0] font-mono block flex items-center gap-1">
-        🤖 AI 模式设置
+        🤖 灵犀在线模式设置
       </span>
 
       <div className="flex items-center justify-between text-xs">
@@ -104,7 +104,7 @@ export default function AiSettings({ triggerToast }: Props) {
         </>
       ) : (
         <p className="text-[9px] text-gray-500 leading-relaxed">
-          网页预览模式：在线 AI 由服务端环境变量 GEMINI_API_KEY 控制。安装桌面版后即可在此保存密钥。
+          网页预览模式：在线灵犀由服务端环境变量 GEMINI_API_KEY 控制。安装桌面版后即可在此保存密钥。
         </p>
       )}
     </div>
