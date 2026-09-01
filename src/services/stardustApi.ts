@@ -1,8 +1,8 @@
 /**
- * 星尘重建 API 服务层
+ * 星辰重建 API 服务层
  *
- * 生成"2D 星尘画像"：用 Canvas 对上传照片做真实的星尘化滤镜处理
- * （像素化 + 星尘粒子叠加 + 星云色调映射 + 发光），产出可见的 2D 画像。
+ * 生成"2D 星辰画像"：用 Canvas 对上传照片做真实的星辰化滤镜处理
+ * （像素化 + 星辰粒子叠加 + 星云色调映射 + 发光），产出可见的 2D 画像。
  *
  * 3D 建模接口已预留（generate3DModel），未来接入 Tripo3D / Meshy 等第三方 API。
  */
@@ -31,7 +31,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /**
- * 真实的前端星尘化滤镜：把照片转换成星尘像素风 2D 画像。
+ * 真实的前端星辰化滤镜：把照片转换成星辰像素风 2D 画像。
  * 不同 style 有不同的色调映射和粒子效果。
  */
 async function applyStardustFilter(
@@ -61,7 +61,7 @@ async function applyStardustFilter(
 
   // 色调映射参数（不同风格不同星云色调）
   const toneMap = {
-    pixel: { r: 1.0, g: 0.9, b: 1.1, glow: 0.15 },       // 柔和星尘紫粉
+    pixel: { r: 1.0, g: 0.9, b: 1.1, glow: 0.15 },       // 柔和星辰紫粉
     illustration: { r: 1.1, g: 0.95, b: 1.0, glow: 0.2 }, // 暖粉插画
     cyber: { r: 0.85, g: 0.9, b: 1.25, glow: 0.3 },       // 赛博蓝紫霓虹
   }[style];
@@ -83,7 +83,7 @@ async function applyStardustFilter(
       g = (g / count) * toneMap.g;
       b = (b / count) * toneMap.b;
 
-      // 写回像素块（带轻微随机抖动模拟星尘颗粒感）
+      // 写回像素块（带轻微随机抖动模拟星辰颗粒感）
       for (let dy = 0; dy < pixelSize && py + dy < SIZE; dy++) {
         for (let dx = 0; dx < pixelSize && px + dx < SIZE; dx++) {
           const idx = ((py + dy) * SIZE + (px + dx)) * 4;
@@ -97,7 +97,7 @@ async function applyStardustFilter(
   }
   ctx.putImageData(imageData, 0, 0);
 
-  // 3. 叠加星尘粒子
+  // 3. 叠加星辰粒子
   const particleCount = style === "cyber" ? 220 : 140;
   for (let i = 0; i < particleCount; i++) {
     const px = Math.random() * SIZE;
@@ -172,7 +172,7 @@ async function callRealStardustAPI(req: RealStardustApiRequest): Promise<string>
 const USE_REAL_API = false;
 
 /**
- * 生成 2D 星尘画像。
+ * 生成 2D 星辰画像。
  * 优先尝试真实 AI API（USE_REAL_API 开启且接入后）；否则回退本地 Canvas 滤镜。
  */
 export async function generateStardustImage(params: GenerateParams): Promise<GenerateResult> {

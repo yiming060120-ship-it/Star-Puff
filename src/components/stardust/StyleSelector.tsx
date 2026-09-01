@@ -16,7 +16,7 @@ interface StyleOption {
 }
 
 const STYLES: StyleOption[] = [
-  { id: "pixel", name: "星尘像素风", icon: "🌟", desc: "经典星云像素艺术", vipOnly: false, price: 0 },
+  { id: "pixel", name: "星辰像素风", icon: "🌟", desc: "经典星云像素艺术", vipOnly: false, price: 0 },
   { id: "illustration", name: "梦幻插画风", icon: "🌸", desc: "柔和治愈的手绘插画", vipOnly: true, price: 0 },
   { id: "cyber", name: "赛博星云风", icon: "💎", desc: "未来感霓虹星云效果", vipOnly: false, price: 6 },
 ];

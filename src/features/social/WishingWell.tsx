@@ -96,7 +96,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
     const cost = 200;
     if (stardustCoins < cost && !isGodMode) {
       playSound("beep");
-      triggerToast("❌ 您的星尘币不足 200 点，无法兑换【星尘许愿币】来扔漂流瓶。可在上帝模式下一键充值！");
+      triggerToast("❌ 您的星辰币不足 200 点，无法兑换【星辰许愿币】来扔漂流瓶。可在上帝模式下一键充值！");
       return;
     }
 
@@ -117,7 +117,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
 
     setMySentWishes(prev => [newBottle, ...prev]);
     setMyWishText("");
-    triggerToast("🌌 【温情流浪】您的思念之瓶已汇入星尘漩涡，在全银河星云漫游中...");
+    triggerToast("🌌 【温情流浪】您的思念之瓶已汇入星辰漩涡，在全银河星云漫游中...");
     
     // Simulating particle effect spin
     setIsSpinningWell(true);
@@ -167,7 +167,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
       setCurrentRetrieved(prev => prev ? { ...prev, blessingsCount: prev.blessingsCount + 1 } : null);
     }
     
-    triggerToast("💖 发出了一份【宇宙温柔拥抱】祝福！因传递爱意，获得星尘币 +10 ✨");
+    triggerToast("💖 发出了一份【宇宙温柔拥抱】祝福！因传递爱意，获得星辰币 +10 ✨");
   };
 
   return (
@@ -182,7 +182,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
           </div>
           <div>
             <h4 className="text-sm font-bold text-white tracking-widest font-sans flex items-center gap-1.5">
-              星尘许愿池 <span className="text-[10px] text-pink-300 font-mono font-normal">Wishing Well</span>
+              星辰许愿池 <span className="text-[10px] text-pink-300 font-mono font-normal">Wishing Well</span>
             </h4>
             <p className="text-[9px] text-gray-400 font-mono">星系各端的眷恋在此回响共鸣</p>
           </div>
@@ -190,7 +190,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-mono text-pink-400 bg-pink-500/10 border border-pink-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
             <Coins className="w-3 h-3 text-orange-400" />
-            思念瓶费用: {isGodMode ? "免费/上帝特权" : "200 星尘币/次"}
+            思念瓶费用: {isGodMode ? "免费/上帝特权" : "200 星辰币/次"}
           </span>
         </div>
       </div>
@@ -312,7 +312,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
               {isSpinningWell ? (
                 <>
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping mr-1" />
-                  星尘捕捞网降射中...
+                  星辰捕捞网降射中...
                 </>
               ) : (
                 <>

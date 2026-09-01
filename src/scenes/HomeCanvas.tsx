@@ -71,10 +71,10 @@ interface HomeCanvasProps {
   };
   onClickPet?: () => void;
   stardustSparkleTrigger?: number; // incremental trigger from outside
-  // [任务三] 喂食系统：星尘币余额 + 扣币回调
+  // [任务三] 喂食系统：星辰币余额 + 扣币回调
   stardustCoins?: number;
   onSpendCoins?: (amount: number) => boolean;
-  // 外部触发打开喂食菜单（星尘家园互动面板的"喂食"按钮递增此值）
+  // 外部触发打开喂食菜单（星辰家园互动面板的"喂食"按钮递增此值）
   feedMenuTrigger?: number;
 }
 
@@ -104,7 +104,7 @@ const WEATHER_SPEECHES: Record<WeatherType, Record<SpeciesKey, string[]>> = {
     ],
     hamster: [
       "呜，天冷起来了，我要缩成一团星光棉花球睡觉觉，主人快来温柔摸摸我～",
-      "吱吱...人家囤了好多星尘瓜子，下雪天窝在暖房里吃最幸福啦！",
+      "吱吱...人家囤了好多星辰瓜子，下雪天窝在暖房里吃最幸福啦！",
       "好冷哦...主人把手伸进笼子暖暖人家嘛，就一下下～",
     ],
   },
@@ -346,7 +346,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               "【清霄大晴】：磁场恢复连通。恒星余晖轻拂着虚数微粒，宜户外嬉戏。"
             ],
             "star-rain": [
-              "【极夜流星红警】：高密度的多维流星巨澜击穿轨道！捕获高能星尘速度 +400%！",
+              "【极夜流星红警】：高密度的多维流星巨澜击穿轨道！捕获高能星辰速度 +400%！",
               "【流星雨盛宴】：银河长风呼啸！天降五彩流星。在此刻许愿能收获心灵抚慰。"
             ],
             aurora: [
@@ -637,7 +637,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     }
   }, [stardustSparkleTrigger]);
 
-  // [喂食功能区] 外部（星尘家园互动面板）触发打开喂食菜单
+  // [喂食功能区] 外部（星辰家园互动面板）触发打开喂食菜单
   useEffect(() => {
     if (feedMenuTrigger && feedMenuTrigger > 0) {
       setFeedMenuOpen(true);
@@ -695,7 +695,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
       setTouchEffect("feed");
       setFeedingItem("snack");
       setActiveExp("happy");
-      // [音效增强] 喂食瞬间：星尘音 + 物种咀嚼音
+      // [音效增强] 喂食瞬间：星辰音 + 物种咀嚼音
       playSound("sparkle");
       triggerStardustExplosion();
       // [语言互动增强] 喂食瞬间宠物先"啊呜"接食物，咀嚼结束后再说恢复对话
@@ -902,7 +902,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             setWhisperBubbleText("啵唧！蹭蹭你的屏幕～ 给你一个香浓的猫物语吻！😽💋");
           } else {
             playSound("cat_excited");
-            setWhisperBubbleText("喵喵喵！星尘光环开启，原地给主人转大圈圈！🌟🌀");
+            setWhisperBubbleText("喵喵喵！星辰光环开启，原地给主人转大圈圈！🌟🌀");
             for (let i = 0; i < 30; i++) {
               const ang = (i / 30) * Math.PI * 2;
               sparkParticles.current.push({
@@ -945,7 +945,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         case "pinch":
           playSound("stardust_shrink");
           playSound("stardust_bounce");
-          setWhisperBubbleText("咻！猫咪瞬间缩成了超弹力星尘球，弹跳力 Max！🏀✨");
+          setWhisperBubbleText("咻！猫咪瞬间缩成了超弹力星辰球，弹跳力 Max！🏀✨");
           break;
 
         case "spread":
@@ -1011,7 +1011,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             setWhisperBubbleText("顺着狗狗的背滑行，感觉整条狗都要飞起来了呢！🚀💫");
           } else {
             playSound("dog_paw_bark");
-            setWhisperBubbleText("汪！甩甩头抖抖毛，抖落一身星河星尘，主人我们去玩吧！⚾✨");
+            setWhisperBubbleText("汪！甩甩头抖抖毛，抖落一身星河星辰，主人我们去玩吧！⚾✨");
           }
           break;
 
@@ -1071,7 +1071,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
         default:
           playSound("rabbit_nose");
-          setWhisperBubbleText("叽叽～ 彩色星尘轨迹亮起，兔兔开心得在太空中旋转！🐇✨");
+          setWhisperBubbleText("叽叽～ 彩色星辰轨迹亮起，兔兔开心得在太空中旋转！🐇✨");
           break;
       }
     } else if (species === "hamster") {
@@ -1092,7 +1092,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           } else if (part === "paws") {
             playSound("hamster_chewing");
             chewRemainingFrames.current = 35;
-            setWhisperBubbleText("咔嚓咔嚓！腮帮子瞬间塞得鼓裹囊囊，满嘴都是星尘阳光瓜子！🌻😋");
+            setWhisperBubbleText("咔嚓咔嚓！腮帮子瞬间塞得鼓裹囊囊，满嘴都是星辰阳光瓜子！🌻😋");
           }
           break;
 
@@ -1599,7 +1599,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         danceOffsetY.current += (0 - danceOffsetY.current) * 0.1;
       }
 
-      // 0. 沉睡状态：画面变暗 + 星尘缓慢飘散，宠物停止动画
+      // 0. 沉睡状态：画面变暗 + 星辰缓慢飘散，宠物停止动画
       // 仅当「确实沉睡 且 能量已耗尽」时才显示沉睡剪影，避免旧存档残留 isSleeping 导致 2D 形象消失
       if (isSleepingRef.current && energyIndexRef.current <= 0) {
         const darkGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -1608,7 +1608,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         ctx.fillStyle = darkGrad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 缓慢飘散的星尘粒子
+        // 缓慢飘散的星辰粒子
         for (let i = 0; i < 40; i++) {
           const px = (frame * 0.15 + i * 37) % canvas.width;
           const py = (canvas.height - ((frame * 0.2 + i * 53) % canvas.height));
@@ -1642,7 +1642,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("💤 星宠正在沉睡…", canvas.width / 2, canvas.height / 2 - 60);
-        ctx.fillText("用「星尘唤醒剂」唤醒它 ✨", canvas.width / 2, canvas.height / 2 - 36);
+        ctx.fillText("用「星辰唤醒剂」唤醒它 ✨", canvas.width / 2, canvas.height / 2 - 36);
         ctx.restore();
 
         frame++;
@@ -3305,7 +3305,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               }
             } else {
               const remainingVal = 3 - feedRecordCount.current;
-              const itemLabel = feedingItem === "snack" ? "极光银鱼" : feedingItem === "milk" ? "星尘奶瓶" : "多维烤肉";
+              const itemLabel = feedingItem === "snack" ? "极光银鱼" : feedingItem === "milk" ? "星辰奶瓶" : "多维烤肉";
               setWhisperBubbleText(`啊呜啊呜～${itemLabel}真好吃！再喂 ${remainingVal} 次就会给你眨眼放电哦～ 😉✨`);
               setWhisperTimer(150);
             }
@@ -3969,6 +3969,27 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         ctx.fillRect(haloX + Math.cos(SatAngle) * 35 - 2, haloY + Math.sin(SatAngle) * 11 - 2, 4, 4);
 
         ctx.restore();
+
+        // 10.5 [BUG-FIX] 星辰拖尾（trail）装备此前从未渲染：
+        // HomeCanvas 只处理了 halo / cape / orbit 三种装扮，唯独漏了 trail ——
+        // 玩家花 34 币购买的「霓虹拖尾」(trail_neon) 完全看不到效果。
+        // 复用现有粒子系统实现拖尾（life 耗尽会自动 filter 清理，无泄漏风险）。
+        if (equipped.trail) {
+          const isNeon = equipped.trail.includes("neon");
+          // 每 3 帧生成一个：稳态约 20 个粒子，兼顾观感与性能
+          if (frame % 3 === 0) {
+            sparkParticles.current.push({
+              x: hx + (Math.random() - 0.5) * 48,
+              y: hy + (Math.random() - 0.5) * 48,
+              vx: (Math.random() - 0.5) * 0.7,
+              vy: (Math.random() - 0.5) * 0.7 + 0.3,
+              color: isNeon ? `hsl(${(frame * 3) % 360}, 90%, 68%)` : petConfig.secondaryColor,
+              life: 1.0,
+              size: 2 + Math.random() * 2,
+              alpha: 0.85
+            });
+          }
+        }
       }
     }
       }
@@ -4156,7 +4177,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     
     if (curEnergy < 35) {
       let t = "眼皮撑不住了...要在主人腿上香香睡一觉 💭";
-      if (isCat) t = "喵哈...眼皮像被装了重力反向波一样沉重。我要蜷缩成一个暖洋洋的猫形星尘圈圈休眠啦...🐾💤";
+      if (isCat) t = "喵哈...眼皮像被装了重力反向波一样沉重。我要蜷缩成一个暖洋洋的猫形星辰圈圈休眠啦...🐾💤";
       if (isDog) t = "呜汪...狂跑了整晚，现在汪电量只剩下1%了，梦里再陪主人去射手座折跃滑滑梯吧...💤🐾";
       if (isRabbit) t = "咕咪...长耳朵盖在眼皮上当遮光罩啦。在主人的温热手腕旁眯一下，梦里也要吃星光胡萝卜哦...💤🐇";
       if (isHamster) t = "吱吱...把鼓鼓囊囊的腮帮子枕在软木屑枕头上，小仓鼠要一键省电休眠啦，呼噜噜...💤🐹";
@@ -4176,7 +4197,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
       let t = "主人，理理我嘛，我在角落有点孤孤单单的... (..•˘_˘•..)";
       if (isCat) t = "喵~ 总是把我遗忘在冷冰冰的后台数据流里。再不抱抱揉揉，我就要把你的主页代码踩乱咯 (｡•́︿•̀｡)🐾";
       if (isDog) t = "呜呜汪...主人眼睛只看着屏幕。我把湿漉漉的鼻子搁在你脚背上踩踩，不要不理我嘛汪...💔🐾";
-      if (isRabbit) t = "咕...在星尘沙盒的角落默默啃了十个虚数圈圈。人家好寂寞，好像听到你的指尖耳语哦 (｡•́ - •̀｡)";
+      if (isRabbit) t = "咕...在星辰沙盒的角落默默啃了十个虚数圈圈。人家好寂寞，好像听到你的指尖耳语哦 (｡•́ - •̀｡)";
       if (isHamster) t = "吱...独自在木屑里转来转去，小松子突然就不香甜了。想要你用指针在我的小屁股后面温柔顺毛 💔🐹";
       return { status: "LONELY", icon: "😢", label: "寂寞留守", color: "text-indigo-400", bg: "bg-indigo-500/10 border-indigo-500/30", thought: t };
     }
@@ -4614,7 +4635,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               💫 V2.7 2D超仿真 - 触控拟态及耳语控制台 (Tactile Control)
             </span>
             <span className="px-1.5 py-0.5 bg-pink-500/10 border border-pink-500/30 text-pink-300 text-[8px] rounded uppercase">
-              80% 真实照片度 + 20% 治愈星尘
+              80% 真实照片度 + 20% 治愈星辰
             </span>
           </div>
 
@@ -4680,7 +4701,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               id="btn-v27-farewell"
             >
               <span className="text-sm">🌌</span>
-              <span>身化星尘告别</span>
+              <span>身化星辰告别</span>
             </button>
 
             {/* AI voice whispering cloner sound */}

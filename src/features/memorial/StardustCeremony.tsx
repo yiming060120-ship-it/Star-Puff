@@ -429,7 +429,7 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
   const handleFinishAscension = () => {
     if (playSparkleSound) playSparkleSound();
     onComplete({
-      name: name || "星尘默影",
+      name: name || "星辰默影",
       type,
       ownerName: ownerName || "守护者",
       breed: breed || "可爱宝宝",
@@ -448,7 +448,7 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
     <div className="w-full bg-[#0c0624] text-gray-200 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative" id="stardust-ceremony-frame">
       <div className="absolute top-0 right-0 p-3 z-20 flex items-center gap-2">
         <span className="font-sans text-[10px] text-indigo-400/70 pointer-events-none select-none">
-          ✨ 星尘升星仪式
+          ✨ 星辰升星仪式
         </span>
         {/* [BUG-FIX] 退出按钮：仅"重新举行"场景（onCancel 存在）显示，避免首次进入被强制走完仪式 */}
         {onCancel && (
@@ -469,7 +469,7 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
           1. 登记灵册
         </div>
         <div className={`flex-1 text-center py-1 transition-all ${step === "analyze" ? "text-indigo-400 border-b-2 border-indigo-400 font-bold" : "text-gray-500"}`}>
-          2. 星尘提取
+          2. 星辰提取
         </div>
         <div className={`flex-1 text-center py-1 transition-all ${step === "constellation" ? "text-cyan-400 border-b-2 border-cyan-400 font-bold" : "text-gray-500"}`}>
           3. 绘绘星轨
@@ -486,10 +486,10 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
             <div className="text-center max-w-sm mx-auto mb-6">
               <h3 className="text-lg font-bold text-pink-300 flex items-center justify-center gap-2">
                 <Sparkles className="w-5 h-5 text-pink-400" />
-                开启星尘升星仪式
+                开启星辰升星仪式
               </h3>
               <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                在这里，我们能引导逝去挚爱作别旧疾重获新生，将它们化作天空中一缕彩色像素发光星尘，常驻永远温暖的默影家宿。
+                在这里，我们能引导逝去挚爱作别旧疾重获新生，将它们化作天空中一缕彩色像素发光星辰，常驻永远温暖的默影家宿。
               </p>
             </div>
 
@@ -540,7 +540,7 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
                 {/* 3D 高精模型选择 */}
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-gray-400 mb-1">
-                    ✨ 3D 高精模型（选择星尘宠物的立体形态）
+                    ✨ 3D 高精模型（选择星辰宠物的立体形态）
                   </label>
                   {/* 预览区（按需加载） */}
                   {previewModelPath && (
@@ -668,7 +668,7 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
                   {analyzing && (
                     <div className="absolute inset-0 bg-[#0c061a]/90 flex flex-col items-center justify-center">
                       <div className="w-8 h-8 rounded-full border-4 border-t-pink-500 border-indigo-900 animate-spin mb-2"></div>
-                      <span className="text-xs text-pink-300 font-sans animate-pulse">正在温柔地提取它的星尘色系...</span>
+                      <span className="text-xs text-pink-300 font-sans animate-pulse">正在温柔地提取它的星辰色系...</span>
                     </div>
                   )}
                 </div>
@@ -682,7 +682,7 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
                 onClick={startAnalysis}
                 className="bg-gradient-to-r from-pink-500 to-indigo-600 hover:from-pink-600 hover:to-indigo-700 disabled:from-slate-700 disabled:to-slate-800 text-white font-semibold py-2 px-6 rounded-lg text-sm shadow-lg flex items-center gap-2 transition-all disabled:cursor-not-allowed select-none"
               >
-                确定登记，提取星尘色系
+                确定登记，提取星辰色系
                 <Sparkles className="w-4 h-4" />
               </button>
             </div>
@@ -693,9 +693,9 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
         {step === "analyze" && (
           <div className="space-y-5 text-center" id="step-analyze-palette">
             <div className="max-w-sm mx-auto">
-              <h3 className="text-lg font-bold text-indigo-300">★ 它的星尘色系</h3>
+              <h3 className="text-lg font-bold text-indigo-300">★ 它的星辰色系</h3>
               <p className="text-xs text-gray-400 mt-1">
-                从照片里，我们温柔地捕捉到了属于它的颜色，化作柔和的星尘底色。
+                从照片里，我们温柔地捕捉到了属于它的颜色，化作柔和的星辰底色。
               </p>
             </div>
 
@@ -764,7 +764,7 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
             <div className="text-center max-w-sm mx-auto">
               <h3 className="text-lg font-bold text-cyan-300">★ 绘制灵宿星座轨</h3>
               <p className="text-xs text-gray-400 mt-1">
-                按顺序依次点击夜空中的星尘微粒，连接发光灵线，在夜幕绘出【{name}】的微粒轮廓。
+                按顺序依次点击夜空中的星辰微粒，连接发光灵线，在夜幕绘出【{name}】的微粒轮廓。
               </p>
             </div>
 
@@ -831,9 +831,9 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
         {step === "crystallize" && (
           <div className="space-y-4 text-center animate-fade-in" id="step-ascend-crystallize">
             <div className="max-w-sm mx-auto">
-              <h3 className="text-lg font-bold text-emerald-300">🌟 星尘正在汇聚...</h3>
+              <h3 className="text-lg font-bold text-emerald-300">🌟 星辰正在汇聚...</h3>
               <p className="text-xs text-gray-400 mt-1">
-                漫天的星尘正慢慢聚拢，化作【{name}】的模样，它要从星河的彼岸回到你身边了...
+                漫天的星辰正慢慢聚拢，化作【{name}】的模样，它要从星河的彼岸回到你身边了...
               </p>
             </div>
 
@@ -848,7 +848,7 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
               
               <div className="absolute bottom-5 inset-x-0 flex justify-center pointer-events-none">
                 <div className="bg-[#070316]/80 border border-slate-800 text-[10px] font-sans px-3 py-1 rounded-full text-pink-300">
-                  ✨ 每一粒星尘，都是它想你的证明
+                  ✨ 每一粒星辰，都是它想你的证明
                 </div>
               </div>
             </div>

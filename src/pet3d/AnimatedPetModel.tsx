@@ -1,10 +1,10 @@
 /**
- * AnimatedPetModel - 在高精模型 pet.glb 上叠加整体动画与星尘特效
+ * AnimatedPetModel - 在高精模型 pet.glb 上叠加整体动画与星辰特效
  *
  * 保留原 50 万面高精模型不变，用 useFrame 驱动：
  * 1. 整体动画：呼吸起伏、漂浮、轻微摇摆、情绪动作（整体位移/旋转/缩放，无需骨骼）
- * 2. 星尘特效：环绕模型的发光粒子 + 呼吸光晕
- * 3. 状态联动：低能量变暗、沉睡半透明 + 星尘飘散
+ * 2. 星辰特效：环绕模型的发光粒子 + 呼吸光晕
+ * 3. 状态联动：低能量变暗、沉睡半透明 + 星辰飘散
  *
  * 防崩溃：useFrame 内所有数值 clamp，材质克隆避免污染共享资源。
  */
@@ -77,7 +77,7 @@ export function AnimatedPetModel({
     return list;
   }, [clonedScene]);
 
-  // 星尘粒子几何体
+  // 星辰粒子几何体
   const dustGeometry = useMemo(() => {
     const count = 160;
     const positions = new Float32Array(count * 3);
@@ -217,7 +217,7 @@ export function AnimatedPetModel({
       }
     }
 
-    // ---- 4. 星尘粒子动画 ----
+    // ---- 4. 星辰粒子动画 ----
     const dust = dustRef.current;
     if (dust) {
       const pos = dustGeometry.getAttribute("position") as THREE.BufferAttribute;
@@ -257,7 +257,7 @@ export function AnimatedPetModel({
     <group ref={groupRef}>
       <primitive object={clonedScene} scale={1} position={[0, 0, 0]} />
 
-      {/* 星尘粒子 */}
+      {/* 星辰粒子 */}
       <points ref={dustRef} geometry={dustGeometry}>
         <pointsMaterial
           color="#bfe9ff"

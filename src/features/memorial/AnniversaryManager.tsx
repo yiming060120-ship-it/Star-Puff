@@ -121,7 +121,7 @@ export default function AnniversaryManager({ petConfig, onUpdateAnniversaries, t
               )}
             </div>
             <p className="text-[10px] text-gray-400 font-mono">生辰日期: {petConfig.birthDay || "未登记"}</p>
-            <p className="text-[9px] text-pink-300/80">降临节效：家园派对氛围 + 萌趣星尘生日帽装扮</p>
+            <p className="text-[9px] text-pink-300/80">降临节效：家园派对氛围 + 萌趣星辰生日帽装扮</p>
           </div>
           <Smile className={`w-8 h-8 ${birthDayMMDD === todayStr ? "text-yellow-400 animate-bounce" : "text-gray-600"}`} />
         </div>

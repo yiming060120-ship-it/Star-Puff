@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 
-const STEPS = ["正在提取宠物特征...", "正在绘制星尘粒子...", "正在注入星云能量...", "即将完成..."];
+const STEPS = ["正在提取宠物特征...", "正在绘制星辰粒子...", "正在注入星云能量...", "即将完成..."];
 
 interface GeneratingOverlayProps {
   onComplete: () => void;

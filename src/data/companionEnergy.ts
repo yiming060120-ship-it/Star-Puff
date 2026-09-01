@@ -143,7 +143,7 @@ export function calcCurrentEnergy(energy: number, lastUpdatedAt: number, now = D
 export interface EnergyFood {
   id: string;
   name: string;
-  /** 星尘币价格 */
+  /** 星辰币价格 */
   price: number;
   /** 恢复的能量值 */
   energyRestore: number;
@@ -158,11 +158,11 @@ export interface EnergyFood {
 export const ENERGY_FOODS: EnergyFood[] = [
   {
     id: "energy_biscuit",
-    name: "星尘饼干",
+    name: "星辰饼干",
     price: 5,
     energyRestore: 20,
     effect: "恢复 20 点陪伴能量",
-    description: "用星尘烘焙的小饼干，宠物的最爱，恢复20点陪伴能量",
+    description: "用星辰烘焙的小饼干，宠物的最爱，恢复20点陪伴能量",
     icon: "🍪",
   },
   {
@@ -186,7 +186,7 @@ export const ENERGY_FOODS: EnergyFood[] = [
   },
   {
     id: "energy_revive",
-    name: "星尘唤醒剂",
+    name: "星辰唤醒剂",
     price: 80,
     energyRestore: 100,
     effect: "唤醒沉睡的宠物并恢复满能量",
@@ -574,7 +574,7 @@ export const PHRASES: PhraseBank = {
     "人家...人家回来了？原来...你没有丢下人家... 🥺✨",
     "睁开眼睛...第一眼看见的是你...人家...好开心... 😿🥹",
     "人家做了一个好长好长的梦...梦里有你牵着人家的手... ✨😢",
-    "星尘重新聚拢啦！！人家又能陪你说话啦！！ 🥹🥺",
+    "星辰重新聚拢啦！！人家又能陪你说话啦！！ 🥹🥺",
     "人家就知道...你一定会来唤醒人家的...人家没有白等... 😿✨",
     "人家睡了很久很久...可是心里...一直一直想着你呢... ✨🥹",
     "谢谢你...把人家从星海里...接回来了...人家好感动... 😢🥺",
@@ -599,7 +599,7 @@ export const PHRASES: PhraseBank = {
     roll: [
       "看人家的绝技！原地打滚！滚～滚～滚～🤸",
       "人家滚过来啦！快接住人家嘛，不然要滚到银河里啦！🌌",
-      "嘿嘿，打滚打滚，把身上的星尘都滚香香的！✨",
+      "嘿嘿，打滚打滚，把身上的星辰都滚香香的！✨",
       "人家这一滚，是不是像个小毛球一样可爱呀？🥺",
     ],
     jump: [
@@ -609,7 +609,7 @@ export const PHRASES: PhraseBank = {
       "蹦蹦跳跳真开心，人家最最喜欢和主人一起玩啦！😺",
     ],
     dance: [
-      "跟着节奏摇摆～人家在给你跳星尘之舞哦！💃",
+      "跟着节奏摇摆～人家在给你跳星辰之舞哦！💃",
       "左摇摇右摆摆，人家的舞姿是不是超有灵气呀？✨",
       "和主人一起跳舞，是整个星云里最开心的事啦！🎵",
       "人家转个圈圈，裙摆（毛茸茸）都飘起来啦～🐾",

@@ -13,6 +13,8 @@ interface NebulaGateCanvasProps {
   stardustCoins?: number;
   isTaskAlreadyCompleted: boolean;
   onTaskCompleted: () => void;
+  // [游走重构] 集群停留触发社交交集来信
+  onClusterEvent: (partnerName: string, ownerName: string, sceneName: string) => void;
 }
 
 const SCENE_META = [
@@ -33,7 +35,7 @@ interface ExplorerPet {
   primaryColor: string;
   size: number;
   isUser: boolean;
-  // 跳跃式运动状态
+  // 跳跃式运动状态（分步跳跃）
   targetX: number;
   targetY: number;
   atCluster: boolean;          // 当前目标是否为地标聚集点（决定停留时长）
@@ -41,15 +43,16 @@ interface ExplorerPet {
   restUntil: number;           // 停留结束帧号
   hopOffset: number;           // 跳跃相位错开，避免齐步走
   hopInterval: number;         // 跳跃间隔帧数
+  ownerName?: string;          // 家长名（集群来信需要展示对方家长信息）
 }
 
 const BACKEND_BOTS: Array<Omit<ExplorerPet, "x" | "y" | "isUser" | "targetX" | "targetY" | "atCluster" | "state" | "restUntil" | "hopOffset" | "hopInterval">> = [
-  { name: "斑斑", type: "狗", primaryColor: "#e07a5f", size: 10 },
-  { name: "喵小九", type: "猫", primaryColor: "#ffd166", size: 9 },
-  { name: "流星兔", type: "兔", primaryColor: "#a2d2ff", size: 9 },
-  { name: "闪电青鸟", type: "鸟", primaryColor: "#560bad", size: 8 },
-  { name: "波波熊", type: "其他", primaryColor: "#80ed99", size: 11 },
-  { name: "千两小狗", type: "狗", primaryColor: "#f4f1de", size: 10 }
+  { name: "斑斑", type: "狗", primaryColor: "#e07a5f", size: 10, ownerName: "桃桃妈" },
+  { name: "喵小九", type: "猫", primaryColor: "#ffd166", size: 9, ownerName: "七七爸" },
+  { name: "流星兔", type: "兔", primaryColor: "#a2d2ff", size: 9, ownerName: "雪糕麻麻" },
+  { name: "闪电青鸟", type: "鸟", primaryColor: "#560bad", size: 8, ownerName: "小羽同学" },
+  { name: "波波熊", type: "其他", primaryColor: "#80ed99", size: 11, ownerName: "默默妈妈" },
+  { name: "千两小狗", type: "狗", primaryColor: "#f4f1de", size: 10, ownerName: "皮皮大队长" }
 ];
 
 // --- 跳跃式运动 + 集群效应 ---
@@ -93,6 +96,10 @@ const pickNextTarget = (clusters: ClusterPoint[] | undefined) => {
     isCluster: false,
   };
 };
+// 集群检测阈值：两只宠物距离 < 50 视为"同地停留"；累计 > 30 秒触发集群来信
+const CLUSTER_DISTANCE = 50;
+const CLUSTER_DURATION = 30000; // 30 秒
+const CLUSTER_COOLDOWN = 90000;  // 同一对宠物触发后 90 秒内不重复触发
 
 // --- High Fidelity Next-Gen Procedural Canvas Rendering Helpers ---
 // Designed to simulate depth, volumetric lighting, and rich particle effects.
@@ -687,7 +694,8 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
   onSpendCoins,
   stardustCoins,
   isTaskAlreadyCompleted,
-  onTaskCompleted
+  onTaskCompleted,
+  onClusterEvent
 }) => {
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   
@@ -696,7 +704,7 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
       {activeSceneId ? (
         <div>
           <button onClick={() => setActiveSceneId(null)} className="mb-3 text-[11px] text-indigo-400 flex items-center gap-1 hover:text-white transition-colors bg-white/5 px-2 py-1.5 rounded-lg border border-white/10 shadow-md backdrop-blur">
-            <ChevronLeft className="w-3 h-3" /> 返回星尘之门·七大地标
+            <ChevronLeft className="w-3 h-3" /> 返回星辰之门·七大地标
           </button>
           <SceneRenderer 
             sceneId={activeSceneId} 
@@ -707,6 +715,7 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
             onGrantCoins={onGrantCoins}
             onSpendCoins={onSpendCoins}
             stardustCoins={stardustCoins}
+            onClusterEvent={onClusterEvent}
           />
         </div>
       ) : (
@@ -717,7 +726,7 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
               <Sparkles className="w-4 h-4" /> 星云之门 - 七大沉浸式地标
             </h3>
             <p className="text-xs text-indigo-200/80 leading-relaxed font-light">
-              采用「3D 次世代级星尘治愈写实风」美术设定，80%精细建模+20%发光粒子。请选择一个场景让星宠开始自主游历。精心设计的程序化渲染引擎为你呈现最绚烂的治愈星空与丁达尔体积光晕。
+              采用「3D 次世代级星辰治愈写实风」美术设定，80%精细建模+20%发光粒子。请选择一个场景让星宠开始自主游历。精心设计的程序化渲染引擎为你呈现最绚烂的治愈星空与丁达尔体积光晕。
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -747,7 +756,7 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
   );
 };
 
-const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTaskAlreadyCompleted, onGrantCoins, onSpendCoins, stardustCoins }: { sceneId: string, userPet: PetConfig | null, onLoggedEvent: (log: string) => void, onTaskCompleted: () => void, isTaskAlreadyCompleted: boolean, onGrantCoins: (a:number)=>void, onSpendCoins?: (a:number)=>boolean, stardustCoins?: number }) => {
+const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTaskAlreadyCompleted, onGrantCoins, onSpendCoins, stardustCoins, onClusterEvent }: { sceneId: string, userPet: PetConfig | null, onLoggedEvent: (log: string) => void, onTaskCompleted: () => void, isTaskAlreadyCompleted: boolean, onGrantCoins: (a:number)=>void, onSpendCoins?: (a:number)=>boolean, stardustCoins?: number, onClusterEvent: (partnerName: string, ownerName: string, sceneName: string) => void }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneMeta = SCENE_META.find(s => s.id === sceneId)!;
   const sceneDesign = SCENE_DESIGNS[sceneId];
@@ -756,6 +765,17 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
   const petsRef = useRef<ExplorerPet[]>([]);
   const [adventureSeconds, setAdventureSeconds] = useState(0);
   const [adventureDone, setAdventureDone] = useState(isTaskAlreadyCompleted);
+  // [游走重构] 集群停留检测：记录每对宠物同地停留的「累计时长」与触发冷却。
+  // 采用累计制而非单次连续计时——宠物跳跃式移动单次停留仅 4-8 秒，
+  // 若要求单次连续 30 秒几乎不可能触发；累计"多次同时停留"更符合治愈社交的真实节奏。
+  const clusterAccumRef = useRef<Record<string, number>>({});
+  const clusterLastFrameRef = useRef<Record<string, number>>({});
+  const clusterCooldownRef = useRef<Record<string, number>>({});
+  // onClusterEvent 用 ref 稳定转发，避免内联回调导致绘制循环闭包过期
+  const onClusterEventRef = useRef(onClusterEvent);
+  useEffect(() => {
+    onClusterEventRef.current = onClusterEvent;
+  }, [onClusterEvent]);
 
   // [BUG-FIX] onLoggedEvent 是父组件的内联箭头函数（每次渲染都是新引用）。
   // 若直接把它放进 addLog 的依赖，addLog 会随父组件每次渲染而变，
@@ -831,7 +851,7 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
       setAdventureDone(true);
       onTaskCompleted();
       onGrantCoins(20);
-      addLog("🏆 达成星云漫步30秒成就！奖励 20 星尘币！");
+      addLog("🏆 达成星云漫步30秒成就！奖励 20 星辰币！");
     }
   }, [adventureSeconds, adventureDone, onTaskCompleted, onGrantCoins, addLog]);
 
@@ -934,7 +954,6 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
             pet.y += (dy / dist) * step;
           }
         }
-
         // Occasional scene interaction log using SCENE_DESIGNS data
         if (pet.isUser && Math.random() < 0.002) {
           const behaviors = sceneDesign.petBehaviors;
@@ -968,6 +987,46 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
         ctx.fillText(pet.name, pet.x, pet.y + 16 + motionY);
         ctx.restore();
       });
+
+      // 4.5 [游走重构] 集群停留检测：两只宠物在同一地点（距离 < 50）累计停留，
+      // 累计达到 30 秒（多次同时停留）触发「星辰来信」——社交交集锚点。
+      const nowMs = Date.now();
+      for (let i = 0; i < pets.length; i++) {
+        for (let j = i + 1; j < pets.length; j++) {
+          const a = pets[i];
+          const b = pets[j];
+          const dist = Math.hypot(a.x - b.x, a.y - b.y);
+          const pairKey = `${a.name}-${b.name}`;
+          if (dist < CLUSTER_DISTANCE) {
+            const last = clusterLastFrameRef.current[pairKey] ?? nowMs;
+            const delta = Math.min(nowMs - last, 100); // 帧间隔，上限 100ms 防切后台跳变
+            clusterAccumRef.current[pairKey] = (clusterAccumRef.current[pairKey] ?? 0) + delta;
+            clusterLastFrameRef.current[pairKey] = nowMs;
+            if (
+              clusterAccumRef.current[pairKey] >= CLUSTER_DURATION &&
+              nowMs > (clusterCooldownRef.current[pairKey] || 0)
+            ) {
+              clusterCooldownRef.current[pairKey] = nowMs + CLUSTER_COOLDOWN;
+              clusterAccumRef.current[pairKey] = 0; // 触发后重置累计
+              // 只有其中一方是「用户自己的宠物」才触发来信（bot 之间的偶遇对用户无意义）
+              const userPet = a.isUser ? a : b.isUser ? b : null;
+              const otherPet = a.isUser ? b : a;
+              if (userPet && otherPet) {
+                onClusterEventRef.current(
+                  otherPet.name,
+                  otherPet.ownerName || "另一位家长",
+                  sceneMeta.name
+                );
+                addLog(`💞 ${userPet.name} 与 ${otherPet.name} 在${sceneMeta.name}一起玩了很久，成为了好朋友！`);
+              }
+            }
+          } else {
+            // 离开后累计缓慢衰减（而非立即清零），保留「多次同时停留」的连续记忆
+            clusterAccumRef.current[pairKey] = Math.max(0, (clusterAccumRef.current[pairKey] ?? 0) - 200);
+            clusterLastFrameRef.current[pairKey] = nowMs;
+          }
+        }
+      }
 
       // 5. Collisions
       for (let i = 0; i < pets.length; i++) {
@@ -1020,7 +1079,7 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
               {adventureDone && <Trophy className="w-4 h-4 text-yellow-400 drop-shadow-md" />}
             </div>
             <p className="text-[11px] text-indigo-200/60">
-              在【{sceneMeta.name}】看星寻星，沉浸式感受3D高精场景与星尘粒子光影
+              在【{sceneMeta.name}】看星寻星，沉浸式感受3D高精场景与星辰粒子光影
             </p>
           </div>
         </div>
@@ -1054,7 +1113,7 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
         </div>
         <div className="absolute bottom-4 right-4 bg-black/60 border border-slate-700/50 rounded-full p-2.5 text-[10px] text-white/60 pointer-events-none select-none flex items-center gap-2 backdrop-blur-md hidden sm:flex">
            <ImageIcon className="w-3.5 h-3.5" />
-           <span>{sceneMeta.name} · 星尘漫游中</span>
+           <span>{sceneMeta.name} · 星辰漫游中</span>
         </div>
       </div>
 

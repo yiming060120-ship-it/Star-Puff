@@ -129,6 +129,12 @@ export interface PetWhisper {
   likes: number;
   hasLiked: boolean;
   slotLabel?: string; // 来信时段标签（如 ☀️ 晨光来信 / 🌙 暮色来信）
+  // [集群来信] 社交交集锚点：宠物与另一只宠物在同一场景同点停留较久时触发
+  type?: "daily" | "cluster";
+  relatedPetName?: string; // 集群来信关联的另一只宠物名
+  relatedOwnerName?: string; // 关联宠物的家长名
+  scene?: string; // 触发集群来信的场景名
+  friendRequested?: boolean; // 是否已向对方家长发出好友申请
   comments: Array<{
     id: string;
     authorName: string;

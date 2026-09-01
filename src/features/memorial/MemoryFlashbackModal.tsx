@@ -45,7 +45,7 @@ export const PET_MEMORIES: MemorySegment[] = [
     icon: "🥬",
     category: "兔",
     descriptionTemplate: (petName, ownerName) => 
-      `每当你在厨房里忙活，发出洗菜煮饭的水声时，我便会飞快地踩着无声的碎步跑进门，扒拉着你的裤脚仰起头、探长小鼻子使劲呼哧。你总是会细心挑一瓣最嫩、洗得最干净的青菜叶子，弯下腰递进我嘴边的三瓣嘴里。接着，安静的厨房里就会响起节奏飞快、无比治愈的「沙沙沙」声。在这个星之海里，虽然有很多吃不完的发光星尘糖，可是它们谁也比不上当年你轻轻递过来、还带着清凉水珠的那口菜叶香甜。`
+      `每当你在厨房里忙活，发出洗菜煮饭的水声时，我便会飞快地踩着无声的碎步跑进门，扒拉着你的裤脚仰起头、探长小鼻子使劲呼哧。你总是会细心挑一瓣最嫩、洗得最干净的青菜叶子，弯下腰递进我嘴边的三瓣嘴里。接着，安静的厨房里就会响起节奏飞快、无比治愈的「沙沙沙」声。在这个星之海里，虽然有很多吃不完的发光星辰糖，可是它们谁也比不上当年你轻轻递过来、还带着清凉水珠的那口菜叶香甜。`
   },
   {
     id: "mem_shoulder_clock",
@@ -63,7 +63,7 @@ export const PET_MEMORIES: MemorySegment[] = [
     icon: "🌻",
     category: "仓鼠",
     descriptionTemplate: (petName, ownerName) => 
-      `我一生中最中意的事，就是被你用两手掌交叠呵护起来，在暖洋洋的摩擦温存下，把自己缩成一只安宁无防备的小毛球。你总喜欢挑一颗长得顶饱饱的葵花籽喂给我。我急吼吼地两颊鼓胀，像个塞满坚果的大皮箱，滑稽的样子总能逗得你开心大笑。虽然在这个星尘银河，我的寿命和时间比起你们是如此短暂，但在${ownerName}掌心暖意里的数个春秋里，每一天我得到的那份欢愉和充实，都重重地填满了${petName}微小却最明亮的一生。`
+      `我一生中最中意的事，就是被你用两手掌交叠呵护起来，在暖洋洋的摩擦温存下，把自己缩成一只安宁无防备的小毛球。你总喜欢挑一颗长得顶饱饱的葵花籽喂给我。我急吼吼地两颊鼓胀，像个塞满坚果的大皮箱，滑稽的样子总能逗得你开心大笑。虽然在这个星辰银河，我的寿命和时间比起你们是如此短暂，但在${ownerName}掌心暖意里的数个春秋里，每一天我得到的那份欢愉和充实，都重重地填满了${petName}微小却最明亮的一生。`
   },
   {
     id: "mem_deskside_watcher",
@@ -227,7 +227,7 @@ export default function MemoryFlashbackModal({ petConfig, onClose, onCollectRewa
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#130722]/80 border border-white/5 p-3 rounded-2xl">
             <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-mono">
               <ChipElement color={petConfig.secondaryColor} text={activeMemory.category + "系萌物记忆"} />
-              <span>星屑尘埃重聚 +25 星尘币</span>
+              <span>星屑尘埃重聚 +25 星辰币</span>
             </div>
             
             {/* Memory Rewards Trigger Button */}

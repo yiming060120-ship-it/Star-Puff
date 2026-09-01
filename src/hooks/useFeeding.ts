@@ -1,7 +1,7 @@
 /**
  * useFeeding - 喂食逻辑 hook（任务三）
  *
- * 管理：背包食物数量（localStorage）、购买（扣星尘币）、喂食（扣数量 + 恢复数值）。
+ * 管理：背包食物数量（localStorage）、购买（扣星辰币）、喂食（扣数量 + 恢复数值）。
  * 数值恢复通过回调交由宿主组件（HomeCanvas/App）执行，本 hook 只负责背包与购买。
  */
 
@@ -14,9 +14,9 @@ import {
 } from "../data/foodItems";
 
 export interface UseFeedingOptions {
-  /** 当前星尘币余额（只读，用于购买校验） */
+  /** 当前星辰币余额（只读，用于购买校验） */
   stardustCoins: number;
-  /** 扣星尘币（购买食物时） */
+  /** 扣星辰币（购买食物时） */
   onSpendCoins: (amount: number) => boolean;
   /** 喂食成功后的回调（宿主恢复数值 + 播放动画 + 气泡） */
   onFeed: (foodId: string, hungerRestore: number, energyRestore: number, moodRestore: number) => void;
@@ -46,7 +46,7 @@ export function useFeeding({ stardustCoins, onSpendCoins, onFeed }: UseFeedingOp
     [inventory, persist, onFeed]
   );
 
-  /** 购买食物：扣星尘币 + 数量 +1，返回是否成功 */
+  /** 购买食物：扣星辰币 + 数量 +1，返回是否成功 */
   const buy = useCallback(
     (foodId: string): boolean => {
       const food = findFoodById(foodId);

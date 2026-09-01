@@ -43,7 +43,7 @@ export default function NotificationSettings({ initialConfig, onSaveConfig, trig
     onSaveConfig(updated);
     
     if (key === "soundEffects") {
-      triggerToast(nextVal ? "🔊 星尘音效反馈：已恢复开启。" : "🔇 星尘音效反馈：静音静默。");
+      triggerToast(nextVal ? "🔊 星辰音效反馈：已恢复开启。" : "🔇 星辰音效反馈：静音静默。");
     } else {
       triggerToast("⚙️ 通知偏好更改已实时在星谱上传同步！");
     }
@@ -54,7 +54,7 @@ export default function NotificationSettings({ initialConfig, onSaveConfig, trig
     const updated = { ...cfg, whisperTime: time };
     setCfg(updated);
     onSaveConfig(updated);
-    triggerToast(`⏰ 星尘来信推送已对准到每日【${time}】！`);
+    triggerToast(`⏰ 星辰来信推送已对准到每日【${time}】！`);
   };
 
   return (
@@ -79,7 +79,7 @@ export default function NotificationSettings({ initialConfig, onSaveConfig, trig
         <div className="space-y-3 bg-black/20 p-3 rounded-2xl border border-white/5">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold block">🌌 星尘来信每日呼唤</span>
+              <span className="text-xs font-bold block">🌌 星辰来信每日呼唤</span>
               <span className="text-[9px] text-gray-400">设定每天它给你说秘密的时刻</span>
             </div>
             <input 
@@ -182,7 +182,7 @@ export default function NotificationSettings({ initialConfig, onSaveConfig, trig
           <div className="flex items-center justify-between">
             <div>
               <span className="text-xs font-bold block">🎁 礼物收到与点赞</span>
-              <span className="text-[9px] text-gray-400">当邻居给宝贝送出星尘糖或留言时发出雷达声</span>
+              <span className="text-[9px] text-gray-400">当邻居给宝贝送出星辰糖或留言时发出雷达声</span>
             </div>
             <input 
               type="checkbox"

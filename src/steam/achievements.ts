@@ -15,7 +15,7 @@ export const ACHIEVEMENTS = {
   firstWhisper: "ach_first_whisper", // 首次生成耳语
   first3dReconstruct: "ach_first_3d_reconstruct", // 首次 3D 重建
   firstPurchase: "ach_first_purchase", // 首次完成内购
-  coins1000: "ach_coins_1000", // 星尘币累计 ≥ 1000
+  coins1000: "ach_coins_1000", // 星辰币累计 ≥ 1000
   petLevel10: "ach_pet_level_10", // 任一宠物等级 ≥ 10
   multiPets: "ach_multi_pets", // 同时拥有 2 只及以上宠物
 } as const;

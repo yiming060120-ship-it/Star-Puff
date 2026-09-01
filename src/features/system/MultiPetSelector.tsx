@@ -80,7 +80,7 @@ export default function MultiPetSelector({ user, onSelectPet, onAddPet, onUpdate
     setBirthDay("");
     setModelFile("");
     setShowAddForm(false);
-    triggerToast(`✨ 重聚重逢！【${newPet.name}】成功化作星尘默影，注册进大星谱。`);
+    triggerToast(`✨ 重聚重逢！【${newPet.name}】成功化作星辰默影，注册进大星谱。`);
     playSound("success");
   };
 
@@ -133,7 +133,7 @@ export default function MultiPetSelector({ user, onSelectPet, onAddPet, onUpdate
     onUpdatePet(updated);
     setEditingPetId(null);
     playSound("success");
-    triggerToast(`✨ 已更新【${updated.name}】的星尘档案！`);
+    triggerToast(`✨ 已更新【${updated.name}】的星辰档案！`);
   };
 
   // 删除宠物（至少保留一只）
@@ -144,11 +144,11 @@ export default function MultiPetSelector({ user, onSelectPet, onAddPet, onUpdate
       return;
     }
     const pid = petKey(pet);
-    const proceed = window.confirm(`你确定要让【${pet.name}】化作星尘离开吗？\n这只小宝贝的回忆与耳语也会一并消散，此操作不可撤销。`);
+    const proceed = window.confirm(`你确定要让【${pet.name}】化作星辰离开吗？\n这只小宝贝的回忆与耳语也会一并消散，此操作不可撤销。`);
     if (!proceed) return;
     onDeletePet(pid);
     playSound("chime");
-    triggerToast(`🌠 【${pet.name}】已化作星尘，回到喵王星的天际。`);
+    triggerToast(`🌠 【${pet.name}】已化作星辰，回到喵王星的天际。`);
   };
 
   return (
@@ -167,7 +167,7 @@ export default function MultiPetSelector({ user, onSelectPet, onAddPet, onUpdate
                 {allPets.length} / {slotLimit} SLOTS
               </span>
             </h4>
-            <p className="text-[10px] text-gray-400">支持独立生成陪伴私语、分别记录回忆，开启“星尘共舞”互动。</p>
+            <p className="text-[10px] text-gray-400">支持独立生成陪伴私语、分别记录回忆，开启“星辰共舞”互动。</p>
           </div>
         </div>
 
@@ -252,7 +252,7 @@ export default function MultiPetSelector({ user, onSelectPet, onAddPet, onUpdate
               <div className="flex gap-1.5 shrink-0">
                 <button
                   onClick={(e) => { e.stopPropagation(); handleStartEdit(pet); }}
-                  title="编辑星尘档案"
+                  title="编辑星辰档案"
                   className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-500/30 text-cyan-300 text-xs font-bold flex items-center gap-1 transition-colors"
                 >
                   <Pencil className="w-3.5 h-3.5" />
@@ -322,7 +322,7 @@ export default function MultiPetSelector({ user, onSelectPet, onAddPet, onUpdate
       {(showAddForm || editingPetId) && (
         <div className="bg-[#1c0e3a]/90 border border-purple-500/30 rounded-2xl p-4 space-y-3 animate-scale-up">
           <span className="text-[10px] uppercase font-mono font-bold text-indigo-400 block pb-1 border-b border-white/5">
-            {editingPetId ? "✏️ 编辑星尘默影档案" : "🔑 注星定命 ─ 重构第二只陪伴默影"}
+            {editingPetId ? "✏️ 编辑星辰默影档案" : "🔑 注星定命 ─ 重构第二只陪伴默影"}
           </span>
 
           <div className="grid grid-cols-2 gap-3">
@@ -395,7 +395,7 @@ export default function MultiPetSelector({ user, onSelectPet, onAddPet, onUpdate
           {/* 3D 高精模型选择：从已存储的 12 个物种模型中挑选立体形态 */}
           <div className="space-y-1.5">
             <label className="text-[9px] text-gray-400 block">
-              ✨ 3D 高精模型（选择星尘宠物的立体形态，不选则用默认 2D 默影）
+              ✨ 3D 高精模型（选择星辰宠物的立体形态，不选则用默认 2D 默影）
             </label>
             <div className="grid grid-cols-6 gap-1.5">
               {SPECIES_MODELS.map((m) => (
@@ -462,7 +462,7 @@ export default function MultiPetSelector({ user, onSelectPet, onAddPet, onUpdate
       <div className="bg-[#0b061e] border border-white/5 p-2 rounded-xl flex items-center justify-between text-[10px]">
         <span className="font-mono text-indigo-300 flex items-center gap-1.5 leading-none">
           <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-spin" />
-          当拥有 2 只或以上默影宠时，在大世界中星尘散逸共舞 🔮
+          当拥有 2 只或以上默影宠时，在大世界中星辰散逸共舞 🔮
         </span>
       </div>
     </div>

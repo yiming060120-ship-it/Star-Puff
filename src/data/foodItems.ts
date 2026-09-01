@@ -12,7 +12,7 @@ export interface FoodItem {
   hungerRestore: number; // 饥饿值恢复
   energyRestore: number; // 能量值恢复
   moodRestore: number;   // 心情值恢复
-  price: number;         // 星尘币
+  price: number;         // 星辰币
   rarity: "common" | "rare" | "epic";
   description: string;
   animation: "eat_normal" | "eat_happy" | "eat_special";
@@ -21,14 +21,14 @@ export interface FoodItem {
 export const foodItems: FoodItem[] = [
   {
     id: "dust_cookie",
-    name: "星尘饼干",
+    name: "星辰饼干",
     icon: "🍪",
     hungerRestore: 20,
     energyRestore: 5,
     moodRestore: 5,
     price: 5,
     rarity: "common",
-    description: "用星尘烘焙的小饼干，宠物的最爱",
+    description: "用星辰烘焙的小饼干，宠物的最爱",
     animation: "eat_normal",
   },
   {
@@ -85,7 +85,7 @@ const INVENTORY_KEY = "starpuff_food_inventory";
 
 export type FoodInventory = Record<string, number>;
 
-/** 读取背包数量（含首次进入赠送星尘饼干 x5） */
+/** 读取背包数量（含首次进入赠送星辰饼干 x5） */
 export function readFoodInventory(): FoodInventory {
   try {
     const raw = localStorage.getItem(INVENTORY_KEY);
@@ -96,7 +96,7 @@ export function readFoodInventory(): FoodInventory {
   } catch {
     /* 忽略损坏数据 */
   }
-  // 首次进入赠送：星尘饼干 x5
+  // 首次进入赠送：星辰饼干 x5
   const initial: FoodInventory = { dust_cookie: 5 };
   try {
     localStorage.setItem(INVENTORY_KEY, JSON.stringify(initial));

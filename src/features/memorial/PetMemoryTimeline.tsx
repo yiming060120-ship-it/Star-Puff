@@ -122,7 +122,7 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
     setLogContent("");
     setLogImage("");
     setShowAddLog(false);
-    triggerToast(`📖 【${logTitle}】这篇闪光记忆已被成功篆刻进它的星尘回线中！`);
+    triggerToast(`📖 【${logTitle}】这篇闪光记忆已被成功篆刻进它的星辰回线中！`);
     playSound("success");
   };
 
@@ -132,7 +132,7 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
       onUpdateTimeline(nextList);
       return nextList;
     });
-    triggerToast("🗑️ 对应的星尘记忆已解除关联。");
+    triggerToast("🗑️ 对应的星辰记忆已解除关联。");
     playSound("beep");
   };
 
@@ -176,7 +176,7 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
           <div className="flex items-center gap-2">
             <BookOpen className="w-4.5 h-4.5 text-pink-400" />
             <div>
-              <h4 className="text-xs font-bold font-mono text-white">📖 星尘记忆长卷 (remembrance Timeline)</h4>
+              <h4 className="text-xs font-bold font-mono text-white">📖 星辰记忆长卷 (remembrance Timeline)</h4>
               <p className="text-[9px] text-gray-400">持续填入与它的凡尘点滴，筑成连接阴阳二世的时间走廊。</p>
             </div>
           </div>

@@ -100,7 +100,7 @@ export default function ResonanceSystem({ activePet, onUpdateCoins, triggerToast
     setCuddleSuccess(true);
     setCuddledNames(prev => (prev.includes(activeMatch.name) ? prev : [...prev, activeMatch.name]));
     onUpdateCoins(15);
-    triggerToast(`🫂 【星光贴贴】大成功！${activePet?.name || "小宠物"} 与它的灵魂星伴 ${activeMatch.name} 亲热贴面滚在了一起，获得星尘币 +15 ✨`);
+    triggerToast(`🫂 【星光贴贴】大成功！${activePet?.name || "小宠物"} 与它的灵魂星伴 ${activeMatch.name} 亲热贴面滚在了一起，获得星辰币 +15 ✨`);
   };
 
   return (
@@ -184,7 +184,7 @@ export default function ResonanceSystem({ activePet, onUpdateCoins, triggerToast
                   }`}
                 >
                   <Heart className="w-3.5 h-3.5 fill-pink-400" />
-                  {cuddleSuccess ? "已心灵贴贴联谊 (币+15)" : "模拟双宠大世界贴贴贴 (星尘币+15)"}
+                  {cuddleSuccess ? "已心灵贴贴联谊 (币+15)" : "模拟双宠大世界贴贴贴 (星辰币+15)"}
                 </button>
               </div>
             </div>
@@ -229,7 +229,7 @@ export default function ResonanceSystem({ activePet, onUpdateCoins, triggerToast
 
               <div className="text-[7.5px] font-mono text-gray-500 text-center z-10 leading-normal max-w-xs uppercase">
                 {cuddleSuccess 
-                  ? "🌈 契约星能激荡！两只宝物散发粉色星尘粒子，友谊契约等级升华。"
+                  ? "🌈 契约星能激荡！两只宝物散发粉色星辰粒子，友谊契约等级升华。"
                   : "💡 点击左侧【大世界贴贴】按钮。让两只小宠靠近撒娇翻滚，共同吸收散逸星塵能量！"
                 }
               </div>

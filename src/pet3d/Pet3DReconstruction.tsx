@@ -281,7 +281,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     // If background removal was not run yet, trigger it implicitly
     let imageSource = transparentImgUrl || getCurrentImageUrl();
     if (!isBgRemoved) {
-      await addLog("💡 检测未进行前置背景剔除，自动在星尘通道里分离图像...", 200);
+      await addLog("💡 检测未进行前置背景剔除，自动在星辰通道里分离图像...", 200);
       try {
         const transparentResult = await computeTransparentImage(getCurrentImageUrl(), bgTolerance);
         imageSource = transparentResult;
@@ -544,7 +544,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     const gltfJSON = {
       asset: {
         version: "2.0",
-        generator: "StarPuff AI 3D Exporter v2.1"
+        generator: "StarPuff 3D Exporter v2.1"
       },
       scene: 0,
       scenes: [
@@ -659,7 +659,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     dlLink.click();
     document.body.removeChild(dlLink);
 
-    triggerToast(`🎉 成功下载 ${targetName} 治愈星尘骨骼模型 GLTF！文件大小约 55KB，可在微信小游戏或 3D 编辑器载入！`);
+    triggerToast(`🎉 成功下载 ${targetName} 治愈星辰骨骼模型 GLTF！文件大小约 55KB，可在微信小游戏或 3D 编辑器载入！`);
     playSound("success");
   };
 
@@ -1509,7 +1509,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
                   ) : isBgRemoved ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>重新星尘祛除背景</span>
+                      <span>重新星辰祛除背景</span>
                     </>
                   ) : (
                     <>
@@ -1636,7 +1636,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
               ) : (
                 <>
                   <Cpu className="w-4 h-4 text-emerald-300 animate-pulse" />
-                  <span>一键启动星尘感应 3D 骨骼重构绑定</span>
+                  <span>一键启动星辰感应 3D 骨骼重构绑定</span>
                 </>
               )}
             </button>
@@ -1806,9 +1806,42 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
                   👁️ {useReal3D ? "已切换至物理着色器渲染网格" : "显示全息骨骼组件 (Bone Skeleton Rig)"}
                 </label>
               </div>
+              {/* [BUG-FIX] 动画指令切换栏：walk / wag_tail / sit / pet 四套骨骼动画
+                  早已在绘制循环中完整实现，但 setActiveAnimation 从未被调用，
+                  玩家完全没有入口触发这些动作。补上切换按钮。 */}
+              {!useReal3D && (
+                <div className="flex items-center gap-1 flex-wrap justify-center">
+                  {(
+                    [
+                      { key: "stand", label: "待机", emoji: "🧍" },
+                      { key: "walk", label: "行走", emoji: "🚶" },
+                      { key: "wag_tail", label: "摇尾", emoji: "🐾" },
+                      { key: "sit", label: "坐下", emoji: "🪑" },
+                      { key: "pet", label: "撒娇", emoji: "💗" },
+                    ] as const
+                  ).map(anim => (
+                    <button
+                      key={anim.key}
+                      type="button"
+                      onClick={() => {
+                        setActiveAnimation(anim.key);
+                        playSound("click");
+                      }}
+                      className={`px-1.5 py-1 rounded text-[9px] font-mono transition-colors cursor-pointer ${
+                        activeAnimation === anim.key
+                          ? "bg-pink-500/25 text-pink-200 border border-pink-500/40"
+                          : "bg-white/5 text-gray-400 hover:text-white border border-transparent"
+                      }`}
+                      title={`切换动画：${anim.label}`}
+                    >
+                      {anim.emoji} {anim.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 <span className="text-[8px] md:text-[9.5px] text-pink-300 font-mono">
-                  💡 {useReal3D ? "鼠标拖拽旋转 3D 写实模型 | 滚轮缩放" : "拖动鼠标旋转 3D | 点击产生星尘"}
+                  💡 {useReal3D ? "鼠标拖拽旋转 3D 写实模型 | 滚轮缩放" : "拖动鼠标旋转 3D | 点击产生星辰"}
                 </span>
               </div>
             </div>
@@ -1867,7 +1900,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
               {/* 导出操作按钮 */}
               <div className="space-y-2">
                 <span className="text-[10px] text-purple-300 font-sans block tracking-wide">
-                  ✨ 让 3D 星尘形象陪伴你
+                  ✨ 让 3D 星辰形象陪伴你
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
@@ -1890,11 +1923,11 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
                 </div>
               </div>
 
-              {/* 星尘档案签印 */}
+              {/* 星辰档案签印 */}
               <div className="p-3.5 bg-[#09031a] rounded-xl border border-pink-500/15">
                 <div className="flex items-center gap-1.5 border-b border-white/5 pb-1.5 mb-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[10px] text-emerald-300 font-sans tracking-wide">星尘档案签印</span>
+                  <span className="text-[10px] text-emerald-300 font-sans tracking-wide">星辰档案签印</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-indigo-100 text-justify font-sans">
                   {reconstructedModel.loreParagraph}

@@ -23,7 +23,7 @@ const CHECK_IN_ROSTER = [
   { day: 4, rewardCoins: 12, giftName: null },
   { day: 5, rewardCoins: 15, giftName: null },
   { day: 6, rewardCoins: 18, giftName: null },
-  { day: 7, rewardCoins: 25, giftName: "🌟 高能星尘棒棒糖 x1" }
+  { day: 7, rewardCoins: 25, giftName: "🌟 高能星辰棒棒糖 x1" }
 ];
 
 export default function CheckInCalendar({ checkInCalendar = [], onCheckIn, triggerToast, lastCheckInDate }: CheckInCalendarProps) {
@@ -46,9 +46,9 @@ export default function CheckInCalendar({ checkInCalendar = [], onCheckIn, trigg
     onCheckIn(reward, todayStr);
     
     if (rosterItem.giftName) {
-      triggerToast(`🏆 极星重聚! 第 ${nextDayNum} 天连续签到，获得星尘币 +${reward} 并额外获赠 【${rosterItem.giftName}】！`);
+      triggerToast(`🏆 极星重聚! 第 ${nextDayNum} 天连续签到，获得星辰币 +${reward} 并额外获赠 【${rosterItem.giftName}】！`);
     } else {
-      triggerToast(`✨ 签到成功！连续升温第 ${nextDayNum} 天，获取星尘币 +${reward}！`);
+      triggerToast(`✨ 签到成功！连续升温第 ${nextDayNum} 天，获取星辰币 +${reward}！`);
     }
   };
 
@@ -125,7 +125,7 @@ export default function CheckInCalendar({ checkInCalendar = [], onCheckIn, trigg
 
               <div className="flex flex-col items-center leading-none">
                 <span className="text-[10px] font-bold font-mono">+{item.rewardCoins}</span>
-                <span className="text-[7px] text-gray-500 font-sans mt-0.5">星尘币</span>
+                <span className="text-[7px] text-gray-500 font-sans mt-0.5">星辰币</span>
               </div>
             </div>
           );
@@ -140,7 +140,7 @@ export default function CheckInCalendar({ checkInCalendar = [], onCheckIn, trigg
           <strong className="text-pink-400 text-xs font-mono">{checkInCalendar.length}</strong> 次
         </span>
         <span className="text-[8.5px] text-zinc-500">
-          第 7 天必得【高能星尘零食】🍬
+          第 7 天必得【高能星辰零食】🍬
         </span>
       </div>
     </div>

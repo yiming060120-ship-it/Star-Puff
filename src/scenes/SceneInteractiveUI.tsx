@@ -47,7 +47,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
       const reward = type === 'roseSeed' ? 10 : 30;
       onGrantCoins(reward);
       setInventory(prev => ({ ...prev, flowers: prev.flowers + 1 }));
-      addLog(`✨ 收获了盛开的花朵！获得 ${reward} 星尘币`);
+      addLog(`✨ 收获了盛开的花朵！获得 ${reward} 星辰币`);
       playSound("chime");
     }
   };
@@ -117,7 +117,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
     if (total > 0) {
       onGrantCoins(total);
       setBreads({ croissant: 0, starCake: 0 });
-      addLog(`💰 卖出了所有糕点，获得 ${total} 星尘币！`);
+      addLog(`💰 卖出了所有糕点，获得 ${total} 星辰币！`);
       playSound("sparkle");
     } else {
       addLog("ℹ️ 货架上没有糕点可卖，快去烘焙吧！");
@@ -127,18 +127,18 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   const upgradeShop = () => {
     if (shopLevel >= 2) return addLog("ℹ️ 商店已满级！");
     if (coins < 200) {
-      addLog("⚠️ 星尘币不足，需要 200 星尘币升级。");
+      addLog("⚠️ 星辰币不足，需要 200 星辰币升级。");
       playSound("beep");
       return;
     }
-    // 同步扣全局星尘币
+    // 同步扣全局星辰币
     if (onSpendCoins && !onSpendCoins(200)) {
-      addLog("⚠️ 星尘币不足，需要 200 星尘币升级。");
+      addLog("⚠️ 星辰币不足，需要 200 星辰币升级。");
       playSound("beep");
       return;
     }
     setShopLevel(2);
-    addLog("🎊 花费 200 星尘币，商店升级成功！解锁新食谱！");
+    addLog("🎊 花费 200 星辰币，商店升级成功！解锁新食谱！");
     playSound("chime");
   };
 
@@ -148,13 +148,13 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
 
   const trainPet = (stat: 'speed' | 'stamina') => {
     if (coins < 20) {
-      addLog("⚠️ 星尘币不足 20，无法进行训练。");
+      addLog("⚠️ 星辰币不足 20，无法进行训练。");
       playSound("beep");
       return;
     }
-    // 同步扣全局星尘币
+    // 同步扣全局星辰币
     if (onSpendCoins && !onSpendCoins(20)) {
-      addLog("⚠️ 星尘币不足，无法进行训练。");
+      addLog("⚠️ 星辰币不足，无法进行训练。");
       playSound("beep");
       return;
     }
@@ -190,11 +190,11 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
       const score = (latest.speed * 1.5) + latest.stamina + (Math.random() * 10);
       if (score > 40) {
         onGrantCoins(100);
-        addLog("🏆 你的宠物获得了冠军！奖励 100 星尘币！");
+        addLog("🏆 你的宠物获得了冠军！奖励 100 星辰币！");
         playSound("chime");
       } else if (score > 25) {
         onGrantCoins(30);
-        addLog("🥈 你的宠物获得了亚军！奖励 30 星尘币。");
+        addLog("🥈 你的宠物获得了亚军！奖励 30 星辰币。");
       } else {
         addLog("💨 你的宠物未能进入前三，继续训练吧！");
       }
@@ -220,7 +220,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
       addLog("⚠️ 需要 20 点研究点数才能解锁秘闻。");
       return;
     }
-    const lorePieces = ["星尘的起源是远古超新星的叹息。", "双子座沙滩的沙子其实是碎裂的时空结晶。", "森林深处沉睡着第一代星际漫游者。"];
+    const lorePieces = ["星辰的起源是远古超新星的叹息。", "双子座沙滩的沙子其实是碎裂的时空结晶。", "森林深处沉睡着第一代星际漫游者。"];
     // 先找出尚未解锁的秘闻，避免「扣点但无产出」
     const lockedLore = lorePieces.filter(l => !unlockedLore.includes(l));
     if (lockedLore.length === 0) {
@@ -245,7 +245,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
           </div>
           <h3 className="text-sm font-bold text-white tracking-wide font-sans">
             {sceneId === 'rose' && "星云花圃"}
-            {sceneId === 'vega' && "星尘面包店"}
+            {sceneId === 'vega' && "星辰面包店"}
             {sceneId === 'comet' && "彗星竞速中心"}
             {sceneId === 'library' && "银河图书馆"}
             {sceneId === 'gemini' && "双子座海滨浴场"}
@@ -256,7 +256,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
         <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-full px-3 py-1.5">
            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
            <span className="text-sm font-bold text-amber-300 font-sans">{coins}</span>
-           <span className="text-[10px] text-white/40">星尘币</span>
+           <span className="text-[10px] text-white/40">星辰币</span>
         </div>
       </div>
 
@@ -455,7 +455,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
                   }
                   setExploreCount(c => c + 1);
                   onGrantCoins(10);
-                  addLog("✨ 在未探索区域发现了一些星尘币！");
+                  addLog("✨ 在未探索区域发现了一些星辰币！");
                   playSound("sparkle");
                 }}
                 disabled={exploreCount >= EXPLORE_LIMIT}

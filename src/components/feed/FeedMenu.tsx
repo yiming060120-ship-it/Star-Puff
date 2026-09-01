@@ -118,7 +118,7 @@ export default function FeedMenu({ inventory, stardustCoins, onFeed, onBuy, onCl
 
         {/* 余额 */}
         <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-          <span className="text-gray-400">当前星尘币</span>
+          <span className="text-gray-400">当前星辰币</span>
           <span className="font-mono text-orange-300 font-bold flex items-center gap-1">
             <Coins className="w-4 h-4" />
             {stardustCoins}

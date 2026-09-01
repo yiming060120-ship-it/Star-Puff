@@ -2,17 +2,17 @@
  * useGenerateQuota - 生成次数限制 hook
  *
  * 免费用户每日 1 次，月卡用户每日 3 次（每日 0 点重置）。
- * 免费次数用完 → 付费生成（扣星尘币，走 onSpendCoins 回调）。
+ * 免费次数用完 → 付费生成（扣星辰币，走 onSpendCoins 回调）。
  *
- * 付费价格（星尘币）：
- *   - 单次付费生成：60 星尘币/次
- *   - 赛博风格额外：60 星尘币/次（付费风格）
+ * 付费价格（星辰币）：
+ *   - 单次付费生成：60 星辰币/次
+ *   - 赛博风格额外：60 星辰币/次（付费风格）
  */
 
 import { useState, useEffect, useCallback } from "react";
 
 const QUOTA_KEY = "stardust_quota";
-const PAY_PER_GENERATE = 60; // 单次付费生成价格（星尘币）
+const PAY_PER_GENERATE = 60; // 单次付费生成价格（星辰币）
 
 function todayStr(): string {
   return new Date().toDateString();
@@ -57,7 +57,7 @@ export function useGenerateQuota(isVip: boolean, onSpendCoins?: (amount: number)
   }, []);
 
   /**
-   * 付费生成：扣星尘币，成功返回 true。
+   * 付费生成：扣星辰币，成功返回 true。
    * 付费生成不占用每日免费次数。
    */
   const payAndGenerate = useCallback((): boolean => {
