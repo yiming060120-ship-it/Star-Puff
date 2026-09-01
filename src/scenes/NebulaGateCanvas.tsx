@@ -30,14 +30,20 @@ interface ExplorerPet {
   type: PetType;
   x: number;
   y: number;
-  vx: number;
-  vy: number;
   primaryColor: string;
   size: number;
   isUser: boolean;
+  // 跳跃式运动状态
+  targetX: number;
+  targetY: number;
+  atCluster: boolean;          // 当前目标是否为地标聚集点（决定停留时长）
+  state: "moving" | "resting";
+  restUntil: number;           // 停留结束帧号
+  hopOffset: number;           // 跳跃相位错开，避免齐步走
+  hopInterval: number;         // 跳跃间隔帧数
 }
 
-const BACKEND_BOTS: Array<Omit<ExplorerPet, "x" | "y" | "vx" | "vy" | "isUser">> = [
+const BACKEND_BOTS: Array<Omit<ExplorerPet, "x" | "y" | "isUser" | "targetX" | "targetY" | "atCluster" | "state" | "restUntil" | "hopOffset" | "hopInterval">> = [
   { name: "斑斑", type: "狗", primaryColor: "#e07a5f", size: 10 },
   { name: "喵小九", type: "猫", primaryColor: "#ffd166", size: 9 },
   { name: "流星兔", type: "兔", primaryColor: "#a2d2ff", size: 9 },
@@ -45,6 +51,48 @@ const BACKEND_BOTS: Array<Omit<ExplorerPet, "x" | "y" | "vx" | "vy" | "isUser">>
   { name: "波波熊", type: "其他", primaryColor: "#80ed99", size: 11 },
   { name: "千两小狗", type: "狗", primaryColor: "#f4f1de", size: 10 }
 ];
+
+// --- 跳跃式运动 + 集群效应 ---
+// 每个场景定义 2-3 个"地标聚集点"（坐标按 canvas 700×400 比例，取自各场景绘制函数的地标位置），
+// 星宠有较高概率把聚集点附近当作目标，从而形成多个光标在特定点位聚集、停留片刻再散开的效果。
+
+interface ClusterPoint {
+  x: number;
+  y: number;
+  r: number; // 聚集点吸引半径
+}
+
+const SCENE_CLUSTERS: Record<string, ClusterPoint[]> = {
+  rose: [{ x: 140, y: 160, r: 60 }, { x: 420, y: 120, r: 70 }], // 拱门、喷泉
+  vega: [{ x: 140, y: 120, r: 60 }, { x: 490, y: 200, r: 70 }, { x: 175, y: 280, r: 60 }], // 灯塔、大屋、面包店
+  comet: [{ x: 245, y: 130, r: 50 }, { x: 455, y: 130, r: 50 }, { x: 350, y: 200, r: 40 }], // 椭圆轨道上的加速环
+  library: [{ x: 350, y: 280, r: 80 }, { x: 350, y: 260, r: 50 }], // 悬浮平台、书桌
+  gemini: [{ x: 140, y: 160, r: 60 }, { x: 560, y: 160, r: 60 }, { x: 350, y: 280, r: 60 }], // 双子岛、遮阳伞
+  andromeda: [{ x: 350, y: 260, r: 100 }, { x: 350, y: 280, r: 80 }], // 喷泉、广场
+  orion: [{ x: 105, y: 320, r: 60 }, { x: 595, y: 360, r: 60 }, { x: 350, y: 200, r: 70 }], // 大树、树洞树、背景树
+};
+
+const GATE_W = 700;
+const GATE_H = 400;
+
+/** 选择下一个目标点：50% 概率落在聚集点附近（集群效应），50% 全图随机 */
+const pickNextTarget = (clusters: ClusterPoint[] | undefined) => {
+  if (clusters && clusters.length > 0 && Math.random() < 0.5) {
+    const c = clusters[Math.floor(Math.random() * clusters.length)];
+    const ang = Math.random() * Math.PI * 2;
+    const rad = Math.random() * c.r;
+    return {
+      targetX: Math.max(20, Math.min(GATE_W - 20, c.x + Math.cos(ang) * rad)),
+      targetY: Math.max(20, Math.min(GATE_H - 20, c.y + Math.sin(ang) * rad)),
+      isCluster: true,
+    };
+  }
+  return {
+    targetX: 20 + Math.random() * (GATE_W - 40),
+    targetY: 20 + Math.random() * (GATE_H - 40),
+    isCluster: false,
+  };
+};
 
 // --- High Fidelity Next-Gen Procedural Canvas Rendering Helpers ---
 // Designed to simulate depth, volumetric lighting, and rich particle effects.
@@ -734,17 +782,29 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
     initSceneRef.current = sceneId;
 
     let list: ExplorerPet[] = [];
+    const clusters = SCENE_CLUSTERS[sceneId] || [];
+    // 每只宠物从自己的初始目标点开始，phase 错开避免齐步跳
+    const freshTarget = () => {
+      const t = pickNextTarget(clusters);
+      const hopInterval = 5 + Math.floor(Math.random() * 5);
+      return {
+        x: t.targetX, y: t.targetY,
+        targetX: t.targetX, targetY: t.targetY, atCluster: t.isCluster,
+        state: "moving" as const, restUntil: 0,
+        hopOffset: 0, hopInterval,
+      };
+    };
     if (userPet) {
       list.push({
-        name: userPet.name, type: userPet.type, x: 350, y: 200,
-        vx: (Math.random() - 0.5) * 0.5, vy: (Math.random() - 0.5) * 0.5,
-        primaryColor: userPet.primaryColor, size: 11, isUser: true
+        name: userPet.name, type: userPet.type,
+        primaryColor: userPet.primaryColor, size: 11, isUser: true,
+        ...freshTarget(),
       });
     }
     BACKEND_BOTS.forEach(bot => {
       list.push({
-        ...bot, x: 50 + Math.random() * 600, y: 50 + Math.random() * 320,
-        vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6, isUser: false
+        ...bot, isUser: false,
+        ...freshTarget(),
       });
     });
     petsRef.current = list;
@@ -842,33 +902,39 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
 
       // 4. Draw Pets
       const pets = petsRef.current;
+      const clusters = SCENE_CLUSTERS[sceneId];
       pets.forEach(pet => {
-        pet.x += pet.vx;
-        pet.y += pet.vy;
-        if (pet.x < 20 || pet.x > canvas.width - 20) pet.vx *= -1;
-        if (pet.y < 20 || pet.y > canvas.height - 20) pet.vy *= -1;
-        
-        // Randomly change direction occasionally（降低频率与幅度，让星宠在地标停留更久，便于产生社交交集）
-        if (Math.random() < 0.004) {
-          pet.vx += (Math.random() - 0.5) * 0.2;
-          pet.vy += (Math.random() - 0.5) * 0.2;
-          const speed = Math.hypot(pet.vx, pet.vy);
-          if (speed > 0.6) {
-             pet.vx = (pet.vx / speed) * 0.45;
-             pet.vy = (pet.vy / speed) * 0.45;
+        // 跳跃式运动：向目标点分步跳跃，到达后停留片刻（聚集点停留更久，形成集群效应）
+        if (pet.state === "resting") {
+          if (frame >= pet.restUntil) {
+            // 停留结束，选新目标继续跳跃
+            const t = pickNextTarget(clusters);
+            pet.targetX = t.targetX;
+            pet.targetY = t.targetY;
+            pet.atCluster = t.isCluster;
+            pet.state = "moving";
+            pet.hopInterval = 5 + Math.floor(Math.random() * 5);
+            pet.hopOffset = Math.floor(Math.random() * pet.hopInterval);
+          }
+        } else {
+          const dx = pet.targetX - pet.x;
+          const dy = pet.targetY - pet.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 6) {
+            // 到达目标：聚集点停留 2-4 秒，普通点 1-2 秒（速率放缓 + 停顿感）
+            pet.state = "resting";
+            const restFrames = pet.atCluster
+              ? 130 + Math.floor(Math.random() * 130)
+              : 70 + Math.floor(Math.random() * 70);
+            pet.restUntil = frame + restFrames;
+          } else if (frame % pet.hopInterval === pet.hopOffset) {
+            // 只在命中自身相位的那一帧跳一小步，其余帧静止 → "跳一格、停一下"的跳跃感
+            const step = 3 + Math.random() * 4; // 每跳 3-7px，整体速率低于原匀速
+            pet.x += (dx / dist) * step;
+            pet.y += (dy / dist) * step;
           }
         }
-        
-        // Scene specific logic for pets
-        if (sceneId === "comet") {
-          // Force them to run around in an ellipse loosely
-          const cx = canvas.width/2;
-          const cy = canvas.height/2;
-          const angle = Math.atan2(pet.y - cy, pet.x - cx);
-          pet.vx = -Math.sin(angle) * 0.7;
-          pet.vy = Math.cos(angle) * 0.7;
-        }
-        
+
         // Occasional scene interaction log using SCENE_DESIGNS data
         if (pet.isUser && Math.random() < 0.002) {
           const behaviors = sceneDesign.petBehaviors;

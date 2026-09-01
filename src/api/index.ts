@@ -69,6 +69,7 @@ export async function generateWhispers(params: {
   activeLevel: number;
   recentEvents: string[];
   isVip: boolean;
+  personalityTags?: string[];
 }): Promise<WhisperResponse> {
   const result = await request<WhisperResponse>("/api/whisper", {
     method: "POST",

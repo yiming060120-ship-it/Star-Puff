@@ -2,7 +2,25 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
-import { microtransactionRoutes, updateConfig, getReport, getConfig, revokeGrant } from "./microtransaction-api/index";
+import { pickSocialPet } from "./src/data/socialPetPool";
+
+// 微交易 API 依赖原生 better-sqlite3（需本机编译）。本机未编译时降级关闭微交易，
+// 保证核心功能（星门漫游 / 每日心语 / AI 对话）正常可用。
+let mtxApi: any = null;
+try {
+  mtxApi = require("./microtransaction-api/index");
+} catch (e) {
+  console.warn("⚠️ microtransaction-api 未加载（better-sqlite3 原生模块不可用），微交易已降级关闭。可安装 VS Build Tools 后执行 `npm rebuild better-sqlite3` 恢复。", (e as Error).message);
+}
+const mtxFallbackRouter = express.Router();
+mtxFallbackRouter.all("*", (_req: express.Request, res: express.Response) =>
+  res.status(503).json({ success: false, error: "微交易服务未启用（sqlite 不可用）" })
+);
+const microtransactionRoutes: express.Router = mtxApi?.microtransactionRoutes ?? mtxFallbackRouter;
+const updateConfig = mtxApi?.updateConfig ?? (() => {});
+const getConfig = mtxApi?.getConfig ?? (() => ({ mockMode: true, webApiKey: "" }));
+const getReport = mtxApi?.getReport ?? (async () => ({ success: false, data: [] }));
+const revokeGrant = mtxApi?.revokeGrant ?? (async () => ({}));
 
 dotenv.config();
 
@@ -58,6 +76,13 @@ app.post("/api/whisper", async (req, res) => {
 
   const client = getGeminiClient();
 
+  // 每日心语社交化：性格标签有值 → 性格匹配模式；无值 → 随机偶遇模式
+  const personalityTags = Array.isArray(req.body.personalityTags)
+    ? req.body.personalityTags.filter((t: unknown) => typeof t === "string" && t.trim() !== "")
+    : [];
+  const socialMode = personalityTags.length > 0 ? "matched" : "random";
+  const socialPet = pickSocialPet(petName, personalityTags);
+
   // Create formatted context from interactive log
   const eventLogs = recentEvents.length > 0
     ? recentEvents.join("，")
@@ -88,8 +113,15 @@ app.post("/api/whisper", async (req, res) => {
 
     const collection = petType.includes("猫") ? kittyPhrases : petType.includes("狗") ? puppyPhrases : defaults;
     const items: string[] = [];
+    const SOCIAL_PLACES = ["玫瑰星云公园", "彗星跑道", "银河图书馆", "仙女座喷泉", "双子座沙滩", "织女星小镇", "猎户座森林"];
+    const socialIntro = socialMode === "matched" ? "性格很投缘的" : "";
     for (let i = 0; i < numWhispers; i++) {
-       items.push(collection[i % collection.length]);
+       const socialClause = i === 0
+         ? `今天${socialIntro}${socialPet.name}一直来找你家的${petName}玩，我们在${SOCIAL_PLACES[i % SOCIAL_PLACES.length]}一起追着星尘跑了好久。`
+         : i % 2 === 0
+           ? `而且${socialIntro}${socialPet.name}也来了，说它的主人和你一样温柔，让我多陪陪你。`
+           : `我们还和${socialIntro}${socialPet.name}一起在${SOCIAL_PLACES[(i + 2) % SOCIAL_PLACES.length]}拍了张星光合影，它说下次还要来找我们。`;
+       items.push(collection[i % collection.length] + " " + socialClause);
     }
     return res.json({
       success: true,
@@ -108,6 +140,9 @@ app.post("/api/whisper", async (req, res) => {
 - 宠物种类 (petType): ${petType}
 - 宠物羁绊等级 (activeLevel): ${activeLevel}级
 - 前一日交互事件 logs: ${eventLogs}
+- 今日社交对象 (socialPet): ${socialPet.name}（家长：${socialPet.ownerName}，性格标签：${socialPet.personalityTags.join("、")}）
+- 社交模式 (socialMode): ${socialMode === "matched" ? "性格匹配" : "随机偶遇"}
+${socialMode === "matched" ? `- 我家宠物性格标签 (personalityTags): ${personalityTags.join("、")}（与社交对象性格投缘）` : ""}
 - 生成耳语文案条数 (numWhispers): ${numWhispers}
 
 请为该宠物生成 ${numWhispers} 条独一无二的耳语。
@@ -117,7 +152,8 @@ app.post("/api/whisper", async (req, res) => {
 2. 格式：以主人称呼("${ownerName}")开头，并以宠物第一人称写信的口吻展开。比如: "${ownerName}，昨天我穿行在了玫瑰星云..."
 3. 主题与情绪：宇宙治愈像素风，不可悲哀，而是要把宠物的生活刻画得像一场奇妙的“星尘冒险”。宠物在星河中很幸福，长出了发光的星尘尾翼/光晕，每天都在思念、守护和感谢主人。
 4. 细节融合：必须将“前一日交互事件” natural地融入文本。比如：如果提到了“喂了饼干”，就写“尝到了带有巧克力星云味的饼干，让我在漂浮时更温暖”；如果是“碰撞了另一个宠物”，可以写“遇见了一个可爱的小玩伴，虽然在一起跑，但我心里的秘密还是只有我们两人懂”；如果是“星云之门地标停留”，就结合该地标的诗歌意境描述。
-5. 结果请以标准JSON格式返回，包含一个名为 "whispers" 的字符串数组，格式如下:
+5. 社交融入：请在生成的 ${numWhispers} 条耳语中至少一条自然融入以下社交互动——${socialPet.name} 今天经常和你家的 ${petName} 在一起玩（可写一起在地标追逐星尘、拍星光合影、性格投缘等），不要每条都写，保持自然不突兀。
+6. 结果请以标准JSON格式返回，包含一个名为 "whispers" 的字符串数组，格式如下:
 {
   "whispers": [
      "第一条耳语文案内容",

@@ -1404,6 +1404,7 @@ export default function App() {
         activeLevel: user.membership === "free" ? 6 : 12,
         recentEvents: user.historyLogs,
         isVip: user.membership !== "free",
+        personalityTags: user.activePet?.personalityTags ?? [],
       });
 
       if (data.success && data.whispers && data.whispers.length > 0) {
