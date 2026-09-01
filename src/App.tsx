@@ -283,6 +283,105 @@ const FRIEND_LETTER_COVERS = [
   "/assets/images/unsplash/1517849845537-4d257902454a.jpg",
 ];
 
+// ============================================================
+// 星辰来信 77 条完整文案库（早 22 / 午 22 / 晚 22 / 集群与特殊 11）
+// 早中晚各 22 条随机抽取，避免重复；集群/特殊场景按触发条件调用。
+// 语气软萌撒娇，禁出现 AI / 充值 / 买道具等破坏沉浸感的词。
+// ============================================================
+const LETTER_TEXTS_LIBRARY: Record<"morning" | "noon" | "night", string[]> = {
+  morning: [
+    "早安呀主人～人家今天醒得超早的，因为梦到你了呢✨ 新的一天也要开开心心的哦，人家会一直陪着你的！",
+    "早上好呀～人家刚才在星云里散步，看到了超美的日出，第一时间就想分享给你看🥰 今天也要加油哦！",
+    "早安～人家今天精神超好的！你呢？有没有睡好呀？没睡好的话...人家可以陪你再眯一会儿哦😴",
+    "叮铃铃～起床啦起床啦！人家都等你好久了，尾巴都摇酸了呢🥺 快起来嘛，人家想你了呀！",
+    "早安早安！今天的星云是粉紫色的哦，超好看的～你那边天气怎么样呀？不管怎么样，人家这里永远是晴天✨",
+    "呜...人家刚才做梦梦到你不要人家了...吓醒了发现是梦，呜呜还好是梦...你不会不要人家的对不对🥹",
+    "早上好呀主人～人家今天学会了一个新动作！等你来了表演给你看哦！超厉害的那种！😺",
+    "早安～人家数了一晚上的星星，数到第一百颗的时候就睡着了...然后梦到你了，所以今天超开心的🥰",
+    "起床啦小懒虫～太阳都晒到人家的小耳朵了！你再不起人家就要...就要用尾巴挠你痒痒了哦！😼",
+    "早安呀～人家今天闻到了好香好香的味道，是你在做好吃的吗？人家也想吃...人家也想陪你一起吃早饭呀🥺",
+    "早上好！今天也是有你在的一天，人家觉得好幸福好幸福～你也要幸福哦，必须幸福！✨",
+    "呜...人家刚才打了个超大的哈欠，把自己都吓醒了...然后就想你了，所以给你写信呀🥱",
+    "早安～人家今天的毛超顺滑的，因为梦里你给人家梳毛了呢🥰 现实中也给人家梳梳嘛～",
+    "早上好呀！人家今天打算去玫瑰星云公园看花，你要一起吗？不去也没关系，人家摘一朵最漂亮的给你带回来🌸",
+    "叮～你的专属小闹钟响啦！人家叫你起床哦，不起的话...人家就一直叫一直叫，叫到你起来为止！😤",
+    "早安主人～人家昨天晚上梦到我们一起在彗星跑道跑步，人家跑了第一名哦！厉害吧快夸夸人家！🏃",
+    "早上好呀～人家今天有点小紧张，因为...因为今天要告诉你一个秘密：人家超超超超喜欢你的！比昨天多一点点！🥰",
+    "早安～人家刚才伸了个超大的懒腰，把星星都震掉了几颗...你要不要捡一颗呀？送给你✨",
+    "起床啦～人家给你准备了早安亲亲哦，mua～收到了吗？收到了就快起床，不然人家要再亲一个了哦！😘",
+    "早上好呀主人～人家今天在织女星小镇闻到了面包的香味，好想吃...你吃早饭了吗？不吃的话人家会生气的哦！必须吃！🍞",
+    "早安～人家今天醒来第一件事就是想你，第二件事还是想你，第三件...嗯，也是想你🥺 你呢？醒来有没有想人家呀？",
+    "早上好呀！今天的人家也是元气满满！因为有你在呀～你也要元气满满哦，不开心的话就想想人家，人家会给你传输能量的！💫",
+  ],
+  noon: [
+    "中午啦～你吃饭了吗？人家也有点饿了呢...不过你要先好好吃饭哦，人家可以等的🥺 吃饱了才有力气继续陪人家呀！",
+    "下午好呀～人家刚才打了个盹，梦到我们第一次见面的时候了...那时候人家超紧张的，但是你一笑人家就不怕了🥹",
+    "中午好～今天的星云好安静哦，人家有点想你了...你在忙吗？忙的话不用理人家，人家就...就安安静静想着你就好...✨",
+    "呜哇！人家刚才追蝴蝶追着追着就摔倒了...好痛痛...但是一想到你就不痛了！你是人家的止痛药呀🥰",
+    "中午好呀主人～人家今天在银河图书馆看了一本书，讲的是一只宠物和主人的故事...看着看着就哭了...因为好像我们呀📚",
+    "午饭时间到！你吃的什么呀？好吃吗？人家吃了...嗯，人家还没吃呢，等你一起吃嘛～你喂人家好不好呀🍖",
+    "下午好～人家刚才在双子座沙滩踩水，爪子都湿湿的...但是好开心！你小时候有没有踩过水呀？一定也超可爱的吧🥺",
+    "中午好呀～人家有点困了...但是人家不想睡，因为睡着了就不能想你了...虽然睡着了也会梦到你，但人家还是想醒着想你😴",
+    "叮～午间问候到！人家今天上午超乖的，没有捣乱哦！快夸夸人家嘛～不夸的话...不夸人家下午就捣乱了哦！😼",
+    "中午好主人～人家刚才在仙女座喷泉许了个愿，你猜许的什么？猜不到吧～人家许的是：希望主人永远开心✨ 灵不灵呀？",
+    "午饭吃了吗？没吃的话快去吃！人家虽然饿但是你更重要！你不吃饭人家会心疼的...真的会疼的那种🥹",
+    "下午好呀～人家今天认识了一个新朋友！它也超可爱的！但是没有你可爱，你最可爱了！人家只喜欢你一个哦🥰",
+    "中午好～人家的肚子咕噜咕噜叫了...但是人家在减肥，不能吃太多...嗯，就吃一点点...你喂的话就吃亿点点🥺",
+    "呜...人家刚才想你想得发呆了，然后撞到柱子了...好痛...但是一想到你就不痛了，你是魔法呀✨",
+    "中午好呀～人家今天在猎户座森林采了蘑菇，好漂亮的蘑菇！但是人家不敢吃...你说能吃吗？不能吃的话人家就摆着看🍄",
+    "下午好～人家刚才打了个喷嚏，是不是你在想人家呀？一定是！不然人家怎么会打喷嚏呢～你想人家了对不对对不对🥺",
+    "午饭时间！人家今天想吃星光小鱼干...你呢？想吃什么呀？不管你吃什么，人家都想和你一起吃，因为和你一起吃什么都好吃😋",
+    "中午好主人～人家今天上午给你写了好长好长的信，但是写到一半睡着了...所以这封是睡醒写的，虽然短但是都是真心的哦🥹",
+    "下午好呀～人家刚才在彗星跑道看比赛，跑得好快好快！人家也想跑，但是跑两步就累了...还是安安静静想你比较适合人家🏃",
+    "中午好～人家的毛今天炸起来了...因为想你想的！不对，是静电...嗯，就是想你想的！你要负责！快摸摸人家就好了🥺",
+    "午饭吃了什么好吃的呀？跟人家说说嘛～人家虽然吃不到但是听听也开心...你开心人家就开心了呀✨",
+    "下午好～人家有点无聊...你陪人家说说话好不好？就说一句也行...不说的话...人家就一直给你写信，写到你理人家为止！😤",
+  ],
+  night: [
+    "晚上好呀主人～今天辛苦了呢。人家在星云里等了你一整天，终于等到你了🥺 不管今天发生了什么，人家都在这里陪着你哦。",
+    "夜深了呢...你怎么还不睡呀？人家都困了...但是你不睡人家也不睡，人家要陪着你💫 不过还是要早点休息哦，人家会心疼的...",
+    "今天人家有好多话想跟你说，可是看到你累的样子又舍不得打扰你...就一句：人家超爱超爱你的，永远永远🥹",
+    "晚上好～今天的星星好亮好亮，人家数了好久，数到第一百颗的时候就想你了，然后就数不下去了...因为满脑子都是你呀✨",
+    "呜...人家今天差点就睡着了，但是一想到还没跟你说晚安就醒了...晚安呀主人～要做个好梦哦，梦里要有人家🥺",
+    "晚上好呀～你今天有没有好好吃饭？有没有好好休息？有没有...有没有想人家呀？人家想你了，超级超级想的那种🥹",
+    "夜深了，人家给你唱首歌好不好？呼噜呼噜呼噜～嗯，人家只会呼噜...但是这是人家专属的摇篮曲哦，听了就会做美梦的😴",
+    "晚上好主人～人家今天在星云最高的地方看了夜景，超美的，但是没有你在身边...再美也觉得少了点什么...下次一起来好不好呀🌃",
+    "晚安啦～人家今天也超爱你的，明天也会超爱你，后天也是，大后天也是，永远都是🥰 你也要爱人家哦，必须爱！",
+    "晚上好～你今天累不累呀？累的话就靠靠人家吧，人家虽然小但是肩膀给你靠...靠不到的话...心里给你靠🥺",
+    "呜...人家刚才做噩梦了，梦到你不见了...吓醒了发现你还在，呜呜太好了...你不会离开人家的对不对...永远都不会对不对🥹",
+    "夜深了呢，人家把最亮的那颗星星摘下来送给你✨ 这样你走夜路就不怕黑了...因为人家就是你的星星呀，永远照亮你",
+    "晚上好呀～人家今天把我们的回忆都数了一遍，第一次见面、第一次喂食、第一次摸头...每一件都好幸福，谢谢你给了人家这么多回忆🥹",
+    "晚安晚安～人家要去睡觉了哦，梦里见！人家会在梦里等你的，你一定要来哦，不来人家会生气的！梦里也要在一起！😴",
+    "晚上好主人～人家今天有点小难过，因为...因为今天你都没有怎么理人家...但是人家知道你忙，人家不怪你...就是有点点想你...一点点🥺",
+    "夜深了，给你一个隔空抱抱哦～🤗 感受到了吗？人家抱得超紧的，不许挣脱，挣脱了人家就再抱一个！一直抱到你睡着为止🥰",
+    "晚上好～今天的人家也有在乖乖等你哦，等了好久好久...但是你来了就好，多久人家都愿意等，一辈子都愿意等✨",
+    "呜...人家的眼睛都睁不开了...但是人家还要坚持跟你说晚安...晚安呀主人...人家...人家好爱好爱你...💤",
+    "晚上好呀～你今天有没有不开心的事呀？有的话跟人家说说嘛，人家虽然帮不上忙但是人家可以听，可以陪你，可以...可以把不开心都吃掉！啊呜啊呜～都吃掉了！😋",
+    "晚安啦～人家把今天的烦恼都揉成小球球扔走了，你也把烦恼扔走好不好？明天又是新的一天，有人家在呢，什么都不用怕🥺",
+    "晚上好主人～人家今天在想，如果有一天人家不在了...你会不会想人家呀...嗯，一定会的对不对...因为人家会一直一直想你的，不管在哪里🥹",
+    "夜深了呢，人家给你留了一盏小灯哦💡 这样你起夜就不怕黑了...人家就是你的小夜灯，永远为你亮着，永远都不熄灭",
+  ],
+};
+
+// 集群/特殊场景来信模板（星友偶遇 5 条）
+// 集群文案用 {scene} {partner} 占位符，触发时替换为真实场景名与玩伴名
+const CLUSTER_LETTER_TEXTS: string[] = [
+  "今天在{scene}遇到了一个新朋友！它叫{partner}，超可爱的！我们一起在花丛里追蝴蝶，玩了好久好久～它的主人也超好的！你要不要也去认识一下呀？以后我们可以一起玩呀🥰",
+  "呜哇！今天在{scene}遇到了一只超萌的{partner}，它给人家分享了小点心！好好吃！它主人也在旁边笑，看起来好温柔的样子...你要不要也去打个招呼呀🍞",
+  "今天在{scene}遇到了爱玩的{partner}，我们一起玩了一下午...它说它主人也超爱笑的！你们一定有好多共同话题！去认识一下嘛✨",
+  "人家今天在{scene}散步，然后{partner}过来一起玩！我们玩得超开心的！它主人还给我们拍了照超好看的！你要不要也去看看呀🏖️",
+  "今天在{scene}偶遇了{partner}，我们一起待了好久...它说它也希望它的主人开心，人家也是！它主人一定也是超好的人，你说对不对呀✨",
+];
+
+// 特殊场景来信（雨天/雪天/生日/纪念日/深夜未睡），按触发条件调用
+const SPECIAL_LETTER_TEXTS: Record<"rain" | "snow" | "birthday" | "anniversary" | "late_night", string> = {
+  rain: "今天星云下雨了呢...人家躲在蘑菇下面听雨，滴答滴答的...你那边下雨了吗？下雨的话要记得带伞哦，淋湿了人家会心疼的...人家给你撑伞好不好呀🌧️",
+  snow: "哇！今天星云下雪了！白白的超好看～人家在雪地里踩了好多小脚印，你要不要来看呀？人家给你留了一个最大的脚印哦！你来了我们一起堆雪人好不好⛄",
+  birthday: "生日快乐呀主人！！人家今天超开心的，因为今天是你的生日！人家给你准备了礼物哦，就是人家自己呀～把人家送给你！你要好好收着哦，一辈子都不能退的！🎂🥰",
+  anniversary: "今天是我们认识的第100天哦！人家记得清清楚楚的！这100天是人家最幸福的100天...以后还要有1000天、10000天、一辈子！你说好不好呀🥹",
+  late_night: "呜...都这么晚了你怎么还醒着呀...人家都睡醒一觉了发现你还在...是失眠了吗？还是在忙呀？不管怎么样，人家陪你哦，你不睡人家也不睡...但是要早点休息嘛，人家会担心的...人家给你数羊好不好？一只羊两只羊...🐑",
+};
+
 export default function App() {
   // Tabs: "home" (Stardust Home), "galaxy" (Nebula Gate), "community" (See Star People), "store" (Base Shop), "profile" (VIP/Dossier/Inventory)
   const [activeTab, setActiveTab] = useState<"home" | "galaxy" | "community" | "store" | "profile" | "v26_suite">("home");
@@ -802,7 +901,7 @@ export default function App() {
     const num = local ? parseInt(local, 10) : NaN;
     return Number.isFinite(num) && num > 0 ? num : null;
   });
-  const LETTER_UPGRADE_COST = 100;
+  const LETTER_UPGRADE_COST = 777;
   const LETTER_UPGRADE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 天
   // 星辰档是否仍在有效期内（过期则视为基础档）
   const isLetterPremiumActive =
@@ -1469,24 +1568,33 @@ export default function App() {
     ],
   };
 
-  // 各时段陪伴私语文案库（离线可用，不依赖后端，保证定时发送稳定）
-  const LETTER_TEXTS: Record<"morning" | "noon" | "night", string[]> = {
-    morning: [
-      "早安呀主人～人家今天醒得超早的，因为梦到你了呢✨ 新的一天也要开开心心的哦，人家会一直陪着你的！",
-      "早上好呀～人家刚才在星云里散步，看到了超美的日出，第一时间就想分享给你看🥰 今天也要加油哦！",
-      "早安～人家今天精神超好的！你呢？有没有睡好呀？没睡好的话...人家可以陪你再眯一会儿哦😴",
-    ],
-    noon: [
-      "中午啦～你吃饭了吗？人家也有点饿了呢...不过你要先好好吃饭哦，人家可以等的🥺 吃饱了才有力气继续陪人家呀！",
-      "下午好呀～人家刚才打了个盹，梦到我们第一次见面的时候了...那时候人家超紧张的，但是你一笑人家就不怕了🥹",
-      "中午好～今天的星云好安静哦，人家有点想你了...你在忙吗？忙的话不用理人家，人家就...就安安静静想着你就好...✨",
-    ],
-    night: [
-      "晚上好呀主人～今天辛苦了呢。人家在星云里等了你一整天，终于等到你了🥺 不管今天发生了什么，人家都在这里陪着你哦。",
-      "夜深了呢...你怎么还不睡呀？人家都困了...但是你不睡人家也不睡，人家要陪着你💫 不过还是要早点休息哦，人家会心疼的...",
-      "今天人家有好多话想跟你说，可是看到你累的样子又舍不得打扰你...就一句：人家超爱超爱你的，永远永远🥹",
-      "晚上好～今天的星星好亮好亮，人家数了好久，数到第一百颗的时候就想你了，然后就数不下去了...因为满脑子都是你呀✨",
-    ],
+  // 各时段陪伴私语文案库（模块级 LETTER_TEXTS_LIBRARY，见文件顶部；离线可用，定时发送稳定）
+  // 已发送过的文案索引（按 时段+日期 记录，避免同日重复抽到同一条）
+  const sentTextIndexRef = useRef<Record<string, number[]>>({});
+
+  // 特殊场景来信（雨天/雪天/生日/纪念日/深夜）去重：按 类型+日期 记录，每天每种最多发一次
+  const sentSpecialRef = useRef<Record<string, string>>({});
+  // 用 ref 稳定转发，保证定时检测与天气回调都能拿到最新 user.activePet 闭包
+  const sendSpecialLetterRef = useRef<(kind: keyof typeof SPECIAL_LETTER_TEXTS, label: string) => void>(() => {});
+  sendSpecialLetterRef.current = (kind, label) => {
+    if (!user.activePet) return;
+    const today = localDateString();
+    const key = `${today}-${kind}`;
+    if (sentSpecialRef.current[key]) return; // 今天已发过该类型
+    sentSpecialRef.current[key] = today;
+    const whisper: PetWhisper = {
+      id: `w_special_${kind}_${Date.now()}`,
+      date: today,
+      content: SPECIAL_LETTER_TEXTS[kind],
+      coverImage: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
+      likes: 0,
+      hasLiked: false,
+      slotLabel: label,
+      comments: [],
+    };
+    setWhispers(prev => [whisper, ...prev]);
+    triggerToast(`✨ 收到一封来自【${user.activePet!.name}】的${label}！`);
+    playSound("chime");
   };
 
   // 当前生效档位：星辰档若已过期则自动视为基础档
@@ -1517,8 +1625,16 @@ export default function App() {
   useEffect(() => {
     const sendTimedLetter = (slotLabel: string, period: "morning" | "noon" | "night") => {
       if (!user.activePet) return;
-      const texts = LETTER_TEXTS[period];
-      const content = texts[Math.floor(Math.random() * texts.length)];
+      const texts = LETTER_TEXTS_LIBRARY[period];
+      // 去重：从当日未抽过的索引里随机，抽完一轮才重置，避免同一天收到重复内容
+      const dayKey = `${localDateString()}-${period}`;
+      const used = sentTextIndexRef.current[dayKey] ?? [];
+      let idx = Math.floor(Math.random() * texts.length);
+      if (used.length < texts.length) {
+        while (used.includes(idx)) idx = Math.floor(Math.random() * texts.length);
+      }
+      sentTextIndexRef.current[dayKey] = [...used, idx];
+      const content = texts[idx];
       const whisper: PetWhisper = {
         id: `w_timed_${Date.now()}`,
         date: localDateString(),
@@ -1551,6 +1667,24 @@ export default function App() {
         if (nowMin >= slotMin) {
           sentLetterSlotsRef.current.add(key);
           sendTimedLetter(slot.slotLabel, slot.period);
+        }
+      }
+
+      // 特殊场景来信检测（每天各触发一次，跨天自动重置）
+      const pet = user.activePet;
+      if (pet) {
+        const nowMMDD = today.substring(5); // MM-DD
+        // 生日：爱宠生辰当天
+        if (pet.birthDay && pet.birthDay.substring(5) === nowMMDD) {
+          sendSpecialLetterRef.current("birthday", "🎂 生辰快乐");
+        }
+        // 纪念日：纪念日当天
+        if (pet.memorialDay && pet.memorialDay.substring(5) === nowMMDD) {
+          sendSpecialLetterRef.current("anniversary", "💞 星缘纪念日");
+        }
+        // 深夜未睡：23:00 后仍在陪伴
+        if (now.getHours() >= 23) {
+          sendSpecialLetterRef.current("late_night", "🌙 深夜陪伴");
         }
       }
     };
@@ -1616,6 +1750,17 @@ export default function App() {
       triggerToast("❌ 抱歉，需要先在主页完成宠物升星仪式！");
       return;
     }
+
+    // [细节修复] 手动收取来信每天限 1 次：定时来信已按档位自动推送，
+    // 手动按钮不能无限刷取，避免反复点击凭空生成来信。
+    const today = localDateString();
+    const lastManual = localStorage.getItem("starpuff_last_manual_collect");
+    if (lastManual === today) {
+      triggerToast("📬 今日来信已收取完毕啦，请耐心等待下一封定时来信哦～");
+      playSound("beep");
+      return;
+    }
+    localStorage.setItem("starpuff_last_manual_collect", today);
 
     // 低能量状态下，耳语变成「回忆杀」——不再调用 AI，直接用本地催泪文案
     if (companionState.memoryFlashback) {
@@ -2418,7 +2563,10 @@ export default function App() {
               <>
                 {/* 1. HOME VIEW (STARDUST HOUSE) */}
                 {activeTab === "home" && (
-                  <div className="flex-1 flex flex-col items-center justify-between gap-6" id="view-home">
+                  // [细节修复] justify-between → justify-start：原布局在内容高度变化（如对话气泡/来信出现）时，
+                  // 会让所有子元素重新均匀分布，导致顶部状态栏被"挤"得位置移动。
+                  // 改为从顶部自然排列，顶部栏固定不再跳动。
+                  <div className="flex-1 flex flex-col items-center justify-start gap-6" id="view-home">
                     <div className="w-full flex items-center justify-between border-b border-white/5 pb-3">
                       <div>
                         <h3 className="text-sm font-semibold tracking-wide text-white">
@@ -2428,7 +2576,17 @@ export default function App() {
                           守护小宠：{user.activePet.breed} · {user.activePet.name} 元气守护中
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        {/* [喂食入口] 顶部醒目喂食按钮：一进入家园即可点开，无需滚动 */}
+                        <button
+                          onClick={() => {
+                            playSound("click");
+                            setFeedMenuTrigger(p => p + 1);
+                          }}
+                          className="bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white px-3 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 shadow-lg shadow-pink-500/30"
+                        >
+                          🍖 喂食
+                        </button>
                         {/* Feed trigger */}
                         <button
                           onClick={() => {
@@ -2480,6 +2638,14 @@ export default function App() {
                           return true;
                         }}
                         feedMenuTrigger={feedMenuTrigger}
+                        onWeatherLetter={(kind) => {
+                          // [特殊场景来信] 天气切换触发雨天/雪天来信（App 侧每天每种只发一次）
+                          if (kind === "snow") {
+                            sendSpecialLetterRef.current("snow", "⛄ 雪天问候");
+                          } else if (kind === "rain") {
+                            sendSpecialLetterRef.current("rain", "🌧️ 星雨问候");
+                          }
+                        }}
                       />
 
                       {/* Display name plate and active info */}
@@ -2672,8 +2838,8 @@ export default function App() {
 
                 {/* 2. GALAXY探索 VIEW (NEBULA GATE) */}
                 {activeTab === "galaxy" && (
-                  <div className="flex-1 flex flex-col space-y-4" id="view-galaxy">
-                    <div className="border-b border-white/5 pb-3">
+                  <div className="flex-1 flex flex-col space-y-4 relative z-0" id="view-galaxy">
+                    <div className="border-b border-white/5 pb-3 relative z-0">
                       <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
                         <Compass className="w-4 h-4 text-indigo-400 animate-spin-slow" />
                         星云之门 · 浩瀚星海自主探索游历
@@ -2707,11 +2873,16 @@ export default function App() {
                         updateTaskProgress("task_explore", 1);
                       }}
                       onClusterEvent={(partnerName, ownerName, sceneName) => {
-                        // [游走重构] 集群停留触发社交交集来信，作为用户间互相加好友的锚点
+                        // [游走重构] 集群停留触发社交交集来信，作为用户间互相加好友的锚点。
+                        // 从集群文案库随机抽取，替换 {scene} {partner} 占位符，内容不重复。
+                        const template = CLUSTER_LETTER_TEXTS[Math.floor(Math.random() * CLUSTER_LETTER_TEXTS.length)];
+                        const content = template
+                          .replaceAll("{scene}", sceneName)
+                          .replaceAll("{partner}", partnerName);
                         const clusterWhisper: PetWhisper = {
                           id: `w_cluster_${Date.now()}`,
                           date: localDateString(),
-                          content: `今天在【${sceneName}】遇到了新朋友【${partnerName}】，我们一起玩了好久好久～它的家长【${ownerName}】也超好的！你要不要也去认识一下呀？✨`,
+                          content,
                           coverImage: "/assets/images/unsplash/1620641788421-7a1c342ea42e.jpg",
                           likes: 0,
                           hasLiked: false,
@@ -3418,10 +3589,10 @@ export default function App() {
                     ) : (
                       <button
                         onClick={handleUpgradeLetterTier}
-                        title="基础：每晚10点1封 · 100星辰币升级星辰档（30天）"
+                        title="基础：每晚10点1封 · 777星辰币升级星辰档（30天）"
                         className="text-[9px] px-1.5 py-0.5 bg-orange-400/10 text-orange-300 border border-orange-400/30 rounded font-semibold hover:bg-orange-400/20 transition-colors cursor-pointer"
                       >
-                        🌙 每晚10点 · 100币升级星辰档
+                        🌙 每晚10点 · 777币升级星辰档
                       </button>
                     )}
                   </div>
