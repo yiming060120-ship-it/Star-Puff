@@ -1,14 +1,14 @@
 /**
- * FeedMenu - 食物选择底部弹窗（任务三）
+ * FeedMenu - 食物选择顶部面板（任务三）
  *
- * 从底部滑出的半屏菜单，横向滚动食物卡片。
+ * 从顶部导航栏下方滑出的菜单，网格展示食物卡片。
  * 每个卡片显示：图标、名称、恢复数值、拥有数量/价格。
  */
 
-import React, { useRef } from "react";
+import React from "react";
 // [CLEANUP] 已移除未使用的 findFoodById（组件直接遍历 foodItems）
 import { foodItems, type FoodInventory } from "../../data/foodItems";
-import { Coins, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Coins, X } from "lucide-react";
 
 interface FeedMenuProps {
   inventory: FoodInventory;
@@ -25,24 +25,18 @@ const RARITY_STYLE: Record<string, string> = {
 };
 
 export default function FeedMenu({ inventory, stardustCoins, onFeed, onBuy, onClose }: FeedMenuProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const scrollBy = (dir: number) => {
-    scrollRef.current?.scrollBy({ left: dir * 180, behavior: "smooth" });
-  };
-
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center" onClick={onClose}>
-      {/* 半透明遮罩 */}
+    // [细节修复] 遮罩与面板都从顶部导航栏下方（top-32 = 128px = header 64 + nav 64）开始，
+    // 避免盖住顶部 logo 与导航栏（此前 inset-0 + pt-14 会让面板与 logo 重叠遮挡）
+    <div className="fixed inset-x-0 top-32 bottom-0 z-[70] flex items-start justify-center" onClick={onClose}>
+      {/* 半透明遮罩（仅覆盖内容区，不遮顶部 logo/导航） */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* BottomSheet */}
+      {/* 顶部面板（食物菜单显示在内容区顶部，一眼可见，无需滚动） */}
       <div
-        className="relative w-full max-w-lg bg-[#1a1133]/95 border-t border-x border-purple-500/30 rounded-t-3xl p-5 pb-8 animate-slide-up"
+        className="relative w-full max-w-lg bg-[#1a1133]/95 border-b border-x border-purple-500/30 rounded-b-3xl p-5 pb-6 animate-slide-down"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 顶部把手 */}
-        <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-4" />
 
         {/* 标题 */}
         <div className="flex items-center justify-between mb-4">
@@ -56,41 +50,22 @@ export default function FeedMenu({ inventory, stardustCoins, onFeed, onBuy, onCl
           </button>
         </div>
 
-        {/* 食物横向滚动列表（带左右箭头 + 可见滚动条） */}
-        <div className="relative">
-          {/* 左箭头 */}
-          <button
-            onClick={() => scrollBy(-1)}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-purple-500/40 transition-colors"
-            title="向左滑动"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          {/* 右箭头 */}
-          <button
-            onClick={() => scrollBy(1)}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-purple-500/40 transition-colors"
-            title="向右滑动"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-
-          <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-3 px-10 custom-scrollbar">
+        {/* [细节优化] 食物网格：5 种食物一眼全见，无需左右滑动，点一下即喂/购 */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {foodItems.map((food) => {
             const count = inventory[food.id] ?? 0;
             return (
               <div
                 key={food.id}
-                className={`min-w-[140px] shrink-0 p-3 rounded-xl border-2 bg-black/30 flex flex-col items-center text-center ${RARITY_STYLE[food.rarity]}`}
+                className={`p-3 rounded-xl border-2 bg-black/30 flex flex-col items-center text-center ${RARITY_STYLE[food.rarity]}`}
               >
-                <div className="text-4xl mb-2">{food.icon}</div>
-                <div className="text-sm font-bold text-white">{food.name}</div>
+                <div className="text-3xl mb-1">{food.icon}</div>
+                <div className="text-sm font-bold text-white leading-tight">{food.name}</div>
                 <div className="text-[9px] text-gray-400 mt-1 space-y-0.5">
                   <div className="text-orange-300">+{food.hungerRestore} 饥饿</div>
                   <div className="text-cyan-300">+{food.energyRestore} 能量</div>
                   <div className="text-pink-300">+{food.moodRestore} 心情</div>
                 </div>
-                <div className="text-[8px] text-gray-500 mt-1 leading-tight line-clamp-2">{food.description}</div>
 
                 <div className="mt-2 w-full">
                   {count > 0 ? (
@@ -113,7 +88,6 @@ export default function FeedMenu({ inventory, stardustCoins, onFeed, onBuy, onCl
               </div>
             );
           })}
-          </div>
         </div>
 
         {/* 余额 */}

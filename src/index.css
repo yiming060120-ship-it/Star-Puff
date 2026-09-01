@@ -128,6 +128,15 @@ body {
   animation: slide-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
+/* 顶部滑入（喂食菜单等顶部面板） */
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-down {
+  animation: slide-down 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
 /* 慢速旋转（图标装饰） */
 @keyframes spin-slow {
   from { transform: rotate(0deg); }

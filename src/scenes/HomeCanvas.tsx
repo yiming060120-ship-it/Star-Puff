@@ -76,6 +76,8 @@ interface HomeCanvasProps {
   onSpendCoins?: (amount: number) => boolean;
   // 外部触发打开喂食菜单（星辰家园互动面板的"喂食"按钮递增此值）
   feedMenuTrigger?: number;
+  // 天气切换时通知上层（用于触发雨天/雪天特殊场景来信）
+  onWeatherLetter?: (kind: "rain" | "snow") => void;
 }
 
 // Visual Model engine visualization modes
@@ -183,7 +185,7 @@ function pickWeatherSpeech(weather: WeatherType, species: SpeciesKey): string {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSparkleTrigger, stardustCoins = 0, onSpendCoins, feedMenuTrigger }: HomeCanvasProps) {
+export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSparkleTrigger, stardustCoins = 0, onSpendCoins, feedMenuTrigger, onWeatherLetter }: HomeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const threeCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -339,6 +341,14 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
     setSkyWeather(nextWeather);
     setSkyTime(nextTime);
     playSound("chime");
+
+    // [特殊场景来信] 天气切换时通知上层触发对应来信。
+    // 雪天→雪天来信；流星雨（星雨）→雨天来信（当前天气无独立 rain 类型，星雨为最贴切的"天空降水"）
+    if (nextWeather === "snow") {
+      onWeatherLetter?.("snow");
+    } else if (nextWeather === "star-rain") {
+      onWeatherLetter?.("rain");
+    }
 
           const advisories: Record<string, string[]> = {
             clear: [
@@ -3359,8 +3369,11 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           const textWidth = ctx.measureText(displayText).width;
           const bubbleW = Math.max(280, Math.min(420, textWidth + 40));
           const bubbleH = textWidth > 360 ? 72 : 44;
-          const bubbleX = cx - bubbleW / 2;
-          const bubbleY = cy - bodyR - 100 + Math.sin(frame * 0.05) * 2;
+          // [细节修复] 气泡框改用 shiftX/shiftY 定位（跟随宠物的跳跃/舞蹈/翻滚等完整偏移），
+          // 此前用 cx/cy 只含呼吸浮动与一半跳跃偏移，宠物跳起/落下时气泡框跟不上、
+          // 无法随宠物一起下移，产生错位。
+          const bubbleX = shiftX - bubbleW / 2;
+          const bubbleY = shiftY - bodyR - 100 + Math.sin(frame * 0.05) * 2;
 
           ctx.beginPath();
           ctx.roundRect ? ctx.roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18) : ctx.rect(bubbleX, bubbleY, bubbleW, bubbleH);
@@ -3368,9 +3381,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           ctx.stroke();
 
           ctx.beginPath();
-          ctx.moveTo(cx - 6, bubbleY + bubbleH);
-          ctx.lineTo(cx, bubbleY + bubbleH + 6);
-          ctx.lineTo(cx + 6, bubbleY + bubbleH);
+          ctx.moveTo(shiftX - 6, bubbleY + bubbleH);
+          ctx.lineTo(shiftX, bubbleY + bubbleH + 6);
+          ctx.lineTo(shiftX + 6, bubbleY + bubbleH);
           ctx.closePath();
           ctx.fillStyle = "rgba(15, 10, 36, 0.82)";
           ctx.fill();
@@ -3381,10 +3394,10 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           ctx.textBaseline = "middle";
           
           if (textWidth > 360) {
-            ctx.fillText(displayText.slice(0, 16), cx, bubbleY + 24);
-            ctx.fillText(displayText.slice(16), cx, bubbleY + 48);
+            ctx.fillText(displayText.slice(0, 16), shiftX, bubbleY + 24);
+            ctx.fillText(displayText.slice(16), shiftX, bubbleY + 48);
           } else {
-            ctx.fillText(displayText, cx, bubbleY + bubbleH / 2);
+            ctx.fillText(displayText, shiftX, bubbleY + bubbleH / 2);
           }
           ctx.restore();
         }
@@ -4299,13 +4312,13 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
         {/* The interactive main drawing viewport */}
         <div className="relative flex justify-center bg-black overflow-hidden group">
-          {/* [喂食功能区] 喂食按钮：放在 2D 形象画布右上角（而非页面最下方） */}
+          {/* [喂食功能区] 喂食按钮：放在 2D 形象画布右上角，带文字标签更醒目，点一下即开 */}
           <button
             onClick={() => { setFeedMenuOpen(true); playSound("click"); }}
-            className="absolute top-3 right-3 z-[65] w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-2xl flex items-center justify-center shadow-[0_0_16px_rgba(236,72,153,0.55)] hover:scale-110 active:scale-95 transition-all border-2 border-pink-300/50"
+            className="absolute top-3 right-3 z-[65] px-3 h-11 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white text-sm font-bold flex items-center gap-1.5 shadow-[0_0_18px_rgba(236,72,153,0.6)] hover:scale-105 active:scale-95 transition-all border-2 border-pink-300/50"
             title="喂食"
           >
-            🍖
+            <span className="text-lg leading-none">🍖</span> 喂食
           </button>
 
           {/* 2D 核心渲染画布（含天气系统、情绪动画等旧版配件） */}
