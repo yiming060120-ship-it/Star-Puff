@@ -96,9 +96,10 @@ const pickNextTarget = (clusters: ClusterPoint[] | undefined) => {
     isCluster: false,
   };
 };
-// 集群检测阈值：两只宠物距离 < 50 视为"同地停留"；累计 > 30 秒触发集群来信
-const CLUSTER_DISTANCE = 50;
-const CLUSTER_DURATION = 30000; // 30 秒
+// 集群检测阈值：两只宠物距离 < 90 视为"同地停留"；累计 > 8 秒触发集群来信
+// （阈值按跳跃式+聚集停留的新节奏放宽：原 50px/30 秒在降速后几乎无法达成，好友来信实际失效）
+const CLUSTER_DISTANCE = 90;
+const CLUSTER_DURATION = 8000; // 8 秒
 const CLUSTER_COOLDOWN = 90000;  // 同一对宠物触发后 90 秒内不重复触发
 
 // --- High Fidelity Next-Gen Procedural Canvas Rendering Helpers ---
