@@ -3,6 +3,7 @@ import { PetConfig, PetType } from "../types";
 import { playSound } from "../audio/AudioSynth";
 import { Compass, Sparkles, Trophy, ChevronLeft, Image as ImageIcon } from "lucide-react";
 import { SCENE_DESIGNS } from "../data/sceneDesigns";
+import { toBackendBots } from "../data/virtualFriends";
 import { SceneInteractiveUI } from "./SceneInteractiveUI";
 
 interface NebulaGateCanvasProps {
@@ -46,14 +47,9 @@ interface ExplorerPet {
   ownerName?: string;          // 家长名（集群来信需要展示对方家长信息）
 }
 
-const BACKEND_BOTS: Array<Omit<ExplorerPet, "x" | "y" | "isUser" | "targetX" | "targetY" | "atCluster" | "state" | "restUntil" | "hopOffset" | "hopInterval">> = [
-  { name: "斑斑", type: "狗", primaryColor: "#e07a5f", size: 10, ownerName: "桃桃妈" },
-  { name: "喵小九", type: "猫", primaryColor: "#ffd166", size: 9, ownerName: "七七爸" },
-  { name: "流星兔", type: "兔", primaryColor: "#a2d2ff", size: 9, ownerName: "雪糕麻麻" },
-  { name: "闪电青鸟", type: "鸟", primaryColor: "#560bad", size: 8, ownerName: "小羽同学" },
-  { name: "波波熊", type: "其他", primaryColor: "#80ed99", size: 11, ownerName: "默默妈妈" },
-  { name: "千两小狗", type: "狗", primaryColor: "#f4f1de", size: 10, ownerName: "皮皮大队长" }
-];
+// 星门偶遇 bot：从统一虚拟好友数据源派生（取前 8 只，避免画面过挤），
+// 家长名已收敛，与社区/信箱/每日心语是同一批星友。
+const BACKEND_BOTS: Array<Omit<ExplorerPet, "x" | "y" | "isUser" | "targetX" | "targetY" | "atCluster" | "state" | "restUntil" | "hopOffset" | "hopInterval">> = toBackendBots().slice(0, 8);
 
 // --- 跳跃式运动 + 集群效应 ---
 // 每个场景定义 2-3 个"地标聚集点"（坐标按 canvas 700×400 比例，取自各场景绘制函数的地标位置），

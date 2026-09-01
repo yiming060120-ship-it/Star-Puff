@@ -3,10 +3,13 @@
  *
  * 单机版没有真实多用户后端，用本地模拟的"其他平台用户宠物"池充当社交用户池，
  * 供每日心语社交玩法（/api/whisper）与未来社交功能复用。
+ * 数据源统一来自 virtualFriends.ts（12 位虚拟星友）。
  *
- * ⚠️ 本文件必须保持零依赖、零 import、无 DOM/React 引用：
+ * ⚠️ 本文件必须保持零运行时依赖、无 DOM/React 引用（只能 import type 或纯数据模块）：
  * server.ts 经 esbuild --bundle 编译进 dist/server.cjs，任何浏览器依赖都会被拉进服务端。
  */
+
+import { toPlatformPets } from "./virtualFriends";
 
 export interface PlatformPet {
   name: string;
@@ -15,15 +18,8 @@ export interface PlatformPet {
   personalityTags: string[];
 }
 
-/** 平台用户池：合并 ResonanceSystem.MATCHES（4只自带性格+家长名）与星门 BACKEND_BOTS 中缺失的 2 只 */
-export const PLATFORM_PETS: PlatformPet[] = [
-  { name: "斑斑", type: "狗", ownerName: "默默的麻麻", personalityTags: ["温柔憨厚", "狂野打滚", "善解兔意"] },
-  { name: "流星兔", type: "兔", ownerName: "雪糕麻麻", personalityTags: ["干饭达人", "温顺乖巧", "粘人屁颠"] },
-  { name: "喵小九", type: "猫", ownerName: "七七爸", personalityTags: ["傲娇舔毛", "高冷慵懒", "藏玩具高手"] },
-  { name: "闪电青鸟", type: "鸟", ownerName: "小羽同学", personalityTags: ["社交恐怖", "歌声嘹亮", "爱蹭额头"] },
-  { name: "波波熊", type: "其他", ownerName: "软糖妈妈", personalityTags: ["贪吃软萌", "憨厚黏人"] },
-  { name: "千两小狗", type: "狗", ownerName: "千千妈妈", personalityTags: ["活泼爱玩", "忠诚粘人"] },
-];
+/** 平台用户池：从统一虚拟好友数据源派生（12 只） */
+export const PLATFORM_PETS: PlatformPet[] = toPlatformPets();
 
 /** 性格六大维度 */
 const TRAITS = ["温柔", "好动", "傲娇", "黏人", "贪吃", "安静"] as const;

@@ -35,6 +35,9 @@ import AiSettings from "./features/system/AiSettings";
 import MtxLogPanel from "./features/system/MtxLogPanel";
 import { playSound } from "./audio/AudioSynth";
 import { localDateString } from "./utils/date";
+import { VIRTUAL_FRIENDS, pickFriends, pickOne } from "./data/virtualFriends";
+import type { VirtualFriend } from "./data/virtualFriends";
+import { useVirtualFriends } from "./hooks/useVirtualFriends";
 import { sendChatMessage, generateWhispers } from "./api";
 import { useMicrotransaction, applyGrantToUser, type PurchaseFlowState } from "./hooks/useMicrotransaction";
 import { useSteam } from "./hooks/useSteam";
@@ -226,9 +229,66 @@ const COMM_PRES_POSTS: CommunityPost[] = [
   }
 ];
 
+/** 生成 N 天前的本地日期时间字符串（"2026-05-21 08:14"） */
+function daysAgoString(days: number, hour: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(hour, Math.floor(Math.random() * 60), 0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 虚拟好友在社区帖下的围观评论文案池 */
+const VF_COMMENT_REPLIES = [
+  "看到你们家宝贝的近况，我家那位在旁边悄悄看了好久，眼睛都亮了。",
+  "摸摸家长，星星那边的小家伙们一定会互相照顾的。",
+  "我家宝贝昨晚还念叨着要去找你家宝贝玩，改天一起逛星河呀！",
+  "真治愈啊，星辰会记得每一份想念。",
+  "哇，好想认识你家宝贝！我家那个已经兴奋得在原地转圈了。",
+];
+
+/**
+ * 生成一批虚拟好友社区帖（id 前缀 vpost_，防与老存档/用户帖冲突）。
+ * 单机版没有真实多用户，用这 12 位「星友家长」模拟社区人气。
+ */
+function seedVirtualFriendPosts(count = 6): CommunityPost[] {
+  return pickFriends(count).map((f, i) => {
+    const repliers = pickFriends(1 + (i % 2), f.id); // 每帖 1-2 位围观好友
+    return {
+      id: `vpost_${f.id}_${i}`,
+      authorName: f.ownerName,
+      petName: f.petName,
+      petType: f.type,
+      primaryColor: f.primaryColor,
+      message: pickOne(f.postPool),
+      date: daysAgoString(1 + i, 8 + i * 2),
+      likes: 3 + Math.floor(Math.random() * 20),
+      hasLiked: false,
+      comments: repliers.map((r, j) => ({
+        id: `vpost_${f.id}_c${j}`,
+        authorName: r.ownerName,
+        text: pickOne(VF_COMMENT_REPLIES),
+        date: daysAgoString(1 + i, 9 + i * 2),
+      })),
+    };
+  });
+}
+
+/** 星友来信封面池（全部本地化图片，离线安全） */
+const FRIEND_LETTER_COVERS = [
+  "/assets/images/unsplash/1579783900882-c0d3dad7b119.jpg",
+  "/assets/images/unsplash/1586023492125-27b2c045efd7.jpg",
+  "/assets/images/unsplash/1537151625747-768eb6cf92b2.jpg",
+  "/assets/images/unsplash/1518546305927-5a555bb7020d.jpg",
+  "/assets/images/unsplash/1517849845537-4d257902454a.jpg",
+];
+
 export default function App() {
   // Tabs: "home" (Stardust Home), "galaxy" (Nebula Gate), "community" (See Star People), "store" (Base Shop), "profile" (VIP/Dossier/Inventory)
   const [activeTab, setActiveTab] = useState<"home" | "galaxy" | "community" | "store" | "profile" | "v26_suite">("home");
+
+  // 虚拟 AI 星友状态机：友好度 / 打招呼冷却 / 星门偶遇标记（单机版离线模拟）
+  const { getFriend, bumpFriendship, greetFriend, upsertMet, tierLabel } = useVirtualFriends();
 
   // 持久化：周期全量快照 → userData/save.json；窗口关闭/卸载前立即 flush，防崩档丢进度
   useEffect(() => {
@@ -755,11 +815,52 @@ export default function App() {
     const local = localStorage.getItem("starpuff_comp_posts");
     if (local) {
       try {
-        return JSON.parse(local);
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-    return COMM_PRES_POSTS;
+    // 新用户：预置路人帖 + 虚拟好友帖，社区一进来就有活气
+    return [...COMM_PRES_POSTS, ...seedVirtualFriendPosts(6)];
   });
+
+  // 老存档增量补种：首次挂载时若无虚拟好友帖（id 前缀 vpost_），追加一批好友动态
+  const seededVirtualPostsRef = useRef(false);
+  useEffect(() => {
+    if (seededVirtualPostsRef.current) return;
+    seededVirtualPostsRef.current = true;
+    setCommunityPosts(prev => {
+      if (prev.some(p => p.id.startsWith("vpost_"))) return prev;
+      return [...prev, ...seedVirtualFriendPosts(6)];
+    });
+  }, []);
+
+  // 进入社区 tab：低概率补一条虚拟好友新动态（限频 10 分钟，vpost_ 帖不超过 12 条，模拟"在线家长发新帖"）
+  const lastFriendPostAtRef = useRef(0);
+  useEffect(() => {
+    if (activeTab !== "community") return;
+    const now = Date.now();
+    if (now - lastFriendPostAtRef.current < 10 * 60 * 1000) return;
+    setCommunityPosts(prev => {
+      if (Math.random() > 0.3) return prev;
+      const vCount = prev.filter(p => p.id.startsWith("vpost_")).length;
+      if (vCount >= 12) return prev;
+      lastFriendPostAtRef.current = now;
+      const f = pickFriends(1)[0];
+      const post: CommunityPost = {
+        id: `vpost_${f.id}_${now}`,
+        authorName: f.ownerName,
+        petName: f.petName,
+        petType: f.type,
+        primaryColor: f.primaryColor,
+        message: pickOne(f.postPool),
+        date: daysAgoString(0, new Date().getHours()),
+        likes: 2 + Math.floor(Math.random() * 8),
+        hasLiked: false,
+        comments: [],
+      };
+      return [post, ...prev];
+    });
+  }, [activeTab]);
 
   // Daily Tasks state tracker（按本地日期每日重置进度）
   const [tasks, setTasks] = useState<TaskItem[]>(() => {
@@ -1460,6 +1561,55 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveLetterTier, user.activePet?.id]);
 
+  // 虚拟星友主动来信：启动即来一封（模拟"有人已主动认识你"），之后每 ≥5 小时 50% 概率再随机来一封
+  const lastFriendLetterRef = useRef(0);
+  const friendLetterInitRef = useRef(false);
+  useEffect(() => {
+    const sendFriendLetter = () => {
+      if (!user.activePet) return;
+      const now = Date.now();
+      const friend = pickFriends(1)[0];
+      const useShowcase = Math.random() < 0.5;
+      const whisper: PetWhisper = {
+        id: `w_friend_${now}`,
+        date: localDateString(),
+        content: pickOne(useShowcase ? friend.showcasePool : friend.letterPool),
+        coverImage: pickOne(FRIEND_LETTER_COVERS),
+        likes: 0,
+        hasLiked: false,
+        slotLabel: "💌 星友来信",
+        type: "friend",
+        friendId: friend.id,
+        relatedPetName: friend.petName,
+        relatedOwnerName: friend.ownerName,
+        comments: [],
+      };
+      setWhispers(prev => [whisper, ...prev]);
+      triggerToast(`💌 收到来自【${friend.ownerName}】的星友来信！快去看看它的宠物近况～`);
+      playSound("chime");
+    };
+
+    const maybeSendFriendLetter = () => {
+      if (!user.activePet) return;
+      const now = Date.now();
+      if (!friendLetterInitRef.current) {
+        friendLetterInitRef.current = true;
+        lastFriendLetterRef.current = now;
+        sendFriendLetter();
+        return;
+      }
+      if (now - lastFriendLetterRef.current >= 5 * 60 * 60 * 1000 && Math.random() < 0.5) {
+        lastFriendLetterRef.current = now;
+        sendFriendLetter();
+      }
+    };
+
+    maybeSendFriendLetter(); // 启动时立即检查（首次直接来一封）
+    const timer = setInterval(maybeSendFriendLetter, 60 * 60 * 1000); // 每小时检查一次冷却
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.activePet?.id]);
+
   // Simulated background whisper generation using server API
   const generateNewWhisper = async () => {
     if (!user.activePet) {
@@ -1777,21 +1927,38 @@ export default function App() {
   const handleLikeWhisper = (id: string) => {
     const target = whispers.find(w => w.id === id);
     if (!target) return;
-    if (!target.hasLiked) {
+    const liked = !target.hasLiked;
+    if (liked) {
       updateTaskProgress("task_like", 1);
+      // 给虚拟星友的来信点赞 → 友好度 +2（在线模拟互动）
+      if (target.type === "friend" && target.friendId) bumpFriendship(target.friendId, 2);
     }
     setWhispers(prev => prev.map(w =>
       w.id === id
-        ? { ...w, likes: Math.max(0, w.likes + (w.hasLiked ? -1 : 1)), hasLiked: !w.hasLiked }
+        ? { ...w, likes: Math.max(0, w.likes + (liked ? 1 : -1)), hasLiked: liked }
         : w
     ));
     playSound("chime");
   };
 
   // [游走重构] 集群来信的好友申请：让用户与"偶遇的宠物家长"建立社交连接锚点
+  // [星友来信] type==="friend"：对方本来就认识你，点按钮即成为星友（友好度 +5）
   const handleFriendRequest = (whisperId: string) => {
     const target = whispers.find(w => w.id === whisperId);
     if (!target || target.friendRequested) return;
+
+    if (target.type === "friend" && target.friendId) {
+      const friend = VIRTUAL_FRIENDS.find(f => f.id === target.friendId);
+      upsertMet(target.friendId, "cluster"); // 复用"已认识"标记
+      bumpFriendship(target.friendId, 5);
+      setWhispers(prev => prev.map(w =>
+        w.id === whisperId ? { ...w, friendRequested: true } : w
+      ));
+      triggerToast(`🌟 已与【${friend?.ownerName ?? target.relatedOwnerName ?? "对方家长"}】成为星友！友好度 +5。去社区找它打招呼吧～`);
+      playSound("success");
+      return;
+    }
+
     setWhispers(prev => prev.map(w =>
       w.id === whisperId ? { ...w, friendRequested: true } : w
     ));
@@ -1853,6 +2020,16 @@ export default function App() {
         ? `🎁 成功买下【${gift.name}】并赠予了【${post.petName}】！事件已广播至整条星河。`
         : `🎁 又为【${post.petName}】添了一份【${gift.name}】，它的光更亮了一些～`
     );
+
+    // 送给虚拟星友的帖子 → 友好度 +3（在线模拟互动）
+    const vf = VIRTUAL_FRIENDS.find(
+      f => post.id.startsWith("vpost_") && f.ownerName === post.authorName && f.petName === post.petName
+    );
+    if (vf) {
+      bumpFriendship(vf.id, 3);
+      triggerToast(`❤️ 【${post.petName}】的主人【${vf.ownerName}】回赠了一个星光拥抱！友好度 +3。`);
+    }
+
     playSound("success");
   };
 
@@ -1879,10 +2056,35 @@ export default function App() {
       comments: []
     };
 
-    setCommunityPosts(prev => [nextPost, ...prev]);
+    setCommunityPosts(prev => {
+      // 40% 概率：随机一位虚拟星友留下围观评论，模拟"社区在线家长"互动
+      if (Math.random() < 0.4) {
+        const replier = pickFriends(1)[0];
+        const reply: CommunityPost["comments"][number] = {
+          id: `vpost_reply_${Date.now()}`,
+          authorName: replier.ownerName,
+          text: pickOne(VF_COMMENT_REPLIES),
+          date: new Date().toISOString().replace("T", " ").substring(0, 16),
+        };
+        return [{ ...nextPost, comments: [reply] }, ...prev];
+      }
+      return [nextPost, ...prev];
+    });
     setNewPostText("");
     triggerToast("✨ 发帖发布成功！社区其他家长现在就能看到你的小动物了。");
     playSound("success");
+  };
+
+  // 向虚拟星友打招呼：冷却期内（1 小时）对方已在忙/已回复过，否则回一句拟人回应并 +3 友好度
+  const handleGreetFriend = (f: VirtualFriend) => {
+    const reply = greetFriend(f.id);
+    if (reply) {
+      triggerToast(`👋 你向【${f.ownerName}】打了招呼！${reply}`);
+      playSound("success");
+    } else {
+      triggerToast(`⏳ 你已经跟【${f.ownerName}】打过招呼啦，稍后再来聊聊吧～`);
+      playSound("beep");
+    }
   };
 
   // Simulation buying direct RMB items
@@ -2538,6 +2740,60 @@ export default function App() {
                       <p className="text-[10px] text-gray-400 mt-0.5">
                         在这里，怀念家人们聚集于此，分享逝宠在星辰彼方的星语信件，互赠礼物装扮对方。
                       </p>
+                    </div>
+
+                    {/* 星友通讯录：虚拟 AI 好友列表（单机版离线模拟在线家长） */}
+                    <div className="bg-gradient-to-br from-indigo-950/60 via-purple-950/40 to-transparent border border-indigo-500/20 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[11px] font-semibold text-indigo-200 flex items-center gap-1.5">
+                          🌠 星友通讯录 · {VIRTUAL_FRIENDS.length} 位星友家长
+                        </h4>
+                        <span className="text-[8.5px] text-indigo-300/60 font-mono">打招呼 / 送礼 / 点赞都能增进友好度</span>
+                      </div>
+                      <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                        {VIRTUAL_FRIENDS.map(f => {
+                          const rt = getFriend(f.id);
+                          return (
+                            <div key={f.id} className="shrink-0 w-40 bg-white/5 border border-white/10 rounded-xl p-2.5 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center text-sm"
+                                  style={{ backgroundColor: f.primaryColor, color: "#111" }}
+                                >
+                                  {f.icon}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[10px] font-semibold text-white truncate">{f.ownerName}</div>
+                                  <div className="text-[8.5px] text-purple-300 font-mono">{f.type}·{f.petName}</div>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {f.personalityTags.slice(0, 2).map(t => (
+                                  <span key={t} className="text-[8px] px-1 py-px rounded bg-white/5 text-gray-300 border border-white/5">{t}</span>
+                                ))}
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[8px] text-amber-300/90 font-mono">{tierLabel(rt.friendship)}</span>
+                                  <span className="text-[8px] text-gray-500 font-mono">{rt.friendship}/100</span>
+                                </div>
+                                <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-amber-400 to-pink-500 transition-all"
+                                    style={{ width: `${rt.friendship}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleGreetFriend(f)}
+                                className="w-full text-[9px] py-1 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/25 transition-colors cursor-pointer"
+                              >
+                                👋 打招呼
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* New Post Form */}
@@ -3206,6 +3462,24 @@ export default function App() {
                                 className="text-[9px] px-2 py-0.5 rounded border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500/20 transition-colors cursor-pointer"
                               >
                                 👋 认识它的主人
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {/* [星友来信] type==="friend"：虚拟星友主动来信，可直接加为星友 */}
+                        {whisper.type === "friend" && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] text-indigo-300 font-mono flex items-center gap-1">
+                              ✉️ 星友 {whisper.relatedOwnerName || "家长"}（{whisper.relatedPetName}）主动来信
+                            </span>
+                            {whisper.friendRequested ? (
+                              <span className="text-[9px] text-emerald-400">✓ 已是星友</span>
+                            ) : (
+                              <button
+                                onClick={() => handleFriendRequest(whisper.id)}
+                                className="text-[9px] px-2 py-0.5 rounded border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 transition-colors cursor-pointer"
+                              >
+                                🌟 认识它的主人
                               </button>
                             )}
                           </div>
