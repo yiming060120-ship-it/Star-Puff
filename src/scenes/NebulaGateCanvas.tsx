@@ -61,14 +61,16 @@ interface ClusterPoint {
   r: number; // 聚集点吸引半径
 }
 
+// [细节修复] 聚集点坐标按画布高度 400 均匀分布（上 80-140 / 中 180-220 / 下 280-360），
+// 此前多数场景的 y 集中在 120-200，导致地标与宠物光标全堆在画布上半、下半空白。
 const SCENE_CLUSTERS: Record<string, ClusterPoint[]> = {
-  rose: [{ x: 140, y: 160, r: 60 }, { x: 420, y: 120, r: 70 }], // 拱门、喷泉
-  vega: [{ x: 140, y: 120, r: 60 }, { x: 490, y: 200, r: 70 }, { x: 175, y: 280, r: 60 }], // 灯塔、大屋、面包店
-  comet: [{ x: 245, y: 130, r: 50 }, { x: 455, y: 130, r: 50 }, { x: 350, y: 200, r: 40 }], // 椭圆轨道上的加速环
-  library: [{ x: 350, y: 280, r: 80 }, { x: 350, y: 260, r: 50 }], // 悬浮平台、书桌
-  gemini: [{ x: 140, y: 160, r: 60 }, { x: 560, y: 160, r: 60 }, { x: 350, y: 280, r: 60 }], // 双子岛、遮阳伞
-  andromeda: [{ x: 350, y: 260, r: 100 }, { x: 350, y: 280, r: 80 }], // 喷泉、广场
-  orion: [{ x: 105, y: 320, r: 60 }, { x: 595, y: 360, r: 60 }, { x: 350, y: 200, r: 70 }], // 大树、树洞树、背景树
+  rose: [{ x: 140, y: 150, r: 60 }, { x: 420, y: 320, r: 70 }, { x: 350, y: 90, r: 50 }], // 拱门、喷泉、顶部花丛
+  vega: [{ x: 140, y: 110, r: 60 }, { x: 490, y: 320, r: 70 }, { x: 175, y: 290, r: 60 }], // 灯塔、大屋、面包店
+  comet: [{ x: 200, y: 90, r: 50 }, { x: 500, y: 320, r: 50 }, { x: 350, y: 200, r: 40 }], // 加速环（上/中/下）
+  library: [{ x: 150, y: 100, r: 60 }, { x: 500, y: 300, r: 60 }, { x: 350, y: 200, r: 60 }], // 上层书架、下层书桌、中庭
+  gemini: [{ x: 140, y: 140, r: 60 }, { x: 560, y: 320, r: 60 }, { x: 350, y: 200, r: 60 }], // 双子岛、遮阳伞、沙滩中部
+  andromeda: [{ x: 200, y: 130, r: 70 }, { x: 500, y: 320, r: 70 }, { x: 350, y: 260, r: 70 }], // 喷泉上/下/广场
+  orion: [{ x: 105, y: 320, r: 60 }, { x: 595, y: 120, r: 60 }, { x: 350, y: 210, r: 70 }], // 大树、树洞树、背景树
 };
 
 const GATE_W = 700;
@@ -189,8 +191,8 @@ const drawRosePark = (ctx: CanvasRenderingContext2D, w: number, h: number, frame
     ctx.shadowBlur = 0;
   }
 
-  // 3-tier Fountain
-  const fx = w*0.6, fy = h*0.3;
+  // 3-tier Fountain（[细节修复] 移到画布下半，让地标与宠物分布更均衡，不再全堆顶部）
+  const fx = w*0.6, fy = h*0.65;
   ctx.fillStyle = "#3a2e4d";
   ctx.beginPath(); ctx.ellipse(fx, fy+20, 80, 25, 0, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = "rgba(255, 190, 210, 0.6)";
@@ -697,7 +699,8 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   
   return (
-    <div className="space-y-4" id="nebula-gate-explore-panel">
+    // [细节修复] 加 relative z-0 显式层级，避免与上方的 App 级标题/导航产生绝对定位重叠
+    <div className="space-y-4 relative z-0" id="nebula-gate-explore-panel">
       {activeSceneId ? (
         <div>
           <button onClick={() => setActiveSceneId(null)} className="mb-3 text-[11px] text-indigo-400 flex items-center gap-1 hover:text-white transition-colors bg-white/5 px-2 py-1.5 rounded-lg border border-white/10 shadow-md backdrop-blur">
@@ -803,7 +806,7 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
     // 每只宠物从自己的初始目标点开始，phase 错开避免齐步跳
     const freshTarget = () => {
       const t = pickNextTarget(clusters);
-      const hopInterval = 5 + Math.floor(Math.random() * 5);
+      const hopInterval = 3 + Math.floor(Math.random() * 2);
       return {
         x: t.targetX, y: t.targetY,
         targetX: t.targetX, targetY: t.targetY, atCluster: t.isCluster,
@@ -930,23 +933,24 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
             pet.targetY = t.targetY;
             pet.atCluster = t.isCluster;
             pet.state = "moving";
-            pet.hopInterval = 5 + Math.floor(Math.random() * 5);
+            pet.hopInterval = 3 + Math.floor(Math.random() * 2);
             pet.hopOffset = Math.floor(Math.random() * pet.hopInterval);
           }
         } else {
           const dx = pet.targetX - pet.x;
           const dy = pet.targetY - pet.y;
           const dist = Math.hypot(dx, dy);
-          if (dist < 6) {
-            // 到达目标：聚集点停留 2-4 秒，普通点 1-2 秒（速率放缓 + 停顿感）
+          if (dist < 8) {
+            // 到达目标：聚集点停留约 1.3-2.2 秒，普通点约 0.7-1.2 秒（停顿感明显但不至于"卡住"）
             pet.state = "resting";
             const restFrames = pet.atCluster
-              ? 130 + Math.floor(Math.random() * 130)
-              : 70 + Math.floor(Math.random() * 70);
+              ? 80 + Math.floor(Math.random() * 50)
+              : 40 + Math.floor(Math.random() * 30);
             pet.restUntil = frame + restFrames;
           } else if (frame % pet.hopInterval === pet.hopOffset) {
-            // 只在命中自身相位的那一帧跳一小步，其余帧静止 → "跳一格、停一下"的跳跃感
-            const step = 3 + Math.random() * 4; // 每跳 3-7px，整体速率低于原匀速
+            // [细节修复] 每跳步长加大（12-20px），让"跳跃"肉眼清晰可见；
+            // 原 3-7px 步长 + 长停留导致宠物几乎静止，被误认为"不能动"。
+            const step = 12 + Math.random() * 8;
             pet.x += (dx / dist) * step;
             pet.y += (dy / dist) * step;
           }
@@ -1096,7 +1100,7 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
         </div>
       </div>
 
-      <div className="relative flex justify-center group overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
+      <div className="relative flex justify-center group overflow-hidden rounded-2xl border border-white/10 shadow-2xl z-0">
         <canvas
           ref={canvasRef}
           width={700}
