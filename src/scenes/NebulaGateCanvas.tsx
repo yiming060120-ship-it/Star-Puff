@@ -36,20 +36,20 @@ interface ExplorerPet {
   primaryColor: string;
   size: number;
   isUser: boolean;
-  // 跳跃式运动状态（分步跳跃）
+  // 平滑游走状态（缓慢连续移动 + 停留）
   targetX: number;
   targetY: number;
   atCluster: boolean;          // 当前目标是否为地标聚集点（决定停留时长）
   state: "moving" | "resting";
   restUntil: number;           // 停留结束帧号
-  hopOffset: number;           // 跳跃相位错开，避免齐步走
-  hopInterval: number;         // 跳跃间隔帧数
+  speed: number;               // 平滑移动速度（像素/帧），每只宠物略有差异更自然
   ownerName?: string;          // 家长名（集群来信需要展示对方家长信息）
 }
 
 // 星门偶遇 bot：从统一虚拟好友数据源派生（取前 8 只，避免画面过挤），
 // 家长名已收敛，与社区/信箱/每日心语是同一批星友。
-const BACKEND_BOTS: Array<Omit<ExplorerPet, "x" | "y" | "isUser" | "targetX" | "targetY" | "atCluster" | "state" | "restUntil" | "hopOffset" | "hopInterval">> = toBackendBots().slice(0, 8);
+// [合并] 保留远程的 toBackendBots 数据源，同时适配平滑移动的 speed 字段。
+const BACKEND_BOTS: Array<Omit<ExplorerPet, "x" | "y" | "isUser" | "targetX" | "targetY" | "atCluster" | "state" | "restUntil" | "speed">> = toBackendBots().slice(0, 8);
 
 // --- 跳跃式运动 + 集群效应 ---
 // 每个场景定义 2-3 个"地标聚集点"（坐标按 canvas 700×400 比例，取自各场景绘制函数的地标位置），
@@ -803,15 +803,14 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
 
     let list: ExplorerPet[] = [];
     const clusters = SCENE_CLUSTERS[sceneId] || [];
-    // 每只宠物从自己的初始目标点开始，phase 错开避免齐步跳
+    // 每只宠物从自己的初始目标点开始，速度略有差异避免齐步
     const freshTarget = () => {
       const t = pickNextTarget(clusters);
-      const hopInterval = 3 + Math.floor(Math.random() * 2);
       return {
         x: t.targetX, y: t.targetY,
         targetX: t.targetX, targetY: t.targetY, atCluster: t.isCluster,
         state: "moving" as const, restUntil: 0,
-        hopOffset: 0, hopInterval,
+        speed: 0.45 + Math.random() * 0.25,
       };
     };
     if (userPet) {
@@ -924,33 +923,33 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
       const pets = petsRef.current;
       const clusters = SCENE_CLUSTERS[sceneId];
       pets.forEach(pet => {
-        // 跳跃式运动：向目标点分步跳跃，到达后停留片刻（聚集点停留更久，形成集群效应）
+        // 平滑游走：缓慢、连续地向目标点移动（不再"跳一格停一下"），
+        // 到达后停留片刻（聚集点停留更久，形成集群效应）。画面流畅不卡顿。
         if (pet.state === "resting") {
           if (frame >= pet.restUntil) {
-            // 停留结束，选新目标继续跳跃
+            // 停留结束，选新目标继续游走，并随机新速度（轻微差异更自然）
             const t = pickNextTarget(clusters);
             pet.targetX = t.targetX;
             pet.targetY = t.targetY;
             pet.atCluster = t.isCluster;
             pet.state = "moving";
-            pet.hopInterval = 3 + Math.floor(Math.random() * 2);
-            pet.hopOffset = Math.floor(Math.random() * pet.hopInterval);
+            pet.speed = 0.45 + Math.random() * 0.25;
           }
         } else {
           const dx = pet.targetX - pet.x;
           const dy = pet.targetY - pet.y;
           const dist = Math.hypot(dx, dy);
-          if (dist < 8) {
-            // 到达目标：聚集点停留约 1.3-2.2 秒，普通点约 0.7-1.2 秒（停顿感明显但不至于"卡住"）
+          if (dist < 3) {
+            // 到达目标：聚集点停留约 2-3.3 秒，普通点约 1.2-1.8 秒（明显停顿，节奏舒缓）
             pet.state = "resting";
             const restFrames = pet.atCluster
-              ? 80 + Math.floor(Math.random() * 50)
-              : 40 + Math.floor(Math.random() * 30);
+              ? 120 + Math.floor(Math.random() * 80)
+              : 70 + Math.floor(Math.random() * 40);
             pet.restUntil = frame + restFrames;
-          } else if (frame % pet.hopInterval === pet.hopOffset) {
-            // [细节修复] 每跳步长加大（12-20px），让"跳跃"肉眼清晰可见；
-            // 原 3-7px 步长 + 长停留导致宠物几乎静止，被误认为"不能动"。
-            const step = 12 + Math.random() * 8;
+          } else {
+            // 平滑移动：每帧匀速靠近目标（约 0.45-0.7px/帧 ≈ 27-42px/秒），
+            // 速度缓慢但连续，帧率观感流畅，不再有"跳格子"的卡顿感。
+            const step = Math.min(pet.speed, dist);
             pet.x += (dx / dist) * step;
             pet.y += (dy / dist) * step;
           }
