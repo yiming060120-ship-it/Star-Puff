@@ -14,9 +14,26 @@ interface SceneInteractiveUIProps {
 
 export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId, addLog, onGrantCoins, onSpendCoins, initialCoins }) => {
   const [coins, setCoins] = useState(initialCoins ?? 100);
-  // [BUG-FIX] 探索次数上限，防止"四处探索"按钮无限刷币
-  const [exploreCount, setExploreCount] = useState(0);
+  // [BUG-FIX] 探索次数按「日期」持久化，防止切 Tab 卸载组件后 exploreCount 归零 → 无限"四处探索 +10 币"
   const EXPLORE_LIMIT = 3;
+  const [exploreCount, setExploreCount] = useState(0);
+  const exploreDateRef = useRef("");
+  useEffect(() => {
+    // 读取今日已探索次数
+    const today = new Date().toDateString();
+    exploreDateRef.current = today;
+    try {
+      const saved = localStorage.getItem("starpuff_explore_count");
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed && parsed.date === today) {
+        setExploreCount(parsed.count || 0);
+      } else {
+        setExploreCount(0);
+      }
+    } catch {
+      setExploreCount(0);
+    }
+  }, []);
 
   // [BUG-FIX] 本地 coins 仅作"显示镜像"，单向跟随全局 stardustCoins（initialCoins），
   // 消除双账本不同步问题。所有交易只通过 onGrantCoins/onSpendCoins 操作全局唯一权威。
@@ -188,11 +205,13 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
       setRaceActive(false);
       const latest = petStatsRef.current;
       const score = (latest.speed * 1.5) + latest.stamina + (Math.random() * 10);
-      if (score > 40) {
+      // [数值平衡] 初始 speed 10 + stamina 10 → 基础分 25，随机 0-10 → 25~35。
+      // 原冠军阈值 >40 初始永远达不到（伪目标），调整为 >35（训练 2-3 次即可冲击冠军）。
+      if (score > 35) {
         onGrantCoins(100);
         addLog("🏆 你的宠物获得了冠军！奖励 100 星辰币！");
         playSound("chime");
-      } else if (score > 25) {
+      } else if (score > 22) {
         onGrantCoins(30);
         addLog("🥈 你的宠物获得了亚军！奖励 30 星辰币。");
       } else {
@@ -300,7 +319,15 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
              </div>
              <button
                onClick={() => {
-                 // 补充种子和泉水，让花园玩法可以持续
+                 // [BUG-FIX] 免费物资每日限领 1 次，否则「星光种子种出 +30 币」可无限刷币
+                 const today = new Date().toDateString();
+                 const lastFree = localStorage.getItem("starpuff_free_supply_date");
+                 if (lastFree === today) {
+                   addLog("🛒 今日免费物资已领取过啦，明天再来吧～");
+                   playSound("beep");
+                   return;
+                 }
+                 localStorage.setItem("starpuff_free_supply_date", today);
                  setInventory(prev => ({ ...prev, roseSeed: prev.roseSeed + 5, starSeed: prev.starSeed + 2, magicWater: prev.magicWater + 3 }));
                  addLog("🛒 补充了玫瑰种子 x5、星光种子 x2、魔法泉水 x3！");
                  playSound("sparkle");
@@ -453,7 +480,12 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
                     addLog("🌌 这片星域已经探索完啦，明天再来看看吧～");
                     return;
                   }
-                  setExploreCount(c => c + 1);
+                  const next = exploreCount + 1;
+                  setExploreCount(next);
+                  // 持久化今日探索次数
+                  try {
+                    localStorage.setItem("starpuff_explore_count", JSON.stringify({ date: exploreDateRef.current, count: next }));
+                  } catch {}
                   onGrantCoins(10);
                   addLog("✨ 在未探索区域发现了一些星辰币！");
                   playSound("sparkle");

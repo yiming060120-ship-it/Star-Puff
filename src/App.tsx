@@ -1406,9 +1406,14 @@ export default function App() {
     triggerToast("已退出升星仪式，回到默影家宿。");
   };
 
-  const handleCheckIn = (coinsAwarded: number, todayString: string) => {
+  const handleCheckIn = (coinsAwarded: number, todayString: string, giftFoodId?: string, giftCount?: number) => {
     setUser(prev => {
-      const updatedCalendar = [...(prev.checkInCalendar || []), todayString];
+      let updatedCalendar = [...(prev.checkInCalendar || []), todayString];
+      // [BUG-FIX] 签到满 7 天（一周）后重置日历，开始新一周；否则界面永久显示"全部已完成"，
+      // 而实际奖励却循环回第 1 天（length % 7），视觉与实发奖励自相矛盾。
+      if (updatedCalendar.length >= 7) {
+        updatedCalendar = [todayString]; // 新一周：今天算第 1 天
+      }
       return {
         ...prev,
         stardustCoins: prev.stardustCoins + coinsAwarded,
@@ -1416,6 +1421,10 @@ export default function App() {
         lastCheckInDate: todayString
       };
     });
+    // [BUG-FIX] 第 7 天真正发放零食到库存（此前只弹 toast，从未写入库存）
+    if (giftFoodId && giftCount) {
+      setFoodInventory(prev => ({ ...prev, [giftFoodId]: (prev[giftFoodId] || 0) + giftCount }));
+    }
     void unlock(ACHIEVEMENTS.firstCheckIn);
   };
 
@@ -1918,10 +1927,14 @@ export default function App() {
       [snack.id]: qty - 1
     }));
 
+    // [数值平衡] 贵的零食恢复更多对话次数，避免「120 币与 12 币零食效果完全相同」的经济陷阱。
+    // 12-30 币 → +1 轮；40-70 币 → +2 轮；85+ 币 → +3 轮。
+    const dialogGain = snack.price >= 85 ? 3 : snack.price >= 40 ? 2 : 1;
+
     // Increment dialog ticks
     setUser(prev => {
       const updatedRemaining = prev.membership === "free"
-        ? Math.min(prev.dialogsMax, prev.dialogsRemaining + 1)
+        ? Math.min(prev.dialogsMax, prev.dialogsRemaining + dialogGain)
         : prev.dialogsRemaining; // VIP is already infinite
         
       return {
@@ -1930,7 +1943,7 @@ export default function App() {
       };
     });
 
-    triggerToast(`🌸 喂食了【${snack.name}】！${user.activePet?.name} 开心极了，嘴边飘着闪烁的霜气(+1 互动次数)`);
+    triggerToast(`🌸 喂食了【${snack.name}】！${user.activePet?.name} 开心极了，嘴边飘着闪烁的霜气(+${dialogGain} 互动次数)`);
     playSound("success");
     setConfettiTrigger(prev => prev + 1); // explode sparkles!
     incrementBondingCharge(25); // Feeding gives high bonding energy
@@ -2253,10 +2266,12 @@ export default function App() {
         /* 忽略存储失败 */
       }
       triggerToast(`💎 支付成功！服务「${title}」已生效。`);
+      // [BUG-FIX] 去掉无法兑现的承诺（原「已寄送邮箱」「已解锁装扮」实为纯文字），
+      // 改为如实告知「已开通」，避免欺骗性交付文案。
       if (title.includes("视频")) {
-        triggerToast("📹 正在混合渲染15秒像素视频片段...成品已寄送至您的预留邮箱！");
+        triggerToast("📹 「星辰织梦视频包」已开通，纪念视频能力已解锁。");
       } else {
-        triggerToast("🏠 家园3D/2D像素同源高保真还原完成！已解锁高级暖风地插装扮。");
+        triggerToast("🏠 「高级小窝孪生」已开通，专属纪念装扮已解锁。");
       }
     }
   };
@@ -2292,12 +2307,19 @@ export default function App() {
     }
   };
 
-  const handleShareWhisperAction = (whisp: PetWhisper) => {
+  const handleShareWhisperAction = async (whisp: PetWhisper) => {
     playSound("chime");
     updateTaskProgress("task_share", 1);
     
-    // Web Share API simulation or popup
-    alert(`💌 【一键小程序分享】\n已复制以下文书并生成精美像素插图卡片：\n\n"${whisp.content}"\n\n可去社群、朋友圈或聊天展示，召唤更多看星人陪它玩！`);
+    // [BUG-FIX] 真正复制到剪贴板，替换原「alert 假称已复制」的空壳分享
+    const shareText = `💌 来自喵汪星云的星辰来信：\n"${whisp.content}"\n\n—— 召唤更多看星人陪它玩！`;
+    try {
+      await navigator.clipboard.writeText(shareText);
+      triggerToast("📋 已复制星辰来信到剪贴板，去分享给朋友吧～");
+    } catch {
+      // 剪贴板不可用（非 https/权限受限）时降级提示
+      triggerToast("📋 分享文案已生成，可长按复制这段话分享给朋友～");
+    }
   };
 
   return (
@@ -2369,14 +2391,23 @@ export default function App() {
             </button>
 
             {/* Level Indicator / Streak days */}
-            <div className="hidden sm:flex items-center space-x-2 bg-white/5 border border-white/10 rounded-full px-3 py-1">
-              <span className="text-[10px] font-mono text-pink-400">登岛{user.streakDays}天</span>
-              <span className="text-[10px] text-gray-500 font-mono">|</span>
-              <span className="text-[10px] font-mono text-indigo-300">羁绊 LV.8</span>
-              <div className="w-16 h-1 w-16 bg-white/10 rounded-full overflow-hidden">
-                <div className="w-3/4 h-full bg-gradient-to-r from-purple-500 to-orange-400"></div>
-              </div>
-            </div>
+            {/* [BUG-FIX] 原「羁绊 LV.8 / 75%」是写死的假数据，无论玩多久都不变，误导玩家。
+                改为读取真实 level/exp 字段（PetConfig 已定义），动态显示。 */}
+            {(() => {
+              const petLevel = user.activePet?.level ?? 1;
+              const petExp = user.activePet?.exp ?? 0;
+              const expPercent = Math.min(100, petExp % 100); // 每 100 经验升一级的进度
+              return (
+                <div className="hidden sm:flex items-center space-x-2 bg-white/5 border border-white/10 rounded-full px-3 py-1">
+                  <span className="text-[10px] font-mono text-pink-400">登岛{user.streakDays}天</span>
+                  <span className="text-[10px] text-gray-500 font-mono">|</span>
+                  <span className="text-[10px] font-mono text-indigo-300">羁绊 LV.{petLevel}</span>
+                  <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-purple-500 to-orange-400 transition-all" style={{ width: `${expPercent}%` }}></div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* VIP Label Checkbox */}
             {user.membership !== "free" ? (

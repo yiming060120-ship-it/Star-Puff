@@ -1189,7 +1189,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
         catModel = cat;
         catGroup.add(cat);
         setIsGltfLoading(false);
-        console.log('✅ 写实猫咪模型加载成功！');
+        // [CLEANUP] 已移除调试 console.log
       },
       (xhr) => {
         if (xhr.total > 0) {

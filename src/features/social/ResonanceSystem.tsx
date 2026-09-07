@@ -99,8 +99,9 @@ export default function ResonanceSystem({ activePet, onUpdateCoins, triggerToast
     playSound("chime");
     setCuddleSuccess(true);
     setCuddledNames(prev => (prev.includes(activeMatch.name) ? prev : [...prev, activeMatch.name]));
-    onUpdateCoins(15);
-    triggerToast(`🫂 【星光贴贴】大成功！${activePet?.name || "小宠物"} 与它的灵魂星伴 ${activeMatch.name} 亲热贴面滚在了一起，获得星辰币 +15 ✨`);
+    // [数值平衡] 贴贴奖励 +15 → +5，避免无成本社交刷币（4 个同伴全贴一遍就从 60 降到 20）
+    onUpdateCoins(5);
+    triggerToast(`🫂 【星光贴贴】大成功！${activePet?.name || "小宠物"} 与它的灵魂星伴 ${activeMatch.name} 亲热贴面滚在了一起，获得星辰币 +5 ✨`);
   };
 
   return (

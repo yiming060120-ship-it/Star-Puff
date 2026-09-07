@@ -2043,7 +2043,7 @@ export default function CelestialV26Suite({
                         <span className="font-bold text-cyan-300 block mb-1">🧬 星能环护 (Shield Surge)</span>
                         <span className="text-[10px] text-gray-500 block leading-tight mb-2">铸造双重脉动蓝色守护星云盾</span>
                         <button
-                          onClick={() => { playSound("chime"); setNeuroFeedback({ label: "守护星云盾 · 蓝色脉动环", tone: "cyan" }); triggerToast(`🛡️ 成功释放守护星辰大空壳！`); }}
+                          onClick={() => { playSound("chime"); setNeuroFeedback({ label: "守护星云盾 · 蓝色脉动环", tone: "cyan" }); triggerToast(`🛡️ 成功释放守护星云盾！`); }}
                           className="py-1 px-2.5 bg-cyan-900/40 text-cyan-200 hover:bg-cyan-700/30 transition-colors uppercase font-mono text-[9px] rounded font-bold border border-cyan-500/20 cursor-pointer"
                         >
                           模拟触发

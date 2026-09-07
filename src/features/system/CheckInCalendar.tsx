@@ -11,19 +11,21 @@ import { Calendar, CheckCircle, Award, Star, Zap, Gift } from "lucide-react";
 
 interface CheckInCalendarProps {
   checkInCalendar: string[]; // list of dates, e.g. ["2026-05-21"]
-  onCheckIn: (dayCoins: number, dateStr: string) => void;
+  onCheckIn: (dayCoins: number, dateStr: string, giftFoodId?: string, giftCount?: number) => void;
   triggerToast: (msg: string) => void;
   lastCheckInDate?: string;
 }
 
 const CHECK_IN_ROSTER = [
-  { day: 1, rewardCoins: 5, giftName: null },
-  { day: 2, rewardCoins: 8, giftName: null },
-  { day: 3, rewardCoins: 10, giftName: null },
-  { day: 4, rewardCoins: 12, giftName: null },
-  { day: 5, rewardCoins: 15, giftName: null },
-  { day: 6, rewardCoins: 18, giftName: null },
-  { day: 7, rewardCoins: 25, giftName: "🌟 高能星辰棒棒糖 x1" }
+  { day: 1, rewardCoins: 5, giftName: null, giftFoodId: null, giftCount: 0 },
+  { day: 2, rewardCoins: 8, giftName: null, giftFoodId: null, giftCount: 0 },
+  { day: 3, rewardCoins: 10, giftName: null, giftFoodId: null, giftCount: 0 },
+  { day: 4, rewardCoins: 12, giftName: null, giftFoodId: null, giftCount: 0 },
+  { day: 5, rewardCoins: 15, giftName: null, giftFoodId: null, giftCount: 0 },
+  { day: 6, rewardCoins: 18, giftName: null, giftFoodId: null, giftCount: 0 },
+  // [BUG-FIX] 第 7 天奖励改为真实存在的食物（星云霜糖 = snack_candy），并真正发放到库存；
+  // 原「高能星辰棒棒糖」全仓库不存在，是文案欺骗 + 空壳奖励。
+  { day: 7, rewardCoins: 25, giftName: "🍬 星云霜糖 x3", giftFoodId: "snack_candy", giftCount: 3 }
 ];
 
 export default function CheckInCalendar({ checkInCalendar = [], onCheckIn, triggerToast, lastCheckInDate }: CheckInCalendarProps) {
@@ -43,7 +45,7 @@ export default function CheckInCalendar({ checkInCalendar = [], onCheckIn, trigg
     const reward = rosterItem.rewardCoins;
 
     playSound("success");
-    onCheckIn(reward, todayStr);
+    onCheckIn(reward, todayStr, rosterItem.giftFoodId ?? undefined, rosterItem.giftCount || undefined);
     
     if (rosterItem.giftName) {
       triggerToast(`🏆 极星重聚! 第 ${nextDayNum} 天连续签到，获得星辰币 +${reward} 并额外获赠 【${rosterItem.giftName}】！`);
@@ -140,7 +142,7 @@ export default function CheckInCalendar({ checkInCalendar = [], onCheckIn, trigg
           <strong className="text-pink-400 text-xs font-mono">{checkInCalendar.length}</strong> 次
         </span>
         <span className="text-[8.5px] text-zinc-500">
-          第 7 天必得【高能星辰零食】🍬
+          第 7 天必得【星云霜糖 x3】🍬
         </span>
       </div>
     </div>

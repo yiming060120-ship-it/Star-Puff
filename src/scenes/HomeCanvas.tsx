@@ -823,7 +823,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
       return "cat"; // default to cat for general cute drawings
     })();
 
-    console.log(`[Gesture Triggered] Species: ${species}, Gesture: ${gesture}, Part: ${part}`);
+    // [CLEANUP] 已移除调试 console.log（生产环境不应向控制台打印手势调试信息）
 
     // Update global gesture state refs
     gestureAction.current = gesture;

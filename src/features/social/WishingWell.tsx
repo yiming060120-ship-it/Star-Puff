@@ -158,8 +158,8 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
     playSound("success");
     setBlessedIds(p => [...p, bottleId]);
     
-    // Feed reward loop (+10 coins) for empathy
-    onUpdateCoins(10);
+    // [数值平衡] 祝福奖励 +10 → +2，避免无成本社交刷币（对比任务点赞才 +1）
+    onUpdateCoins(2);
     
     // Increment count locally
     setBottles(prev => prev.map(b => b.id === bottleId ? { ...b, blessingsCount: b.blessingsCount + 1 } : b));
@@ -167,7 +167,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
       setCurrentRetrieved(prev => prev ? { ...prev, blessingsCount: prev.blessingsCount + 1 } : null);
     }
     
-    triggerToast("💖 发出了一份【宇宙温柔拥抱】祝福！因传递爱意，获得星辰币 +10 ✨");
+    triggerToast("💖 发出了一份【宇宙温柔拥抱】祝福！因传递爱意，获得星辰币 +2 ✨");
   };
 
   return (
