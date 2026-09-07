@@ -31,7 +31,7 @@ import CelestialV26Suite from "./scenes/CelestialV26Suite";
 import MemorialZone from "./features/memorial/MemorialZone";
 import ResonanceSystem from "./features/social/ResonanceSystem";
 import NotificationSettings from "./features/system/NotificationSettings";
-import AiSettings from "./features/system/AiSettings";
+
 import MtxLogPanel from "./features/system/MtxLogPanel";
 import { playSound } from "./audio/AudioSynth";
 import { localDateString } from "./utils/date";
@@ -789,80 +789,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companionState.state, energyTick]);
 
-  // V2.0 God mode vs Guest mode control states
-  // 默认访客模式（上线游玩版本）；上帝模式仅供开发/测试临时启用，需持久化避免刷新回退
-  const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">(() => {
-    return localStorage.getItem("starpuff_system_play_mode") === "god" ? "god" : "guest";
-  });
   const [isArCameraOpen, setIsArCameraOpen] = useState(false);
-
-  // 持久化运行模式
-  useEffect(() => {
-    localStorage.setItem("starpuff_system_play_mode", systemPlayMode);
-  }, [systemPlayMode]);
-
-  // 演示模式（上帝/访客）的真实经济快照，防止演示覆盖写穿持久存档
-  const economyBackupRef = useRef<Partial<StarPuffUser> | null>(null);
-  const ECONOMY_BACKUP_KEY = "starpuff_economy_backup";
-
-  const loadEconomyBackup = (): Partial<StarPuffUser> | null => {
-    if (economyBackupRef.current) return economyBackupRef.current;
-    try {
-      const raw = localStorage.getItem(ECONOMY_BACKUP_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      return null;
-    }
-  };
-
-  // Sync state override on playMode modification
-  // [BUG-FIX] 仅在模式真正发生切换时改写经济字段。挂载时（模式未变）绝不改写，
-  // 否则默认 guest 分支会用访客默认值（15币/free/3对话）覆盖玩家真实存档
-  const prevPlayModeRef = useRef(systemPlayMode);
-  useEffect(() => {
-    const prevMode = prevPlayModeRef.current;
-    if (prevMode === systemPlayMode) return;
-    prevPlayModeRef.current = systemPlayMode;
-
-    if (systemPlayMode === "god") {
-      setUser(prev => {
-        // 已有备份（上次会话中断于上帝模式）则沿用，否则快照当前真实经济字段
-        let backup = loadEconomyBackup();
-        if (!backup) {
-          backup = {
-            membership: prev.membership,
-            unlimitedTalks: prev.unlimitedTalks,
-            dialogsRemaining: prev.dialogsRemaining,
-            dialogsMax: prev.dialogsMax,
-            stardustCoins: prev.stardustCoins
-          };
-          try { localStorage.setItem(ECONOMY_BACKUP_KEY, JSON.stringify(backup)); } catch (e) {}
-        }
-        economyBackupRef.current = backup;
-        // 上帝模式：临时授予无限对话 + 大量星辰币 + 年卡，便于开发测试
-        return {
-          ...prev,
-          membership: "vip_year",
-          unlimitedTalks: true,
-          dialogsRemaining: 999999,
-          dialogsMax: 999999,
-          stardustCoins: Math.max(prev.stardustCoins, 99999)
-        };
-      });
-    } else {
-      // [BUG-FIX] 仅当从上帝模式退出时才恢复备份；无备份时保持当前经济字段原样不动，
-      // 绝不再回退到访客默认态（否则每次启动都会清空玩家真实存档）
-      if (prevMode !== "god") return;
-      setUser(prev => {
-        const backup = loadEconomyBackup();
-        const restored = backup ? { ...prev, ...backup } : prev;
-        economyBackupRef.current = null;
-        try { localStorage.removeItem(ECONOMY_BACKUP_KEY); } catch (e) {}
-        // 恢复真实经济/会员字段，保留演示期间获得的其他进度（宠物、装扮等）
-        return restored;
-      });
-    }
-  }, [systemPlayMode]);
 
   // Whisper log lists from pet
   const [whispers, setWhispers] = useState<PetWhisper[]>(() => {
@@ -2518,53 +2445,6 @@ export default function App() {
 
         </nav>
 
-        {/* --- V2.0 GOD MODE vs GUEST MODE COMPARISON HUB CONSOLE --- */}
-        <div className="bg-[#120e36] border-b border-purple-500/20 px-6 py-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs z-20 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-            </span>
-            <span className="font-semibold text-white tracking-wide font-sans">
-              ✨ 星云守护模式
-            </span>
-            <span className="text-gray-400 text-[10px] hidden sm:inline">
-              切换你的守护体验
-            </span>
-          </div>
-          
-          <div className="flex bg-black/50 p-1 rounded-full border border-white/10 shadow-lg shrink-0">
-            <button
-              onClick={() => {
-                playSound("success");
-                setSystemPlayMode("god");
-                triggerToast("👑 上帝开发模式激活：无限对话 + 99,999 星辰币 + 年卡特权，仅供开发测试！");
-              }}
-              className={`px-3.5 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-1 leading-none ${
-                systemPlayMode === "god"
-                  ? "bg-gradient-to-r from-cyan-500 to-indigo-500 text-white shadow-[0_0_12px_rgba(6,182,212,0.5)]"
-                  : "text-gray-400 hover:text-indigo-200"
-              }`}
-            >
-              👑 上帝开发模式
-            </button>
-            <button
-              onClick={() => {
-                playSound("click");
-                setSystemPlayMode("guest");
-                triggerToast("👥 访客模式（正式上线版）：按真实会员身份运行，免费用户对话与星辰币受限。");
-              }}
-              className={`px-3.5 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-1 leading-none ${
-                systemPlayMode === "guest"
-                  ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.5)]"
-                  : "text-gray-400 hover:text-indigo-200"
-              }`}
-            >
-              👥 访客模式 (正式版)
-            </button>
-          </div>
-        </div>
-
         {/* CONTAINER FOR VIEWS */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative" id="tab-content-container">
           
@@ -2713,18 +2593,6 @@ export default function App() {
                       </div>
                       <div className="flex items-center justify-between text-[8.5px] text-gray-500 font-sans">
                         <span>💡 日常抚摸(+15) · 投喂小零食(+25) · 抛送爱心/红毛球(+10)级联蓄能</span>
-                        {systemPlayMode === "god" && (
-                          <button 
-                            onClick={() => {
-                              incrementBondingCharge(100);
-                              playSound("chime");
-                            }}
-                            className="text-pink-300 hover:text-pink-100 underline decoration-pink-500/20 active:scale-95 transition-transform"
-                            id="trigger-test-flashback"
-                          >
-                            [ 测试闪回 ]
-                          </button>
-                        )}
                       </div>
                     </div>
 
@@ -2821,7 +2689,7 @@ export default function App() {
                           setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins + amt) }));
                         }}
                         triggerToast={triggerToast}
-                        isGodMode={systemPlayMode === "god"}
+                        isGodMode={false}
                       />
 
                       {/* 3. 共鸣同伴星系 */}
@@ -3377,10 +3245,6 @@ export default function App() {
                         这里珍藏着你的小宝贝的所有回忆，管理它的外观，还能为它定制专属的纪念。
                       </p>
                     </div>
-
-                    {systemPlayMode === "god" && (
-                      <AiSettings triggerToast={triggerToast} />
-                    )}
 
                     {/* Pet Details Panel */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -4036,7 +3900,7 @@ export default function App() {
           onClose={() => setIsArCameraOpen(false)}
           pet={user.activePet}
           triggerToast={triggerToast}
-          isGodMode={systemPlayMode === "god"}
+          isGodMode={false}
         />
       )}
 
