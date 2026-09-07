@@ -13,6 +13,7 @@ import { playSound } from "../audio/AudioSynth";
 import { PHRASES, pickPhrase } from "../data/companionEnergy";
 import { useFeeding } from "../hooks/useFeeding";
 import FeedMenu from "../components/feed/FeedMenu";
+import { findFoodById } from "../data/foodItems";
 
 export function adjustBrightness(hex: string, percent: number): string {
   if (!hex || hex[0] !== '#') return hex || '#ffffff';
@@ -692,18 +693,19 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const feeding = useFeeding({
     stardustCoins,
     onSpendCoins: (amount) => (onSpendCoins ? onSpendCoins(amount) : false),
-    onFeed: (_foodId, hungerRestore, energyRestore, moodRestore) => {
+    onFeed: (foodId, hungerRestore, energyRestore, moodRestore) => {
       // 恢复数值
       setHungerIndex((prev) => Math.min(100, prev + hungerRestore));
       setEnergyIndex((prev) => Math.min(100, prev + energyRestore));
       setMoodIndex((prev) => Math.min(100, prev + moodRestore));
       setIntimacyIndex((prev) => Math.min(100, prev + 4));
-      // 触发喂食动画
+      // 触发喂食动画（[细节优化] 按实际食物图标显示咀嚼物，与选中食物同步）
+      const icon = findFoodById(foodId)?.icon ?? "🍖";
       foodDropProgress.current = 0.0;
       chewRemainingFrames.current = 0;
       feedRecordCount.current += 1;
       setTouchEffect("feed");
-      setFeedingItem("snack");
+      setFeedingItem(icon);
       setActiveExp("happy");
       // [音效增强] 喂食瞬间：星辰音 + 物种咀嚼音
       playSound("sparkle");
@@ -725,8 +727,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           setWhisperTimer(200);
         }
       }, 1500);
-      // 关闭菜单
-      setFeedMenuOpen(false);
+      // [细节优化] 延迟关闭菜单：让咀嚼动画（约 1.8s）完整播放后再关闭，
+      // 让玩家能看到"选中→扣库存→咀嚼"的同步反馈，而不是立即消失。
+      setTimeout(() => setFeedMenuOpen(false), 1800);
     },
   });
 
@@ -3204,7 +3207,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             ctx.font = "22px sans-serif";
             ctx.textBaseline = "middle";
             ctx.textAlign = "center";
-            ctx.fillText(feedingItemRef.current === "snack" ? "🐟" : feedingItemRef.current === "milk" ? "🍼" : "🍖", currentX, currentY);
+            ctx.fillText(feedingItemRef.current, currentX, currentY);
             ctx.restore();
 
             // Spawn stardust trails following gravity path
