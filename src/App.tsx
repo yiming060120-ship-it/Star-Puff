@@ -2241,7 +2241,7 @@ export default function App() {
       return;
     }
     playSound("bubble");
-    const confirmPay = window.confirm(`【微信支付模拟】\n确定支付 ￥${cost} 购买并启动：\n「${title}」吗？`);
+    const confirmPay = window.confirm(`【支付模拟】\n确定支付 ￥${cost} 购买并启动：\n「${title}」吗？`);
     if (confirmPay) {
       playSound("success");
       // [BUG-FIX] 持久化购买记录，刷新/重开后仍保留"已开通"状态
@@ -2297,7 +2297,7 @@ export default function App() {
     updateTaskProgress("task_share", 1);
     
     // Web Share API simulation or popup
-    alert(`💌 【一键小程序分享】\n已复制以下文书并生成精美像素插图卡片：\n\n"${whisp.content}"\n\n可去社群、朋友圈或微信聊天展示，召唤更多看星人陪它玩！`);
+    alert(`💌 【一键小程序分享】\n已复制以下文书并生成精美像素插图卡片：\n\n"${whisp.content}"\n\n可去社群、朋友圈或聊天展示，召唤更多看星人陪它玩！`);
   };
 
   return (
@@ -2769,7 +2769,7 @@ export default function App() {
                             ✨ V2.0 AR 极客追忆模式
                           </h4>
                           <p className="text-[9px] text-gray-400 mt-1.5 leading-relaxed">
-                            支持模拟微信小程序 AR 镜片叠层摄像，将爱宠投影拖拽于现实房屋内。支持 Polaroid 胶片及 10s 追忆小录像！
+                            支持模拟小程序 AR 镜片叠层摄像，将爱宠投影拖拽于现实房屋内。支持 Polaroid 胶片及 10s 追忆小录像！
                           </p>
                         </div>
                         <button
@@ -3323,7 +3323,7 @@ export default function App() {
                               disabled={purchaseState.status === "purchasing"}
                               className="shine-hover mt-2.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[9px] py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              {purchaseState.status === "purchasing" ? "支付中…" : `微信闪付 ￥${pkg.rmb}`}
+                              {purchaseState.status === "purchasing" ? "支付中…" : `支付 ￥${pkg.rmb}`}
                             </button>
                           </div>
                         ))}
