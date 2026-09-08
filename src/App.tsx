@@ -494,6 +494,13 @@ export default function App() {
 
   const isGodMode = systemPlayMode === "god";
 
+  // [演示模式] 上帝模式每次上线（应用启动 / 切到上帝模式）自动充值 777777 星辰币，供老板审阅演示。
+  // 访客模式不受影响，保持正常经济玩法。
+  useEffect(() => {
+    if (!isGodMode) return;
+    setUser(prev => (prev.stardustCoins === 777777 ? prev : { ...prev, stardustCoins: 777777 }));
+  }, [isGodMode]);
+
   // Steam 用户 ID（内购用）。优先取 Steamworks 登录态的真实 ID，离线时用本地稳定占位 ID 便于联调。
   const steamStatus = useSteam();
   const [steamId, setSteamId] = useState<string>(() => {
