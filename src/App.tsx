@@ -485,6 +485,15 @@ export default function App() {
     return defaultVal;
   });
 
+  // [演示模式] 上帝模式（god）用于老板审阅/演示：可无限刷币、免费投瓶等特权；
+  // 访客模式（guest）为正常经济玩法，绝对不允许刷币。默认 guest，持久化记忆上次选择。
+  const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">(() => {
+    const mode = localStorage.getItem("starpuff_play_mode");
+    return mode === "god" ? "god" : "guest";
+  });
+
+  const isGodMode = systemPlayMode === "god";
+
   // Steam 用户 ID（内购用）。优先取 Steamworks 登录态的真实 ID，离线时用本地稳定占位 ID 便于联调。
   const steamStatus = useSteam();
   const [steamId, setSteamId] = useState<string>(() => {
@@ -2349,6 +2358,29 @@ export default function App() {
                 开通会员
               </button>
             )}
+
+            {/* [演示模式] 上帝/访客模式切换（仅用于老板审阅演示）。上帝模式可无限刷币等特权，访客模式为正常经济玩法。 */}
+            <button
+              onClick={() => {
+                const next = isGodMode ? "guest" : "god";
+                setSystemPlayMode(next);
+                localStorage.setItem("starpuff_play_mode", next);
+                playSound(isGodMode ? "click" : "success");
+                triggerToast(
+                  next === "god"
+                    ? "👑 已切换至【上帝演示模式】，可无限刷币、免费投瓶等特权，供老板审阅演示。"
+                    : "🐾 已切换至【访客模式】，恢复正常经济玩法，禁止刷币。"
+                );
+              }}
+              className={`px-2.5 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-mono border transition-colors ${
+                isGodMode
+                  ? "bg-amber-500/25 hover:bg-amber-500/40 text-amber-300 border-amber-500/50 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
+                  : "bg-white/10 hover:bg-purple-500/20 hover:text-purple-300 text-white/70 border-white/10"
+              }`}
+              title="切换演示模式"
+            >
+              {isGodMode ? "👑 上帝模式" : "🐾 访客模式"}
+            </button>
           </div>
         </header>
 
@@ -2689,7 +2721,7 @@ export default function App() {
                           setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins + amt) }));
                         }}
                         triggerToast={triggerToast}
-                        isGodMode={false}
+                        isGodMode={isGodMode}
                       />
 
                       {/* 3. 共鸣同伴星系 */}
@@ -3900,7 +3932,7 @@ export default function App() {
           onClose={() => setIsArCameraOpen(false)}
           pet={user.activePet}
           triggerToast={triggerToast}
-          isGodMode={false}
+          isGodMode={isGodMode}
         />
       )}
 
