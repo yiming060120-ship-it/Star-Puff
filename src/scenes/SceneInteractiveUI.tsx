@@ -42,9 +42,53 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   }, [initialCoins]);
   
   // === ROSE PARK (Farming & Harvesting) ===
-  const [bed, setBed] = useState<{type: string, state: number, time: number}[]>(Array(6).fill({type: 'none', state: 0, time: 0}));
-  const [inventory, setInventory] = useState({ roseSeed: 5, starSeed: 2, magicWater: 3, flowers: 0 });
-  const [activeSeed, setActiveSeed] = useState<'roseSeed'|'starSeed'|null>('roseSeed');
+  // [BUG-FIX] 花圃土地与背包此前是纯内存态，刷新页面即重置回初始（5 玫瑰 + 2 星光种子 + 3 泉水），
+  // 玩家可「种星光种子 → 收获 +30 币 → 刷新重来」无限刷币。改为落 localStorage 持久化，
+  // 用完后只能靠每日免费物资补充。
+  const GARDEN_BED_KEY = "starpuff_garden_bed";
+  const GARDEN_INV_KEY = "starpuff_garden_inventory";
+
+  const loadGardenBed = (): { type: string; state: number; time: number }[] => {
+    try {
+      const raw = localStorage.getItem(GARDEN_BED_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length === 6) return parsed;
+      }
+    } catch { /* 忽略损坏数据 */ }
+    return Array(6).fill({ type: "none", state: 0, time: 0 });
+  };
+
+  const loadGardenInventory = () => {
+    const defaults = { roseSeed: 5, starSeed: 2, magicWater: 3, flowers: 0 };
+    try {
+      const raw = localStorage.getItem(GARDEN_INV_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          return {
+            roseSeed: typeof parsed.roseSeed === "number" ? parsed.roseSeed : defaults.roseSeed,
+            starSeed: typeof parsed.starSeed === "number" ? parsed.starSeed : defaults.starSeed,
+            magicWater: typeof parsed.magicWater === "number" ? parsed.magicWater : defaults.magicWater,
+            flowers: typeof parsed.flowers === "number" ? parsed.flowers : defaults.flowers,
+          };
+        }
+      }
+    } catch { /* 忽略损坏数据 */ }
+    return defaults;
+  };
+
+  const [bed, setBed] = useState<{ type: string; state: number; time: number }[]>(loadGardenBed);
+  const [inventory, setInventory] = useState(loadGardenInventory);
+  const [activeSeed, setActiveSeed] = useState<"roseSeed" | "starSeed" | null>("roseSeed");
+
+  // [BUG-FIX] 花圃数据持久化写回（土地 + 背包）
+  useEffect(() => {
+    try { localStorage.setItem(GARDEN_BED_KEY, JSON.stringify(bed)); } catch { /* 忽略存储失败 */ }
+  }, [bed]);
+  useEffect(() => {
+    try { localStorage.setItem(GARDEN_INV_KEY, JSON.stringify(inventory)); } catch { /* 忽略存储失败 */ }
+  }, [inventory]);
 
   const plantSeed = (idx: number) => {
     if (bed[idx].state === 0 && activeSeed && inventory[activeSeed] > 0) {
@@ -89,6 +133,23 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   const [breads, setBreads] = useState({ croissant: 0, starCake: 0 });
   const [bakingTask, setBakingTask] = useState<{type: string, timeLeft: number, total: number} | null>(null);
 
+  // [BUG-FIX] 烘焙此前零成本、无次数限制，5s/10s 出糕即可无限卖钱刷币。
+  // 改为：烘焙需消耗材料费（牛角包 8 币 / 蛋糕 25 币）+ 每日限产 6 次（localStorage 持久化）。
+  const BAKE_LIMIT = 6;
+  const BAKE_COST = { croissant: 8, starCake: 25 } as const;
+  const [bakeCount, setBakeCount] = useState(0);
+  const bakeDateRef = useRef("");
+  useEffect(() => {
+    const today = new Date().toDateString();
+    bakeDateRef.current = today;
+    try {
+      const saved = localStorage.getItem("starpuff_bake_count");
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed && parsed.date === today) setBakeCount(parsed.count || 0);
+      else setBakeCount(0);
+    } catch { setBakeCount(0); }
+  }, []);
+
   // [BUG-FIX] 倒计时只做纯计数，依赖改为「是否在烘焙中」而非整个 bakingTask。
   // 原实现依赖整个 bakingTask，导致每秒变化都重建 interval（计时漂移）。
   const isBaking = bakingTask !== null;
@@ -120,9 +181,24 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   const startBaking = (type: 'croissant' | 'starCake') => {
     if (bakingTask) return addLog("⚠️ 烤箱正在使用中！");
     if (type === 'starCake' && shopLevel < 2) return addLog("⚠️ 商店需要达到2级才能制作蛋糕！");
+    if (bakeCount >= BAKE_LIMIT) {
+      addLog("🛑 今日烘焙次数已用完，明天再来吧～");
+      playSound("beep");
+      return;
+    }
+    const cost = BAKE_COST[type];
+    // 扣除材料费（余额不足则中止）
+    if (onSpendCoins && !onSpendCoins(cost)) {
+      addLog(`⚠️ 星辰币不足，烘焙需要 ${cost} 币材料费。`);
+      playSound("beep");
+      return;
+    }
     const total = type === 'croissant' ? 5 : 10;
+    const next = bakeCount + 1;
+    setBakeCount(next);
+    try { localStorage.setItem("starpuff_bake_count", JSON.stringify({ date: bakeDateRef.current, count: next })); } catch {}
     setBakingTask({ type, timeLeft: total, total });
-    addLog(`🔥 开始烘焙 ${type === 'croissant' ? '牛角包' : '蛋糕'}...`);
+    addLog(`🔥 花费 ${cost} 币材料费，开始烘焙 ${type === 'croissant' ? '牛角包' : '蛋糕'}...`);
     playSound("click");
   };
 
@@ -163,6 +239,23 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   const [petStats, setPetStats] = useState({ speed: 10, stamina: 10 });
   const [raceActive, setRaceActive] = useState(false);
 
+  // [BUG-FIX] 竞速此前无报名费、无次数限制，初始属性永远稳拿亚军 +30 币，可每 5 秒无限刷。
+  // 改为：报名费 20 币 + 每日限 3 次（localStorage 持久化）。
+  const RACE_LIMIT = 3;
+  const RACE_ENTRY_FEE = 20;
+  const [raceCount, setRaceCount] = useState(0);
+  const raceDateRef = useRef("");
+  useEffect(() => {
+    const today = new Date().toDateString();
+    raceDateRef.current = today;
+    try {
+      const saved = localStorage.getItem("starpuff_race_count");
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed && parsed.date === today) setRaceCount(parsed.count || 0);
+      else setRaceCount(0);
+    } catch { setRaceCount(0); }
+  }, []);
+
   const trainPet = (stat: 'speed' | 'stamina') => {
     if (coins < 20) {
       addLog("⚠️ 星辰币不足 20，无法进行训练。");
@@ -196,8 +289,21 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
 
   const enterRace = () => {
     if (raceActive) return;
+    if (raceCount >= RACE_LIMIT) {
+      addLog("🏁 今日参赛次数已用完，明天再来吧～");
+      playSound("beep");
+      return;
+    }
+    if (onSpendCoins && !onSpendCoins(RACE_ENTRY_FEE)) {
+      addLog(`⚠️ 报名费不足，参赛需要 ${RACE_ENTRY_FEE} 星辰币。`);
+      playSound("beep");
+      return;
+    }
+    const next = raceCount + 1;
+    setRaceCount(next);
+    try { localStorage.setItem("starpuff_race_count", JSON.stringify({ date: raceDateRef.current, count: next })); } catch {}
     setRaceActive(true);
-    addLog("🏁 彗星杯竞速赛正式开始！");
+    addLog(`🏁 支付 ${RACE_ENTRY_FEE} 币报名费，彗星杯竞速赛正式开始！`);
     playSound("click");
     
     // 用 ref 读取最新 petStats，避免闭包捕获旧值
@@ -345,18 +451,20 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
         <div className="flex gap-6">
            <div className="flex-1 bg-black/40 rounded-lg p-4 border border-white/5">
               <div className="flex justify-between items-center mb-4">
-                 <div className="text-sm font-bold text-orange-400 flex items-center gap-2 font-sans"><Store className="w-4 h-4"/> 烘焙坊 · {shopLevel} 级</div>
+                 <div className="text-sm font-bold text-orange-400 flex items-center gap-2 font-sans"><Store className="w-4 h-4"/> 烘焙坊 · {shopLevel} 级 <span className="text-[10px] font-mono text-orange-300/60 font-normal">(今日剩 {Math.max(0, BAKE_LIMIT - bakeCount)} 次)</span></div>
                  {shopLevel < 2 && <button onClick={upgradeShop} className="text-xs bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 px-2.5 py-1 rounded-full border border-yellow-500/50 transition-colors">200 币升级</button>}
               </div>
               <div className="flex gap-4">
                  <button onClick={() => startBaking('croissant')} disabled={!!bakingTask} className="flex-1 py-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-all hover:scale-[1.03] active:scale-95">
                     <span className="text-2xl">🥐</span>
                     <span className="text-xs text-orange-200">制作牛角包 (5s)</span>
+                    <span className="text-[10px] text-orange-300/70 font-mono">-8 币材料费</span>
                  </button>
                  <button onClick={() => startBaking('starCake')} disabled={!!bakingTask || shopLevel < 2} className="flex-1 py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-all hover:scale-[1.03] active:scale-95 relative">
                     {shopLevel < 2 && <div className="absolute top-1 right-2 text-[10px] text-red-400">需 2 级</div>}
                     <span className="text-2xl">🍰</span>
                     <span className="text-xs text-fuchsia-200">制作星云蛋糕 (10s)</span>
+                    <span className="text-[10px] text-fuchsia-300/70 font-mono">-25 币材料费</span>
                  </button>
               </div>
               {bakingTask && (
@@ -401,7 +509,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
                  </div>
               </div>
               <button onClick={enterRace} disabled={raceActive} className="w-full py-3 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/40 hover:to-blue-500/40 border border-cyan-500/50 rounded-lg text-sm font-bold text-cyan-200 transition-colors disabled:opacity-50">
-                 {raceActive ? "🚀 比赛进行中..." : "🏁 报名参加彗星杯竞速赛"}
+                 {raceActive ? "🚀 比赛进行中..." : `🏁 报名参赛 (-${RACE_ENTRY_FEE}币 · 今日剩 ${Math.max(0, RACE_LIMIT - raceCount)} 次)`}
               </button>
            </div>
            <div className="w-48 bg-black/40 rounded-lg p-4 border border-white/5">
