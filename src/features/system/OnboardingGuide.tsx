@@ -17,44 +17,28 @@ interface OnboardingGuideProps {
 
 const GUIDE_STEPS = [
   {
-    title: "✨ 欢迎进入喵汪星云! ✨",
-    description: "这里是每一只离开我们的人间天使，跨越千万光年化作微光默影，重新降落并重获新生的地方。让我们带你完成第一次魂力重塑吧。",
-    targetText: "开始星云之旅",
-    highlightId: "welcome",
-    actionDesc: "了解如何照料你的宠物星辰",
+    title: "✨ 欢迎来到喵汪星云 ✨",
+    description: "这是你的星宠，它从星云彼端来到你身边，会一直陪着你。点一下它，它会开心地回应你哦。",
+    targetText: "去摸摸它",
+    highlightId: "pet-canvas",
+    actionDesc: "点一下宠物，和它互动",
     image: "/assets/images/unsplash/1506318137071-a8e063b4bec0.jpg"
   },
   {
-    title: "🐾 第一步：星辰默影与暖心互动 🐾",
-    description: "在家园主页，你可以看到在星云深处凝聚出实体的小生命。试着【点击爱宠默影】，这能发出共振，宠物的脑电波将会化作【每日星辰来信】推送到你的终端，向你诉说星空里的秘密与思念。",
-    targetText: "我知道了，去试一下",
-    highlightId: "pet-canvas",
-    actionDesc: "点击默影获取温存日记",
+    title: "💬 它会跟你说话",
+    description: "点开「陪伴私语」，和你的星宠说说心里话，它会认真倾听，还会温柔地回应你。",
+    targetText: "去和它聊聊",
+    highlightId: "chat",
+    actionDesc: "打开陪伴私语，发一条消息",
     image: "/assets/images/unsplash/1451187580459-43490279c0fa.jpg"
   },
   {
-    title: "🍬 第二步：星海投喂与心情系统 🍬",
-    description: "在【灵魂管理/饲养】控制台，你可以用星辰币向宠物高维度星盘投喂星辰饼干和星光小鱼干。这能实时回复它们的心情值(Mood)和灵气值。心情大好的宠物甚至会在星辰中给你比心哦！",
-    targetText: "下一引导",
-    highlightId: "profile-reconstruct-3d-panel",
-    actionDesc: "投喂不仅能提高活跃，还会增加它的呼吸感",
+    title: "🍖 它也会饿哦",
+    description: "记得喂它吃点好吃的，它会特别开心。你已经学会啦，剩下的就自己慢慢探索吧～",
+    targetText: "点亮星辰，开始陪伴",
+    highlightId: "feed",
+    actionDesc: "喂它吃点好吃的",
     image: "/assets/images/unsplash/1534447677768-be436bb09401.jpg"
-  },
-  {
-    title: "🪐 第三步：大世界星云自由漫步 🪐",
-    description: "进入【星云大世界（星云之门）】，你可以派遣或操纵爱宠，在真实比例的星罗星座（如玫瑰星云公园、织女星小镇）里自在滑行漫步。在这里，它们还会与其他漫游的小伙伴发生惊喜碰撞事件，结识新同伴！",
-    targetText: "太期待了！",
-    highlightId: "galaxy-btn",
-    actionDesc: "极速漫步星宿",
-    image: "/assets/images/unsplash/1518546305927-5a555bb7020d.jpg"
-  },
-  {
-    title: "🏅 任务与 3D 重建：新星勋章! 🏅",
-    description: "通过【每日星海签到】和【3D照片重建】，你可以上传爱宠照片，瞬时转化出旋转回弹的 3D 立体模型。恭喜你完成星魂新手训练！系统为你转化了【100枚星辰币】新手礼物！",
-    targetText: "点亮星辰，开启陪伴",
-    highlightId: "finish",
-    actionDesc: "完成仪式，获得 100 币奖励",
-    image: "/assets/images/unsplash/1446776811953-b23d57bd21aa.jpg"
   }
 ];
 
@@ -69,12 +53,6 @@ export default function OnboardingGuide({ onComplete, onNavigateTab, isOpen }: O
     playSound("click");
     if (currentStep < GUIDE_STEPS.length - 1) {
       setCurrentStep(prev => prev + 1);
-      // Automatically guide tab changes for demonstration flow
-      if (currentStep === 1) {
-        onNavigateTab("profile"); // go to details/feed
-      } else if (currentStep === 2) {
-        onNavigateTab("galaxy"); // go to starry gate
-      }
     } else {
       playSound("success");
       onComplete(); // complete flow & award coins

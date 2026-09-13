@@ -53,9 +53,13 @@ for (const item of fs.readdirSync(ELECTRON_DIST)) {
 }
 
 // 2. 重命名 electron.exe -> StarPuff.exe
+// [健壮性] 先清理残留的旧 StarPuff.exe，否则 Windows 上 rename 覆盖已存在文件会 EPERM 失败
 const exeSrc = path.join(OUT, "electron.exe");
 const exeDest = path.join(OUT, "StarPuff.exe");
 if (fs.existsSync(exeSrc)) {
+  if (fs.existsSync(exeDest)) {
+    fs.rmSync(exeDest, { force: true });
+  }
   fs.renameSync(exeSrc, exeDest);
   console.log("2. electron.exe -> StarPuff.exe 完成");
 } else {

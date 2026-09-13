@@ -190,9 +190,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const threeCanvasRef = useRef<HTMLCanvasElement>(null);
-  // 默认显示 2D 像素形象（治愈像素风），玩家可点「WebGL 高精实体」切换 3D
-  const [useReal3D, setUseReal3D] = useState<boolean>(false);
-  const useReal3DRef = useRef(false);
+  // 默认显示 3D 高精模型，可点「切换2D互动」切到 2D 像素互动模式
+  const [useReal3D, setUseReal3D] = useState<boolean>(true);
+  const useReal3DRef = useRef(true);
   const animationRef = useRef<number | null>(null);
 
   // [任务三] 喂食菜单开关
@@ -4261,56 +4261,19 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             </span>
           </div>
 
-          {/* Engine toggle & Mode Selectors */}
-          <div className="flex bg-black/45 p-0.5 rounded-lg border border-white/5 font-mono items-center">
-            <span className="text-gray-500 font-mono tracking-widest uppercase ml-2 mr-2">Engine:</span>
-            <button
-              onClick={() => { setUseReal3D(false); playSound("click"); }}
-              className={`px-2.5 py-1 rounded transition-colors uppercase ${!useReal3D ? "bg-pink-600 text-white font-bold shadow-lg" : "text-gray-400 hover:text-white"}`}
-            >
-              🌌 2D 核心
-            </button>
-            <button
-              onClick={() => { setUseReal3D(true); playSound("click"); }}
-              className={`px-2.5 py-1 rounded transition-colors uppercase ${useReal3D ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold shadow-lg shadow-cyan-500/20" : "text-gray-400 hover:text-white"}`}
-            >
-              🔮 WebGL 高精实体
-            </button>
-          </div>
-
-          {/* Fur/Bone density sliders */}
-          <div className="flex gap-4 items-center">
-            {renderMode === "shaded" && (
-              <div className="flex items-center gap-1.5 font-mono text-gray-400">
-                <span>毛发细密:</span>
-                <button
-                  onClick={() => { setFurDensity(0); playSound("click"); }}
-                  className={`px-1 rounded ${furDensity === 0 ? "bg-red-500/20 text-red-300 border border-red-500/30" : "bg-white/5"}`}
-                >
-                  无
-                </button>
-                <button
-                  onClick={() => { setFurDensity(120); playSound("click"); }}
-                  className={`px-1 rounded ${furDensity === 120 ? "bg-purple-500/20 text-purple-300 border border-purple-500/30" : "bg-white/5"}`}
-                >
-                  中
-                </button>
-                <button
-                  onClick={() => { setFurDensity(360); playSound("click"); }}
-                  className={`px-1 rounded ${furDensity === 360 ? "bg-purple-500/20 text-purple-300 border border-purple-500/30" : "bg-white/5"}`}
-                >
-                  高(360线)
-                </button>
-              </div>
-            )}
-            <span className="text-gray-500">|</span>
-            <div className="text-gray-400 font-mono flex items-center gap-1">
-              <span>状态:</span>
-              <span className="text-amber-400 font-medium">
-                {isJumpingState ? "跳跃" : "呼吸漫舞"}
-              </span>
-            </div>
-          </div>
+          {/* 2D/3D 模式切换：2D 可交互（点击抚摸/喂食），3D 高精展示（可旋转查看） */}
+          <button
+            onClick={() => { setUseReal3D(prev => !prev); playSound("click"); }}
+            className="px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all flex items-center gap-1 hover:scale-105 active:scale-95"
+            style={{
+              background: useReal3D ? "rgba(168,85,247,0.15)" : "rgba(236,72,153,0.15)",
+              border: useReal3D ? "1px solid rgba(168,85,247,0.4)" : "1px solid rgba(236,72,153,0.4)",
+              color: useReal3D ? "#c4b5fd" : "#f9a8d4",
+            }}
+            title={useReal3D ? "切换到 2D 互动模式" : "切换到 3D 展示模式"}
+          >
+            {useReal3D ? "🎨 切换2D互动" : "🔮 切换3D展示"}
+          </button>
         </div>
 
         {/* The interactive main drawing viewport */}
@@ -4334,7 +4297,11 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           />
 
           {/* 3D WebGL 高精实体渲染画布 */}
-          <div className="w-full h-[320px] relative" style={{ display: useReal3D ? "block" : "none" }}>
+          <div
+            className="w-full h-[320px] relative cursor-pointer"
+            style={{ display: useReal3D ? "block" : "none" }}
+            onClick={() => { if (onClickPet) onClickPet(); }}
+          >
             <Canvas
               className="w-full h-full cursor-pointer select-none border-b border-white/5 transition-transform duration-100"
               id="rendering-canvas-viewport"
@@ -4451,46 +4418,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
         {/* === 🎭 REAL-TIME PET EMOTION SYSTEM & ASTRO-WEATHER HUD === */}
         <div className="bg-[#0b0819] border-b border-white/5 p-3 flex flex-col gap-2 relative z-10" id="pet-emotion-weather-hud">
-          {/* Weather News Broadcast Ticker */}
-          <div className="bg-black/40 border border-white/5 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-3 text-[9px] font-mono select-none overflow-hidden hover:border-purple-500/30 transition-all">
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="px-1.5 py-0.2 bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded text-[7.5px] uppercase font-bold tracking-wider animate-pulse">
-                Broadcast 🛰️
-              </span>
-              <span className="text-gray-400 font-medium">星轨播报:</span>
-            </div>
-            
-            {/* Pulsing fading text */}
-            <div className="text-purple-200 truncate flex-1 uppercase tracking-wide font-sans animate-fade-in text-[9.5px]">
-              {weatherAdviceText}
-            </div>
-
-            {/* Weather cycle countdown with nice pulsing indicator */}
-            <div className="flex items-center gap-1.5 text-right shrink-0">
-              {autoWeatherCycle ? (
-                <>
-                  <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping" />
-                  <span className="text-cyan-300">
-                    星天气更替 {timeToNextWeather}s
-                  </span>
-                </>
-              ) : (
-                <span className="text-gray-500">手动锁频中</span>
-              )}
-
-              {/* Toggling automatic wheel */}
-              <button
-                onClick={() => {
-                  setAutoWeatherCycle(prev => !prev);
-                  playSound("click");
-                }}
-                title={autoWeatherCycle ? "切换为手动气象控制模式" : "开启星区实时气象自动演化"}
-                className={`ml-1 px-1.5 py-0.5 rounded border text-[8px] transition hover:bg-white/5 ${autoWeatherCycle ? "border-cyan-550/30 text-cyan-300 bg-cyan-500/5" : "border-gray-600 text-gray-400"}`}
-              >
-                {autoWeatherCycle ? "自动" : "手动"}
-              </button>
-            </div>
-          </div>
+          {/* [正式版精简] 已移除星轨播报（Broadcast）技术文字与星天气更替参数 */}
 
           {/* Three columns metrics widgets */}
           <div className="grid grid-cols-3 gap-2">
@@ -4510,7 +4438,6 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               </div>
               <div className="flex justify-between text-[8px] text-gray-500 font-mono">
                 <span>{energyIndex < 10 ? "💤 想要睡觉" : energyIndex < 35 ? "😵 虚弱乏力" : energyIndex < 70 ? "稍微疲惫" : "精神抖擞"}</span>
-                <span>代谢慢行</span>
               </div>
             </div>
 
@@ -4552,106 +4479,21 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               </div>
               <div className="flex justify-between text-[8px] text-gray-500 font-mono">
                 <span>{intimacyIndex < 30 ? "陌生疏浅" : intimacyIndex < 65 ? "默契契合" : "💖 生死相随"}</span>
-                <span>耳语已解锁</span>
               </div>
             </div>
           </div>
 
-          {/* 🧠 DYNAMIC ASTRO-THOUGHT CORE / 星灵即时心理测绘面板 */}
-          <div className="bg-black/45 border border-white/5 rounded-xl p-2.5 flex flex-col gap-2 mt-1.5 hover:border-purple-500/30 transition-all duration-300 shadow-[0_4px_12px_rgba(11,8,25,0.7)]" id="astro-thought-core">
-            <div className="flex items-center justify-between text-[10px]">
-              <div className="flex items-center gap-1.5 font-bold font-mono tracking-wider text-purple-300 select-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-                <span>🧠 即时心理测绘 (Astro Cognitive Mind Map)</span>
-              </div>
-              <div className={`px-2 py-0.5 text-[8px] font-bold rounded border uppercase flex items-center gap-1 select-none shrink-0 ${currentEmotionState.bg} ${currentEmotionState.color}`}>
-                <span>{currentEmotionState.icon}</span>
-                <span>{currentEmotionState.label}</span>
-              </div>
-            </div>
-
-            {/* Live active thoughts cloud container */}
-            <div className="bg-[#06040d]/85 rounded-lg p-2 border border-white/[0.03] relative min-h-[46px] select-text">
-              {/* Decorative pulse glow bar */}
-              <div className="absolute top-0 left-0 right-0 h-[1.2px] bg-gradient-to-r from-transparent via-purple-500/25 to-transparent animate-pulse" />
-              <p className="text-[10px] text-gray-300 font-sans leading-relaxed text-left selection:bg-purple-500/30">
-                {currentEmotionState.thought}
-              </p>
-            </div>
-
-            {/* Dynamic traits statistics listing */}
-            <div className="flex items-center justify-between text-[8px] font-mono text-gray-500 border-t border-white/[0.04] pt-2 mt-0.5 select-none">
-              <span className="flex items-center gap-1">
-                <span>🧬 星谱特质:</span>
-                <span className="text-purple-400 font-semibold font-sans">
-                  {species === "cat" ? "极度娇软喵 · 易撒娇" : species === "dog" ? "高元气欢汪 · 极度忠诚" : species === "rabbit" ? "软绵长耳兔 · 酷好甜食" : "塞帮屯粮鼠 · 钟爱松子"}
-                </span>
-              </span>
-              <span>时空重力心率: <span className="text-cyan-400 font-bold font-sans animate-pulse">{energyIndex > 35 ? Math.round(58 + moodIndex * 0.22) : 22} bpm</span></span>
-            </div>
-          </div>
+          {/* [正式版精简] 已移除即时心理测绘、星谱特质、时空重力心率等技术参数 */}
         </div>
 
-        {/* 🎬 ACTIVE KINETIC GESTURES CONTROLLER */}
-        <div className="px-4 py-2.5 bg-[#0e0a23]/60 border-b border-white/5 flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-cyan-300 font-bold flex items-center gap-1">
-              🐾 仿生写实 3D 写实动作指令集 (Kinetic Actions)
-            </span>
-            {activeGesture && (
-              <span className="text-[9px] font-mono text-purple-300 animate-pulse uppercase">
-                Performing [{activeGesture}]
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-5 gap-1.5 font-mono text-[9px]">
-            <button
-              onClick={() => triggerGesture("nod")}
-              className={`py-1 rounded text-center transition-colors border ${activeGesture === "nod" ? "bg-purple-600/30 border-purple-450 text-white font-bold" : "bg-black/30 border-white/5 text-gray-300 hover:text-white"}`}
-              id="btn-gesture-nod"
-            >
-              点头 (Nod)
-            </button>
-            <button
-              onClick={() => triggerGesture("wag")}
-              className={`py-1 rounded text-center transition-colors border ${activeGesture === "wag" ? "bg-purple-600/30 border-purple-450 text-white font-bold" : "bg-black/30 border-white/5 text-gray-300 hover:text-white"}`}
-              id="btn-gesture-wag"
-            >
-              摇尾巴 (Wag)
-            </button>
-            <button
-              onClick={() => triggerGesture("roll")}
-              className={`py-1 rounded text-center transition-colors border ${activeGesture === "roll" ? "bg-purple-600/30 border-purple-450 text-white font-bold" : "bg-black/30 border-white/5 text-gray-300 hover:text-white"}`}
-              id="btn-gesture-roll"
-            >
-              打滚儿 (Roll)
-            </button>
-            <button
-              onClick={() => triggerGesture("jump")}
-              className={`py-1 rounded text-center transition-colors border ${isJumpingState ? "bg-purple-600/30 border-purple-450 text-white font-bold" : "bg-black/30 border-white/5 text-gray-300 hover:text-white"}`}
-              id="btn-gesture-jump"
-            >
-              跃起 (Jump)
-            </button>
-            <button
-              onClick={() => triggerGesture("dance")}
-              className={`py-1 rounded text-center transition-colors border ${activeGesture === "dance" ? "bg-purple-600/30 border-purple-450 text-white font-bold" : "bg-black/30 border-white/5 text-gray-300 hover:text-white"}`}
-              id="btn-gesture-dance"
-            >
-              太空舞 (Dance)
-            </button>
-          </div>
-        </div>
+        {/* [正式版精简] 已移除仿生写实3D动作指令集（Kinetic Actions）技术控制面板 */}
 
         {/* ✨ V2.7 PHOTOREALISTIC INTERACTION CONTROL PORTBOARD */}
         <div className="px-4 py-3 bg-[#130d2a]/70 border-b border-white/5 flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-pink-300 font-bold flex items-center gap-1.5 animate-pulse">
-              <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-ping" />
-              💫 V2.7 2D超仿真 - 触控拟态及耳语控制台 (Tactile Control)
-            </span>
-            <span className="px-1.5 py-0.5 bg-pink-500/10 border border-pink-500/30 text-pink-300 text-[8px] rounded uppercase">
-              80% 真实照片度 + 20% 治愈星辰
+            <span className="text-[10px] font-mono text-pink-300 font-bold flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-pink-400" />
+              💫 亲密互动
             </span>
           </div>
 
@@ -4727,7 +4569,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
                 setIntimacyIndex(prev => Math.min(100, prev + 10));
                 setMoodIndex(prev => Math.min(100, prev + 6));
                 const whispers = [
-                  `主人，不要哭啦，天乐在多维星系里吃得饱跑得快呢！`,
+                  `主人，不要哭啦，乐乐在多维星系里吃得饱跑得快呢！`,
                   `每次黑夜降临，我都把我的瞳孔放大，替你装满银河系的繁星。`,
                   `我会在你每次梦醒的时候，在天涯尽头的星门旁静静等你。`,
                   `即使我只剩下 2D 的像素光斑，我的毛发也依然永远向你波动。`

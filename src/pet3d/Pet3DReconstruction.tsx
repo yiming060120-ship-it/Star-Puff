@@ -52,7 +52,7 @@ const PRESET_SAMPLES = [
 export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, triggerToast }: Pet3DReconstructionProps) {
   const [selectedPresetUrl, setSelectedPresetUrl] = useState<string>(PRESET_SAMPLES[0].url);
   const [customImageBase64, setCustomImageBase64] = useState<string>("");
-  const [targetName, setTargetName] = useState<string>(activePet?.name || "天乐");
+  const [targetName, setTargetName] = useState<string>(activePet?.name || "乐乐");
   const [targetType, setTargetType] = useState<PetType>(activePet?.type || "猫");
   const [selectedColor, setSelectedColor] = useState<string>(activePet?.primaryColor || "#fad0a3");
 
@@ -1586,7 +1586,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
                   type="text"
                   value={targetName}
                   onChange={(e) => setTargetName(e.target.value)}
-                  placeholder="如：天乐"
+                  placeholder="如：乐乐"
                   className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none"
                 />
               </div>

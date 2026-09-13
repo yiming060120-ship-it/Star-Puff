@@ -56,7 +56,7 @@ export default function CelestialV26Suite({
 
   // Global Pet context
   const pet = user.activePet || {
-    name: "天乐",
+    name: "乐乐",
     type: "猫",
     breed: "英短乳白",
     primaryColor: "#fad0a3",
@@ -288,9 +288,9 @@ export default function CelestialV26Suite({
   // [BUG-FIX] 聊天室消息列表 + 输入框受控（原聊天板硬编码、发送不更新）
   // 增加 id 字段：列表渲染需要用稳定 key，index 在消息增删时会错乱
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; sender: string; text: string; mine: boolean }>>([
-    { id: "cm_1", sender: "悠悠家长 🌇 (金毛家长)", text: "我家柴柴上星期也梦到了这个草莓海，大家一起加油！天乐好有灵气呀好可爱！", mine: false },
+    { id: "cm_1", sender: "悠悠家长 🌇 (金毛家长)", text: "我家柴柴上星期也梦到了这个草莓海，大家一起加油！乐乐好有灵气呀好可爱！", mine: false },
     { id: "cm_2", sender: "小白妈妈 🐶 (比熊家长)", text: "看到它眨眼睛，眼框瞬间就红了，毛发一摆一摆的，跟它以前夏天吹风一模一样...", mine: false },
-    { id: "cm_3", sender: "我 (天乐守护人)", text: "刚刚给天乐喂了多维小银鱼，它大笑的时候尾巴摇得太可爱了，星环都大了一圈！", mine: true },
+    { id: "cm_3", sender: "我 (乐乐守护人)", text: "刚刚给乐乐喂了多维小银鱼，它大笑的时候尾巴摇得太可爱了，星环都大了一圈！", mine: true },
   ]);
   const [chatInput, setChatInput] = useState("");
   // [BUG-FIX] 壁纸渲染层类型三选一（原为无 onClick 的装饰卡片，点了没反应）
@@ -386,7 +386,7 @@ export default function CelestialV26Suite({
   const [isSendingToSky, setIsSendingToSky] = useState(false);
   const [returnedAILetter, setReturnedAILetter] = useState("");
   const [dialogAnthology, setDialogAnthology] = useState<Array<{ q: string; a: string; date: string }>>([
-    { q: "小天乐，你在那边冷不冷？想念我吗？", a: "妈妈不用担心！我正揣着我的雪白小粉爪靠在仙女座暖气包上呢。每天一到傍晚，看到妈妈哭，我身上的光束就会拼命忽闪，所以妈妈一定要多笑，这样我就最闪耀最暖和啦！", date: "2026-05-24" }
+    { q: "小乐乐，你在那边冷不冷？想念我吗？", a: "妈妈不用担心！我正揣着我的雪白小粉爪靠在仙女座暖气包上呢。每天一到傍晚，看到妈妈哭，我身上的光束就会拼命忽闪，所以妈妈一定要多笑，这样我就最闪耀最暖和啦！", date: "2026-05-24" }
   ]);
 
   const sendUnsaidLetterToSky = () => {
@@ -459,7 +459,7 @@ export default function CelestialV26Suite({
   const [memorialPets, setMemorialPets] = useState([
     { id: "wall_1", name: "芝麻", owner: "桃桃妈", type: "猫", glow: 110, story: "在织女星草地上奔跑的最快黑色小毛球" },
     { id: "wall_2", name: "皮皮", owner: "皮皮爸", type: "狗", glow: 140, story: "你摇尾巴带起的彗尾，是全宇宙最纯白的光带" },
-    { id: "wall_3", name: "天乐", owner: "守护者", type: "猫", glow: 220, story: "英短乳白，化作永恒星爆粒子守护挚爱" }
+    { id: "wall_3", name: "乐乐", owner: "守护者", type: "猫", glow: 220, story: "英短乳白，化作永恒星爆粒子守护挚爱" }
   ]);
   const [searchWallQuery, setSearchWallQuery] = useState("");
 
@@ -2148,10 +2148,10 @@ export default function CelestialV26Suite({
 
                     <div className="flex gap-2.5">
                       <button
-                        onClick={() => { playSound("sparkle"); setMotionSynced(true); triggerToast("🎁 编译完成！第 #F122 动作 [撒娇打滑] 已载入天乐前台主视窗指令集！"); }}
+                        onClick={() => { playSound("sparkle"); setMotionSynced(true); triggerToast("🎁 编译完成！第 #F122 动作 [撒娇打滑] 已载入乐乐前台主视窗指令集！"); }}
                         className={`flex-1 py-1 px-2.5 transition-all text-white font-bold rounded text-[11px] cursor-pointer text-center ${motionSynced ? "bg-emerald-600 hover:bg-emerald-500" : "bg-[#fc407a] hover:bg-[#ff558f]"}`}
                       >
-                        {motionSynced ? "✓ 已同步至天乐主画布" : "🧬 导出并同步至天乐主画布"}
+                        {motionSynced ? "✓ 已同步至乐乐主画布" : "🧬 导出并同步至乐乐主画布"}
                       </button>
                     </div>
                   </div>
@@ -2290,7 +2290,7 @@ export default function CelestialV26Suite({
                       <button
                         onClick={() => {
                           playSound("sparkle");
-                          triggerToast("📑 成功合成排版天乐 Stardust 历险绘卷！已触发浏览器打印对话框生成纸面版证书...");
+                          triggerToast("📑 成功合成排版乐乐 Stardust 历险绘卷！已触发浏览器打印对话框生成纸面版证书...");
                           window.print();
                         }}
                         className="w-full py-1 bg-black/45 hover:bg-slate-800 transition-colors border border-purple-500/30 text-purple-200 text-[10px] rounded font-bold cursor-pointer font-mono"
@@ -2326,7 +2326,7 @@ export default function CelestialV26Suite({
                   {/* ACTIVE ROOM VIEW */}
                   <div className="p-4 bg-[#110c2c]/85 ring-1 ring-white/10 rounded-xl space-y-3 text-xs">
                     <span className="text-[10px] font-mono text-pink-300 font-bold block uppercase tracking-wider">
-                      ★ Active Room: 天乐蒲公英温室 #1002 (9/10 在座)
+                      ★ Active Room: 乐乐蒲公英温室 #1002 (9/10 在座)
                     </span>
 
                     {/* Chat Board */}
@@ -2413,7 +2413,7 @@ export default function CelestialV26Suite({
 
                       <div className="p-3 bg-black/20 rounded border border-slate-800 text-[11px] leading-relaxed text-gray-400 font-mono">
                         <p className="font-semibold text-yellow-300">👥 当前在座家长：</p>
-                        <p className="mt-1">喵汪柴柴 (1) • 悠悠小白犬 (3) • 金毛朵朵 (1) • 蒲公英语音官 (1) • 英短乳白天乐 (我) • 比熊悠悠...</p>
+                        <p className="mt-1">喵汪柴柴 (1) • 悠悠小白犬 (3) • 金毛朵朵 (1) • 蒲公英语音官 (1) • 英短乳白乐乐 (我) • 比熊悠悠...</p>
                       </div>
                     </div>
                   </div>

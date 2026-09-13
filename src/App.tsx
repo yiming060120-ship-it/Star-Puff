@@ -27,10 +27,11 @@ import PetMemoryTimeline from "./features/memorial/PetMemoryTimeline";
 import MultiPetSelector from "./features/system/MultiPetSelector";
 import ArCameraSimulation from "./pet3d/ArCameraSimulation";
 import WishingWell from "./features/social/WishingWell";
-import CelestialV26Suite from "./scenes/CelestialV26Suite";
 import MemorialZone from "./features/memorial/MemorialZone";
 import ResonanceSystem from "./features/social/ResonanceSystem";
 import NotificationSettings from "./features/system/NotificationSettings";
+import { RightPanel, IconNav } from "./components/right-panel";
+import DreamChamber from "./components/dream/DreamChamber";
 
 import MtxLogPanel from "./features/system/MtxLogPanel";
 import { playSound } from "./audio/AudioSynth";
@@ -39,6 +40,8 @@ import { VIRTUAL_FRIENDS, pickFriends, pickOne } from "./data/virtualFriends";
 import type { VirtualFriend } from "./data/virtualFriends";
 import { useVirtualFriends } from "./hooks/useVirtualFriends";
 import { sendChatMessage, generateWhispers } from "./api";
+import { AIChatService } from "./services/aiChatService";
+import type { PetPersona } from "./services/petPersona";
 import { useMicrotransaction, applyGrantToUser, type PurchaseFlowState } from "./hooks/useMicrotransaction";
 import { useSteam } from "./hooks/useSteam";
 import { ACHIEVEMENTS, unlock } from "./steam/achievements";
@@ -74,7 +77,7 @@ import {
 // Seed constant items
 export const DEFAULT_KITTEN: PetConfig = {
   id: "pet_tianle_default",
-  name: "天乐",
+  name: "乐乐",
   type: "猫",
   ownerName: "守护者",
   breed: "英短乳白 (Cream Kitten)",
@@ -98,7 +101,7 @@ export const DEFAULT_KITTEN: PetConfig = {
   exp: 0,
   favoriteSnacks: ["猫条", "冻干生肉", "星光小鱼干"],
   anniversariesList: [
-    { id: "a_1", date: "2026-05-18", title: "天乐的三岁冥诞 🎂", desc: "我们在星宿天空城为你买了一块永不熄灭的繁星蛋糕。" },
+    { id: "a_1", date: "2026-05-18", title: "乐乐的三岁冥诞 🎂", desc: "我们在星宿天空城为你买了一块永不熄灭的繁星蛋糕。" },
     { id: "a_2", date: "2026-04-12", title: "踏上彩虹桥一周年 🌸", desc: "一年了，你在星辰彼端也一定交到了很多好伙伴对不对？" }
   ],
   memoryTimelineList: [
@@ -127,8 +130,45 @@ export const DEFAULT_KITTEN: PetConfig = {
     glowIntensity: 0.85,
     reconstructionDate: "2026-05-23",
     breathingRate: 2.6,
-    loreParagraph: "根据小喵咪“天乐”的照片透视特征重建。圆融的英短头部几何模型，经典的黄金比例瞳距对焦机制，胸肺部呼吸微位移在 2.6 秒/周期振荡。天乐化作永恒的温暖粒子束，以 3D 偏振姿态，生动守护在您的身侧。"
+    loreParagraph: "根据小喵咪“乐乐”的照片透视特征重建。圆融的英短头部几何模型，经典的黄金比例瞳距对焦机制，胸肺部呼吸微位移在 2.6 秒/周期振荡。乐乐化作永恒的温暖粒子束，以 3D 偏振姿态，生动守护在您的身侧。"
   }
+};
+
+// 第二只默认宠物「愚愚」：边牧犬，性格忠诚憨厚，陪伴主人左右
+export const DEFAULT_PUPPY: PetConfig = {
+  id: "pet_yuyu_default",
+  name: "愚愚",
+  type: "狗",
+  ownerName: "守护者",
+  breed: "边牧犬",
+  passingDate: "2024-08-15",
+  primaryColor: "#2a2a2a",
+  secondaryColor: "#ffffff",
+  stardustMatrixHex: ["#2a2a2a", "#ffffff", "#8fa4b3", "#ffb3c1"],
+  personalityTags: ["忠诚憨厚", "贴心小卫士", "永远快乐"],
+  moodLevel: 95,
+  happiness: 92,
+  birthDay: "2022-03-10",
+  memorialDay: "2024-08-15",
+  statusMood: 80,
+  statusHunger: 75,
+  statusCleanliness: 90,
+  statusEnergy: 88,
+  companionEnergy: 88,
+  companionEnergyUpdatedAt: Date.now(),
+  isSleeping: false,
+  level: 1,
+  exp: 0,
+  favoriteSnacks: ["冻干生肉", "磨牙骨", "星光小鱼干"],
+  anniversariesList: [
+    { id: "a_1", date: "2025-03-10", title: "愚愚的三岁生日 🎂", desc: "我们在星宿天空城为愚愚准备了一大块香喷喷的肉肉蛋糕。" },
+    { id: "a_2", date: "2025-08-15", title: "踏上彩虹桥一周年 🌸", desc: "一年了，你在星辰彼端也一定交到了很多好伙伴对不对？" }
+  ],
+  memoryTimelineList: [
+    { id: "m_1", date: "2022-06-01", title: "初次相遇那天 🏠", content: "你摇着尾巴冲我跑来，黑白的毛发在阳光下闪闪发亮，那一刻我就知道你是我的小英雄。" },
+    { id: "m_2", date: "2023-12-25", title: "第一个圣诞节 ❄️", content: "你叼着圣诞袜满屋子跑，最后把袜子整整齐齐地放在我脚边，眼神里全是期待。" }
+  ],
+  modelFile: "species_08.glb"
 };
 
 const OUT_ITEMS: StoreItem[] = [
@@ -384,7 +424,7 @@ const SPECIAL_LETTER_TEXTS: Record<"rain" | "snow" | "birthday" | "anniversary" 
 
 export default function App() {
   // Tabs: "home" (Stardust Home), "galaxy" (Nebula Gate), "community" (See Star People), "store" (Base Shop), "profile" (VIP/Dossier/Inventory)
-  const [activeTab, setActiveTab] = useState<"home" | "galaxy" | "community" | "store" | "profile" | "v26_suite">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "galaxy" | "community" | "store" | "profile">("home");
 
   // 虚拟 AI 星友状态机：友好度 / 打招呼冷却 / 星门偶遇标记（单机版离线模拟）
   const { getFriend, bumpFriendship, greetFriend, upsertMet, tierLabel } = useVirtualFriends();
@@ -460,7 +500,7 @@ export default function App() {
         orbit: null,
         cape: null
       },
-      allPets: [DEFAULT_KITTEN],
+      allPets: [DEFAULT_KITTEN, DEFAULT_PUPPY],
       onboardingCompleted: false,
       checkInCalendar: [],
       lastCheckInDate: ""
@@ -477,7 +517,12 @@ export default function App() {
         ...defaultVal,
         ...parsed,
         ...ecoBackup,
-        allPets: parsed.allPets || (parsed.activePet ? [parsed.activePet] : []),
+        allPets: (() => {
+          const pets = parsed.allPets || (parsed.activePet ? [parsed.activePet] : []);
+          // 迁移：老存档没有「愚愚」，自动补上第二只默认宠物
+          const hasYuyu = pets.some((p: PetConfig) => p.id === "pet_yuyu_default" || p.name === "愚愚");
+          return hasYuyu ? pets : [...pets, DEFAULT_PUPPY];
+        })(),
         checkInCalendar: parsed.checkInCalendar || [],
         onboardingCompleted: parsed.onboardingCompleted ?? false
       };
@@ -485,21 +530,7 @@ export default function App() {
     return defaultVal;
   });
 
-  // [演示模式] 上帝模式（god）用于老板审阅/演示：可无限刷币、免费投瓶等特权；
-  // 访客模式（guest）为正常经济玩法，绝对不允许刷币。默认 guest，持久化记忆上次选择。
-  const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">(() => {
-    const mode = localStorage.getItem("starpuff_play_mode");
-    return mode === "god" ? "god" : "guest";
-  });
-
-  const isGodMode = systemPlayMode === "god";
-
-  // [演示模式] 上帝模式每次上线（应用启动 / 切到上帝模式）自动充值 777777 星辰币，供老板审阅演示。
-  // 访客模式不受影响，保持正常经济玩法。
-  useEffect(() => {
-    if (!isGodMode) return;
-    setUser(prev => (prev.stardustCoins === 777777 ? prev : { ...prev, stardustCoins: 777777 }));
-  }, [isGodMode]);
+  // [正式版] 仅访客模式（无上帝模式）。经济与进度统一由 localStorage 存档持久化，绝对不允许刷币。
 
   // Steam 用户 ID（内购用）。优先取 Steamworks 登录态的真实 ID，离线时用本地稳定占位 ID 便于联调。
   const steamStatus = useSteam();
@@ -942,6 +973,8 @@ export default function App() {
 
   // VIP Dialog Modal
   const [isVipModalOpen, setIsVipModalOpen] = useState(false);
+  // 梦境仓（温馨陪睡场景）
+  const [isDreamOpen, setIsDreamOpen] = useState(false);
   // 沉睡弹窗 / 低能量弹窗 / 委屈提醒弹窗
   const [isSleepModalOpen, setIsSleepModalOpen] = useState(false);
   const [isLowEnergyModalOpen, setIsLowEnergyModalOpen] = useState(false);
@@ -949,64 +982,80 @@ export default function App() {
   // Re-generate Whisper loading state
   const [isGeneratingWhisper, setIsGeneratingWhisper] = useState(false);
   
-  // Sidebar tab tracker: "whispers" (心语信) or "chat" (AI实时聊天)
-  const [sidebarMode, setSidebarMode] = useState<"whispers" | "chat">("whispers");
+  // 右侧情感功能区 tab：chat(陪伴私语) / whispers(星辰来信) / feed(喂食) / interact(互动) / settings(设置)
+  const [sidebarMode, setSidebarMode] = useState<"chat" | "whispers" | "feed" | "interact" | "settings">("chat");
   const [chatInput, setChatInput] = useState("");
   const [isChatTyping, setIsChatTyping] = useState(false);
+  // [AI 对话] 流式打字中：true 表示正在逐字输出回复
+  const [isStreaming, setIsStreaming] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  const [chatMessages, setChatMessages] = useState<Array<{ id: string; sender: "user" | "pet"; text: string; timestamp: string }>>(() => {
-    const local = localStorage.getItem("starpuff_chat_history_v2");
+  // 星辰来信未读计数：新信到来 +1，切换到星辰来信 tab 时清零
+  const [unreadLetters, setUnreadLetters] = useState(0);
+  const prevWhisperCountRef = useRef(0);
+  useEffect(() => {
+    const count = whispers.length;
+    if (count > prevWhisperCountRef.current) {
+      setUnreadLetters(prev => prev + (count - prevWhisperCountRef.current));
+    }
+    prevWhisperCountRef.current = count;
+  }, [whispers]);
+
+  // 聊天记录按宠物 id 隔离存储：每只宠物独立的聊天历史
+  const chatPetId = user.activePet?.id || "default";
+  const chatHistoryKey = `starpuff_chat_history_v2_${chatPetId}`;
+
+  const buildWelcomeMessage = (petName: string, petType: string, ownerName: string) => {
+    const greetTexts = [
+      `呼噜呼噜～ ${ownerName}，我是你的小宝贝${petName}呀！我正在由粉色星能织成的彩虹草坪上踩奶呢，你想和我说点什么心里话吗？我都在听着哦。`,
+      `汪汪！${ownerName}，我是你的小天使${petName}。听到遥远的星际共振连线了，我马上丢下玩具飞奔了过来，蹭蹭你！今天过得怎么样？`,
+      `喵呜～ 守护者，看到星宿天空为你点亮的晨星了吗？我是${petName}。彩虹桥底下一片软绵绵的，但我还是最钟意你暖暖的手心，快来和我说说话吧！`
+    ];
+    const selectedGreet = petType.includes("狗") ? greetTexts[1] : petType.includes("猫") ? greetTexts[0] : greetTexts[2];
+    return {
+      id: "chat_init",
+      sender: "pet" as const,
+      text: selectedGreet,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+  };
+
+  const loadChatHistory = (petId: string): Array<{ id: string; sender: "user" | "pet"; text: string; timestamp: string }> | null => {
+    const local = localStorage.getItem(`starpuff_chat_history_v2_${petId}`);
     if (local) {
       try {
         const parsed = JSON.parse(local);
         if (parsed && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-    return [
-      {
-        id: "chat_init",
-        sender: "pet",
-        text: `呼噜呼噜～ 主人，我是你的小宝贝天乐呀！我正在由粉色星能织成的彩虹草坪上踩奶呢，你想和我说点什么心里话吗？我都会一直倾听你的呼唤。`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ];
+    return null;
+  };
+
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string; sender: "user" | "pet"; text: string; timestamp: string }>>(() => {
+    const loaded = loadChatHistory(chatPetId);
+    if (loaded) return loaded;
+    return [buildWelcomeMessage(user.activePet?.name || "乐乐", user.activePet?.type || "猫", user.ownerName)];
   });
 
-  // Track and save chat history（防抖：避免长记录高频全量序列化阻塞主线程）
+  // 持久化：按当前宠物 id 隔离保存聊天记录
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem("starpuff_chat_history_v2", JSON.stringify(chatMessages));
+        localStorage.setItem(chatHistoryKey, JSON.stringify(chatMessages));
       } catch (e) {}
     }, 400);
     return () => clearTimeout(timer);
-  }, [chatMessages]);
+  }, [chatMessages, chatHistoryKey]);
 
-  // Dynamic initialization for chat welcome when pet swaps
+  // 切换宠物时，加载对应宠物的聊天记录（无记录则初始化欢迎语）
   useEffect(() => {
-    if (user.activePet) {
-      const pName = user.activePet.name;
-      const greetTexts = [
-        `呼噜呼噜～ ${user.ownerName}，我是你的小宝贝${pName}呀！我正在由粉色星能织成的彩虹草坪上踩奶呢，你想和我说点什么心里话吗？我都在听着哦。`,
-        `汪汪！${user.ownerName}，我是你的小天使${pName}。听到遥远的星际共振连线了，我马上丢下玩具飞奔了过来，蹭蹭你！今天过得怎么样？`,
-        `喵呜～ 守护者，看到星宿天空为你点亮的晨星了吗？我是${pName}。彩虹桥底下一片软绵绵的，但我还是最钟意你暖暖的手心，快来和我说说话吧！`
-      ];
-      const selectedGreet = user.activePet.type.includes("狗") ? greetTexts[1] : user.activePet.type.includes("猫") ? greetTexts[0] : greetTexts[2];
-      
-      setChatMessages(prev => {
-        if (prev.length === 1 && prev[0].id === "chat_init") {
-          return [{
-            id: "chat_init",
-            sender: "pet",
-            text: selectedGreet,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }];
-        }
-        return prev;
-      });
+    const loaded = loadChatHistory(chatPetId);
+    if (loaded) {
+      setChatMessages(loaded);
+    } else {
+      setChatMessages([buildWelcomeMessage(user.activePet?.name || "乐乐", user.activePet?.type || "猫", user.ownerName)]);
     }
-  }, [user.activePet]);
+  }, [chatPetId]);
 
   // Smooth auto-scroll for chat dialog
   useEffect(() => {
@@ -1015,13 +1064,14 @@ export default function App() {
     }
   }, [chatMessages, isChatTyping, sidebarMode]);
 
-  const handleSendChatMessage = async (e?: React.FormEvent) => {
+  const handleSendChatMessage = async (e?: React.FormEvent, textArg?: string) => {
     if (e) e.preventDefault();
-    if (!chatInput.trim() || isChatTyping) return;
+    const text = (textArg ?? chatInput).trim();
+    if (!text || isChatTyping || isStreaming) return;
 
     // 陪伴能量状态拦截：沉睡/低能量时无法正常对话
     if (companionState.state === "sleeping") {
-      const userText = chatInput.trim();
+      const userText = text;
       setChatMessages(prev => [
         ...prev,
         {
@@ -1045,7 +1095,7 @@ export default function App() {
 
     if (!companionState.canInteract) {
       // 失落疏离/心寒告别：拒绝正常互动，只流露状态话术
-      const userText = chatInput.trim();
+      const userText = text;
       const phrase = pickPhrase(getPhrasesForState(companionState.state));
       setChatMessages(prev => [
         ...prev,
@@ -1075,7 +1125,7 @@ export default function App() {
       return;
     }
 
-    const userMsgText = chatInput.trim();
+    const userMsgText = text;
     setChatInput(""); // Clear field
 
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1106,52 +1156,91 @@ export default function App() {
     // 改为直接复用已修正为纯函数 + 副作用外提的 updateTaskProgress。
     updateTaskProgress("task_interact", 1);
 
-    // Invoke API call
+    // 构建宠物人设（真实 AI 对话用）
+    const mapTypeToSpecies = (t?: string): PetPersona["species"] => {
+      if (t?.includes("狗")) return "dog";
+      if (t?.includes("兔")) return "rabbit";
+      if (t?.includes("仓鼠")) return "hamster";
+      if (t?.includes("猫")) return "cat";
+      return "other";
+    };
+    const persona: PetPersona = {
+      name: user.activePet?.name || "乐乐",
+      species: mapTypeToSpecies(user.activePet?.type),
+      personality: user.activePet?.personalityTags?.join("、") || "极度娇软、爱撒娇、有点小黏人、对主人一心一意、容易感动",
+      ownerName: user.ownerName,
+      relationship: `你是${user.ownerName}最爱的星宠，你们已经相伴很久了，你对主人有很深的感情，愿意永远陪伴主人。`,
+      petMood: user.activePet?.isSleeping ? "sleepy" : (user.activePet?.statusHunger ?? 80) < 30 ? "hungry" : "happy",
+      hungerLevel: user.activePet?.statusHunger ?? 80,
+      bondLevel: Math.min(100, user.activePet?.companionEnergy ?? 90),
+    };
+
+    const petId = user.activePet?.id || "default";
+    // 流式占位消息：真实 AI 逐字输出时填充
+    const streamingId = `chat_${Date.now()}_p_stream`;
+    setChatMessages(prev => [...prev, {
+      id: streamingId,
+      sender: "pet" as const,
+      text: "",
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }]);
+
     try {
-      const data = await sendChatMessage({
-        message: userMsgText,
-        chatHistory: updatedMessages.map(msg => ({
-          sender: msg.sender,
-          text: msg.text
-        })),
-        ownerName: user.ownerName,
-        petName: user.activePet?.name || "天乐",
-        petType: user.activePet?.type || "猫",
-        breed: user.activePet?.breed || "英短乳白",
-        lore: user.activePet?.model3d?.loreParagraph || "",
-        personality: user.activePet?.personalityTags?.join(",") || "温柔粘人",
+      // 优先走真实 AI 大模型（流式输出 + 思考状态）
+      const aiText = await AIChatService.sendMessage(petId, userMsgText, persona, {
+        onThinking: () => { setIsChatTyping(true); setIsStreaming(false); },
+        onToken: (token) => {
+          setIsChatTyping(false);
+          setIsStreaming(true);
+          setChatMessages(prev => prev.map(m => m.id === streamingId ? { ...m, text: m.text + token } : m));
+        },
+        onComplete: (fullText) => {
+          setIsStreaming(false);
+          setChatMessages(prev => prev.map(m => m.id === streamingId ? { ...m, text: fullText } : m));
+          playSound("success");
+          incrementBondingCharge(5); // Dialogue is a high bonding activity (+5)
+        },
+        onError: () => {
+          setIsChatTyping(false);
+          setIsStreaming(false);
+        },
       });
 
-      if (data.success && data.text) {
-        setChatMessages(prev => [
-          ...prev,
-          {
+      if (aiText === null) {
+        // 未配置 AI Key：删除流式占位，降级到后端（Gemini/离线模板）
+        setChatMessages(prev => prev.filter(m => m.id !== streamingId));
+        const data = await sendChatMessage({
+          message: userMsgText,
+          chatHistory: updatedMessages.map(msg => ({ sender: msg.sender, text: msg.text })),
+          ownerName: user.ownerName,
+          petName: user.activePet?.name || "乐乐",
+          petType: user.activePet?.type || "猫",
+          breed: user.activePet?.breed || "英短乳白",
+          lore: user.activePet?.model3d?.loreParagraph || "",
+          personality: user.activePet?.personalityTags?.join(",") || "温柔粘人",
+        });
+        if (data.success && data.text) {
+          setChatMessages(prev => [...prev, {
             id: `chat_${Date.now()}_p`,
             sender: "pet" as const,
             text: data.text,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }
-        ]);
-        playSound("success");
-        incrementBondingCharge(5); // Dialogue is a high bonding activity (+5)
-      } else {
-        throw new Error(data.error || "获取回复失败");
+          }]);
+          playSound("success");
+          incrementBondingCharge(5);
+        } else {
+          throw new Error(data.error || "获取回复失败");
+        }
       }
     } catch (error: any) {
       console.error("AI chat companion error:", error);
       triggerToast(`⚠️ 与星辰连接微弱: ${error.message || "请求超时"}`);
-      // Fallback response inline
-      setChatMessages(prev => [
-        ...prev,
-        {
-          id: `chat_${Date.now()}_p_err`,
-          sender: "pet" as const,
-          text: `喵呜～ 感觉刚才有一阵强烈的太阳流风卷过了天空之城，无线电有一些波动。不过只要我们心意相连，你的爱我就能接收到。守护者，别太辛苦太劳累哦。`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
+      // 出错：填充流式占位为友好降级文案（若已有部分文本则保留）
+      const fallbackText = `喵呜～ 感觉刚才有一阵强烈的太阳流风卷过了天空之城，无线电有一些波动。不过只要我们心意相连，你的爱我就能接收到。守护者，别太辛苦太劳累哦。`;
+      setChatMessages(prev => prev.map(m => m.id === streamingId ? { ...m, text: m.text || fallbackText } : m));
     } finally {
       setIsChatTyping(false);
+      setIsStreaming(false);
     }
   };
 
@@ -2316,7 +2405,7 @@ export default function App() {
               <span className="text-sm md:text-md font-medium tracking-widest uppercase flex items-center gap-1.5 font-sans">
                 喵汪星云 <span className="text-xs text-purple-400 font-mono">StarPuff</span>
               </span>
-              <p className="text-[8px] text-gray-400 font-sans tracking-wide">星辰像素引擎 · 温柔守护中 ✨</p>
+              <p className="text-[8px] text-gray-400 font-sans tracking-wide">温柔守护中 ✨</p>
             </div>
           </div>
 
@@ -2333,24 +2422,7 @@ export default function App() {
               </span>
             </button>
 
-            {/* Level Indicator / Streak days */}
-            {/* [BUG-FIX] 原「羁绊 LV.8 / 75%」是写死的假数据，无论玩多久都不变，误导玩家。
-                改为读取真实 level/exp 字段（PetConfig 已定义），动态显示。 */}
-            {(() => {
-              const petLevel = user.activePet?.level ?? 1;
-              const petExp = user.activePet?.exp ?? 0;
-              const expPercent = Math.min(100, petExp % 100); // 每 100 经验升一级的进度
-              return (
-                <div className="hidden sm:flex items-center space-x-2 bg-white/5 border border-white/10 rounded-full px-3 py-1">
-                  <span className="text-[10px] font-mono text-pink-400">登岛{user.streakDays}天</span>
-                  <span className="text-[10px] text-gray-500 font-mono">|</span>
-                  <span className="text-[10px] font-mono text-indigo-300">羁绊 LV.{petLevel}</span>
-                  <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-purple-500 to-orange-400 transition-all" style={{ width: `${expPercent}%` }}></div>
-                  </div>
-                </div>
-              );
-            })()}
+            {/* [正式版精简] 已移除登岛天数 / 羁绊等级等技术参数，顶部栏保持极简 */}
 
             {/* VIP Label Checkbox */}
             {user.membership !== "free" ? (
@@ -2365,29 +2437,6 @@ export default function App() {
                 开通会员
               </button>
             )}
-
-            {/* [演示模式] 上帝/访客模式切换（仅用于老板审阅演示）。上帝模式可无限刷币等特权，访客模式为正常经济玩法。 */}
-            <button
-              onClick={() => {
-                const next = isGodMode ? "guest" : "god";
-                setSystemPlayMode(next);
-                localStorage.setItem("starpuff_play_mode", next);
-                playSound(isGodMode ? "click" : "success");
-                triggerToast(
-                  next === "god"
-                    ? "👑 已切换至【上帝演示模式】，可无限刷币、免费投瓶等特权，供老板审阅演示。"
-                    : "🐾 已切换至【访客模式】，恢复正常经济玩法，禁止刷币。"
-                );
-              }}
-              className={`px-2.5 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-mono border transition-colors ${
-                isGodMode
-                  ? "bg-amber-500/25 hover:bg-amber-500/40 text-amber-300 border-amber-500/50 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
-                  : "bg-white/10 hover:bg-purple-500/20 hover:text-purple-300 text-white/70 border-white/10"
-              }`}
-              title="切换演示模式"
-            >
-              {isGodMode ? "👑 上帝模式" : "🐾 访客模式"}
-            </button>
           </div>
         </header>
 
@@ -2470,18 +2519,6 @@ export default function App() {
             <span className="text-[10px] font-bold tracking-tighter font-sans">个人档案</span>
           </button>
 
-          <button
-            onClick={() => { playSound("click"); setActiveTab("v26_suite"); }}
-            className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "v26_suite" ? "text-pink-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
-            }`}
-          >
-            <div className="w-6 h-6 flex items-center justify-center text-xs animate-pulse">
-              🔮
-            </div>
-            <span className="text-[10px] font-bold tracking-tighter font-sans">2.6梦境舱</span>
-          </button>
-
         </nav>
 
         {/* CONTAINER FOR VIEWS */}
@@ -2560,17 +2597,6 @@ export default function App() {
 
                     {/* Interactive pixel Canvas container */}
                     <div className="w-full max-w-lg flex flex-col items-center py-4 relative">
-                      {/* Active status tags */}
-                      <div className="absolute top-4 left-4 z-20 flex space-x-2">
-                        <span className="px-2.5 py-0.5 bg-black/60 border border-white/5 rounded-full text-[9px] font-sans tracking-wide text-slate-300">
-                          ✨ 星辰凝聚 99%
-                        </span>
-                        <span className="px-2.5 py-0.5 bg-pink-500/20 border border-pink-500/30 rounded-full text-[9px] font-sans tracking-wide text-pink-300 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-ping" />
-                          暖心陪伴中
-                        </span>
-                      </div>
-
                       {/* Canvas Graphics component */}
                       <HomeCanvas
                         petConfig={user.activePet}
@@ -2611,15 +2637,15 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* --- MEMORY FLASHBACK CHARGING PROGRESS WIDGET --- */}
+                    {/* --- MEMORY FLASHBACK CHARGING PROGRESS WIDGET (正式版精简：去百分比与技术数值) --- */}
                     <div className="w-full bg-[#110c2c]/85 border border-[#fc407a]/20 rounded-2xl p-4 space-y-2 max-w-lg shadow-[inset_0_1px_3px_rgba(255,255,255,0.05),0_8px_20px_rgba(0,0,0,0.4)]">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-[#ff5c8a] font-sans font-bold flex items-center gap-1">
                           <Heart className="w-3.5 h-3.5 fill-[#ff5c8a] animate-pulse" />
-                          星心连系蓄力 · {bondingCharge}%
+                          星心连系
                         </span>
                         <span className="text-purple-300 text-[9px] font-mono animate-pulse">
-                          {bondingCharge >= 80 ? "💖 星能饱满：一触即发温情闪回！" : "💫 蓄满100%唤醒生前故事"}
+                          {bondingCharge >= 80 ? "💖 星能饱满，即将唤醒温情闪回" : "💫 正在慢慢蓄满星能"}
                         </span>
                       </div>
                       <div className="relative w-full h-3 bg-black/50 rounded-full overflow-hidden p-0.5 border border-white/5">
@@ -2631,7 +2657,7 @@ export default function App() {
                         </div>
                       </div>
                       <div className="flex items-center justify-between text-[8.5px] text-gray-500 font-sans">
-                        <span>💡 日常抚摸(+15) · 投喂小零食(+25) · 抛送爱心/红毛球(+10)级联蓄能</span>
+                        <span>💡 多陪它玩、喂它吃好吃的，星能会慢慢蓄满哦</span>
                       </div>
                     </div>
 
@@ -2728,7 +2754,7 @@ export default function App() {
                           setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins + amt) }));
                         }}
                         triggerToast={triggerToast}
-                        isGodMode={isGodMode}
+                        isGodMode={false}
                       />
 
                       {/* 3. 共鸣同伴星系 */}
@@ -3437,6 +3463,25 @@ export default function App() {
                           triggerToast={triggerToast}
                         />
 
+                        {/* 梦境仓入口（极简温馨版） */}
+                        <div className="bg-[#110c2c]/85 border border-white/10 rounded-3xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl" style={{ background: "rgba(168,85,247,0.2)", border: "1px solid rgba(168,85,247,0.4)" }}>
+                              💤
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-white font-sans">梦境仓</h4>
+                              <p className="text-[10px] text-gray-400 mt-1">陪它睡一觉，听它说梦话</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => { setIsDreamOpen(true); playSound("click"); }}
+                            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-md font-sans shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all text-center"
+                          >
+                            去看看 💤
+                          </button>
+                        </div>
+
                         {/* Reset guiding instrument box */}
                         <div className="bg-[#110c2c]/85 border border-white/10 rounded-3xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
                           <div>
@@ -3461,51 +3506,27 @@ export default function App() {
                   </div>
                 )}
 
-                {activeTab === "v26_suite" && (
-                  <div className="flex-1 flex flex-col space-y-6" id="view-v26-suite">
-                    <CelestialV26Suite
-                      user={user}
-                      setUser={setUser}
-                      triggerToast={triggerToast}
-                      onUpdatePet={(updatedPet) => {
-                        setUser(prev => {
-                          const next = { ...prev, activePet: updatedPet };
-                          localStorage.setItem("starpuff_user", JSON.stringify(next));
-                          return next;
-                        });
-                      }}
-                    />
-                  </div>
-                )}
               </>
             )}
           </div>
 
-          {/* RIGHT SIDEBAR (DAILY AI WHISPER & TASKS PANEL with REAL-TIME AI CHAT) */}
-          <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-white/5 p-4 flex flex-col space-y-5 bg-[#090514]/65 shrink-0 select-none">
-            
-            {/* REAL-TIME TAB SWAP NAVIGATION */}
-            <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 shrink-0">
-              <button
-                onClick={() => { setSidebarMode("whispers"); playSound("click"); }}
-                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold tracking-wider transition-all flex items-center justify-center gap-1.5 ${sidebarMode === "whispers" ? "bg-gradient-to-r from-orange-500/80 to-pink-600/80 text-white shadow-md border border-white/10" : "text-gray-400 hover:text-white"}`}
-              >
-                📜 星辰来信
-              </button>
-              <button
-                onClick={() => { setSidebarMode("chat"); playSound("click"); }}
-                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold tracking-wider transition-all flex items-center justify-center gap-1.5 relative ${sidebarMode === "chat" ? "bg-gradient-to-r from-indigo-600/80 to-purple-600/80 text-white shadow-md border border-white/10" : "text-gray-400 hover:text-white"}`}
-              >
-                💬 陪伴私语
-                <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
-                </span>
-              </button>
-            </div>
+          {/* RIGHT SIDEBAR (右侧情感功能区 V4.1：陪伴私语/星辰来信/喂食/互动/设置) */}
+          <RightPanel>
+
+            {/* 顶部 5 图标导航 */}
+            <IconNav
+              activeTab={sidebarMode}
+              onTabChange={(tab) => {
+                if (tab === "whispers") setUnreadLetters(0);
+                setSidebarMode(tab as "chat" | "whispers" | "feed" | "interact" | "settings");
+                playSound("click");
+              }}
+              unreadLetters={unreadLetters}
+            />
 
             {/* DYNAMIC SIDEBAR CONTENT */}
-            {sidebarMode === "whispers" ? (
+            <div className="flex-1 overflow-hidden relative flex flex-col min-h-0">
+            {sidebarMode === "whispers" && (
               /* 1. WHISPER SEGMENT */
               <div className="flex-1 flex flex-col overflow-hidden min-h-[340px]">
                 <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
@@ -3513,7 +3534,6 @@ export default function App() {
                     <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400 font-mono">
                       星辰来信 · 每日陪伴私语 📜
                     </h3>
-                    <p className="text-[8px] text-slate-500 font-mono mt-0.5">DAILY STARDUST LETTERS</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     {isLetterPremiumActive ? (
@@ -3612,15 +3632,17 @@ export default function App() {
                   ))}
                 </div>
               </div>
-            ) : (
-              /* 2. REAL-TIME AI DIALOG CONVERSATION SEGMENT */
+            )}
+
+            {/* 2. 陪伴私语（聊天） */}
+            {sidebarMode === "chat" && (
               <div className="flex-1 flex flex-col overflow-hidden bg-black/40 border border-white/5 rounded-2xl p-3 relative min-h-[340px]" id="pet-realtime-chat-viewport">
                 
                 {/* Header showing connect indicator */}
                 <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-2 text-[10px] text-gray-400 font-mono">
                   <div className="flex items-center gap-1.5">
-                    <div className={`w-1.5 h-1.5 rounded-full ${isChatTyping ? "bg-amber-400 animate-pulse" : "bg-emerald-400 animate-ping"}`} />
-                    <span>星辰通路 ({user.activePet?.name || '天乐'})</span>
+                    <div className={`w-1.5 h-1.5 rounded-full ${isChatTyping ? "bg-amber-400 animate-pulse" : isStreaming ? "bg-cyan-400 animate-pulse" : "bg-emerald-400 animate-ping"}`} />
+                    <span>星辰通路 ({user.activePet?.name || '乐乐'})</span>
                   </div>
                   <span className="bg-white/5 px-2 py-0.5 rounded text-[8.5px] font-mono text-purple-300">
                     {user.unlimitedTalks ? "♾️ 无限次" : `剩 ${user.dialogsRemaining}/5 轮`}
@@ -3640,6 +3662,9 @@ export default function App() {
                           : "bg-white/5 text-slate-100 rounded-tl-none border border-white/5"
                       }`}>
                         {msg.text}
+                        {isStreaming && msg.sender === "pet" && msg.id.endsWith("_p_stream") && (
+                          <span className="inline-block w-1 h-3 bg-purple-300 animate-pulse ml-0.5 align-middle" />
+                        )}
                       </div>
                     </div>
                   ))}
@@ -3648,7 +3673,7 @@ export default function App() {
                   {isChatTyping && (
                     <div className="flex flex-col items-start">
                       <div className="text-[8px] text-gray-500 font-mono mb-1">
-                        {user.activePet?.name} 正在踩沙传音...
+                        {user.activePet?.name} 正在认真思考...
                       </div>
                       <div className="bg-white/5 border border-white/5 p-2 rounded-2xl rounded-tl-none flex items-center space-x-1 py-2 px-3">
                         <div className="w-1 h-1 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
@@ -3662,19 +3687,35 @@ export default function App() {
                   <div ref={chatBottomRef} />
                 </div>
 
+                {/* 快捷短语 */}
+                <div className="flex gap-2 overflow-x-auto px-0.5 pt-2 shrink-0">
+                  {["摸摸头～", "我想你了", "你在干嘛呀", "今天开心吗", "抱抱"].map(phrase => (
+                    <button
+                      key={phrase}
+                      type="button"
+                      onClick={() => handleSendChatMessage(undefined, phrase)}
+                      disabled={isChatTyping || isStreaming}
+                      className="flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] text-purple-300 hover:text-white transition-colors disabled:opacity-40"
+                      style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.25)" }}
+                    >
+                      {phrase}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Send action desk */}
                 <form onSubmit={handleSendChatMessage} className="flex gap-1.5 pt-2 border-t border-white/5 relative bg-[#090514]/10">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    disabled={isChatTyping}
-                    placeholder={isChatTyping ? "正在等候回复中..." : `与 ${user.activePet?.name || '宝贝'} 细数日常...`}
+                    disabled={isChatTyping || isStreaming}
+                    placeholder={isChatTyping ? "正在思考中..." : isStreaming ? "正在打字中..." : `与 ${user.activePet?.name || '宝贝'} 细数日常...`}
                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500/80 placeholder-gray-500 disabled:opacity-50 transition-all font-sans"
                   />
                   <button
                     type="submit"
-                    disabled={isChatTyping || !chatInput.trim()}
+                    disabled={isChatTyping || isStreaming || !chatInput.trim()}
                     className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 disabled:opacity-30 disabled:pointer-events-none text-white w-8 h-8 rounded-xl flex items-center justify-center transition-all shadow-md shrink-0 border border-indigo-500/30 cursor-pointer"
                   >
                     <Send className="w-3.5 h-3.5" />
@@ -3688,43 +3729,107 @@ export default function App() {
               </div>
             )}
 
-            {/* DAILY TASKS QUEST LIST */}
-            <div className="h-56 bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col justify-between shrink-0">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-[#7B61FF] font-mono mb-2.5 flex justify-between items-center">
-                  <span>🛠️ 星辰回忆每日任务板</span>
-                  <span className="text-[9px] text-gray-500">日上限63币</span>
-                </h3>
+            {/* 3. 喂食（简版） */}
+            {sidebarMode === "feed" && (
+              <div className="flex-1 flex flex-col overflow-hidden p-4">
+                <div className="text-center py-10">
+                  <div className="text-5xl mb-3">🍖</div>
+                  <div className="text-sm font-bold text-purple-100 mb-1">喂它吃点好吃的</div>
+                  <div className="text-xs text-purple-300/70 mb-5">挑一个它爱吃的零食，它会特别开心</div>
+                  <button
+                    onClick={() => { setFeedMenuTrigger(p => p + 1); playSound("click"); }}
+                    className="px-5 py-2.5 rounded-full text-sm font-bold text-white shadow-lg"
+                    style={{ background: "linear-gradient(135deg, #f59e0b, #ef4444)" }}
+                  >
+                    🍖 打开喂食菜单
+                  </button>
+                </div>
+              </div>
+            )}
 
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-1 text-xs">
-                  {tasks.map((task) => (
-                    <div key={task.id} className="flex items-center justify-between py-1 border-b border-white/5 last:border-0 hover:bg-[#150a2e]/30 px-1 rounded transition-colors" title={task.description}>
-                      <span className="text-slate-300 text-[11px] leading-tight flex-1">
-                        {task.name} ({task.completedTimes}/{task.maxTimes})
-                      </span>
-                      
-                      <div className="flex items-center gap-2">
-                        {task.completedTimes >= task.maxTimes ? (
-                          <span className="text-[#06d6a0] font-bold text-[10px] tracking-tight">已完成 完成</span>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              playSound("click");
-                              updateTaskProgress(task.id, 1);
-                            }}
-                            className="text-[9px] text-purple-300 hover:text-white bg-purple-500/20 border border-purple-500/30 px-1.5 py-0.5 rounded tracking-tighter"
-                          >
-                            +{task.reward}币
-                          </button>
-                        )}
-                      </div>
-                    </div>
+            {/* 4. 互动（简版） */}
+            {sidebarMode === "interact" && (
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="text-center py-4">
+                  <div className="text-5xl mb-3">✋</div>
+                  <div className="text-sm font-bold text-purple-100 mb-1">和它互动</div>
+                  <div className="text-xs text-purple-300/70 mb-4">摸摸它、抱抱它，它会很开心哦</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { icon: "🫳", name: "摸摸头" },
+                    { icon: "🤗", name: "抱抱" },
+                    { icon: "🐟", name: "逗玩" },
+                    { icon: "🎵", name: "疗愈音乐" },
+                  ].map((act) => (
+                    <button
+                      key={act.name}
+                      onClick={() => {
+                        playSound("click");
+                        setConfettiTrigger(p => p + 1);
+                        incrementBondingCharge(5);
+                        triggerToast(`${act.icon} 你和${user.activePet?.name}互动了一下，它很开心～`);
+                      }}
+                      className="flex flex-col items-center gap-2 py-5 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-400/40 hover:bg-purple-500/10 transition-all active:scale-95"
+                    >
+                      <span className="text-3xl">{act.icon}</span>
+                      <span className="text-xs text-purple-100 font-bold">{act.name}</span>
+                    </button>
                   ))}
                 </div>
               </div>
-            </div>
+            )}
 
-          </aside>
+            {/* 5. 设置 + 每日任务板 */}
+            {sidebarMode === "settings" && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="text-center py-2">
+                  <div className="text-3xl mb-2">⚙️</div>
+                  <div className="text-sm font-bold text-purple-100">设置</div>
+                </div>
+
+                {/* 我的星宠 */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <div className="text-xs font-bold text-purple-300 mb-2">🐾 我的星宠</div>
+                  <div className="text-xs text-purple-100/80 space-y-1">
+                    <div>名字：{user.activePet?.name}</div>
+                    <div>品种：{user.activePet?.breed}</div>
+                    <div>踏彩虹桥：{user.activePet?.passingDate}</div>
+                  </div>
+                </div>
+
+                {/* 每日任务板 */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <h3 className="text-xs font-bold text-[#7B61FF] font-mono mb-2 flex justify-between items-center">
+                    <span>🛠️ 星辰回忆每日任务板</span>
+                    <span className="text-[9px] text-gray-500">日上限63币</span>
+                  </h3>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1 text-xs">
+                    {tasks.map((task) => (
+                      <div key={task.id} className="flex items-center justify-between py-1 border-b border-white/5 last:border-0 hover:bg-[#150a2e]/30 px-1 rounded transition-colors" title={task.description}>
+                        <span className="text-slate-300 text-[11px] leading-tight flex-1">
+                          {task.name} ({task.completedTimes}/{task.maxTimes})
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {task.completedTimes >= task.maxTimes ? (
+                            <span className="text-[#06d6a0] font-bold text-[10px] tracking-tight">已完成</span>
+                          ) : (
+                            <button
+                              onClick={() => { playSound("click"); updateTaskProgress(task.id, 1); }}
+                              className="text-[9px] text-purple-300 hover:text-white bg-purple-500/20 border border-purple-500/30 px-1.5 py-0.5 rounded tracking-tighter"
+                            >
+                              +{task.reward}币
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </RightPanel>
         </div>
 
 
@@ -3932,6 +4037,15 @@ export default function App() {
         />
       )}
 
+      {/* --- 梦境仓（温馨陪睡场景）--- */}
+      <DreamChamber
+        isOpen={isDreamOpen}
+        petName={user.activePet?.name || "乐乐"}
+        species={user.activePet?.type || "猫"}
+        triggerToast={triggerToast}
+        onClose={() => setIsDreamOpen(false)}
+      />
+
       {/* --- AR 相机模拟 --- */}
       {isArCameraOpen && user.activePet && (
         <ArCameraSimulation
@@ -3939,7 +4053,7 @@ export default function App() {
           onClose={() => setIsArCameraOpen(false)}
           pet={user.activePet}
           triggerToast={triggerToast}
-          isGodMode={isGodMode}
+          isGodMode={false}
         />
       )}
 
