@@ -63,7 +63,7 @@ export interface Product {
   /** 货币代码 */
   currency?: string;
   /** 商品分类 */
-  category?: "stardust_coins" | "membership" | "outfit" | "snack" | "gift";
+  category?: "stardust_coins" | "membership" | "outfit" | "snack" | "gift" | "premium_service";
   /** 星尘币数量（仅 stardust_coins 类商品） */
   coins?: number;
   /** 会员等级（仅 membership 类商品） */

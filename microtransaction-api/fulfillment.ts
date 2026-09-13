@@ -19,7 +19,7 @@ import * as db from "./db";
 
 // ---- 发放权益定义 ----
 
-export type GrantKind = "stardust_coins" | "membership";
+export type GrantKind = "stardust_coins" | "membership" | "premium_service";
 
 export interface GrantPayload {
   /** 发放类型 */
@@ -28,6 +28,8 @@ export interface GrantPayload {
   amount: number;
   /** 会员等级（仅 membership 时有效） */
   membershipLevel?: "vip_month" | "vip_year";
+  /** 专属服务标识（仅 premium_service 时有效，即商品名称） */
+  serviceId?: string;
 }
 
 export interface GrantResult {
@@ -60,6 +62,13 @@ export function mapProductToGrant(itemId: number, quantity: number): GrantPayloa
         kind: "membership",
         amount: quantity,
         membershipLevel: resolveMembershipLevel(product),
+      };
+    case "premium_service":
+      // 专属纪念服务：serviceId 用商品名，前端据此写入已购服务列表
+      return {
+        kind: "premium_service",
+        amount: quantity,
+        serviceId: product.name,
       };
     default:
       return null;

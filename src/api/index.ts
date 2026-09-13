@@ -251,9 +251,10 @@ export async function verifyUser(steamId: string): Promise<MtxApiResponse<{ isRe
 // ---- 发放与对账 ----
 
 export interface GrantPayload {
-  kind: "stardust_coins" | "membership";
+  kind: "stardust_coins" | "membership" | "premium_service";
   amount: number;
   membershipLevel?: "vip_month" | "vip_year";
+  serviceId?: string;
 }
 
 export interface GrantResult {

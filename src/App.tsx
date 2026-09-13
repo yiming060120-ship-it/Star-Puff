@@ -567,13 +567,35 @@ export default function App() {
     error: null,
   });
 
+  // 专属纪念定制服务：记录已购买的服务（真实内购发放时写入）
+  const [premiumServices, setPremiumServices] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("starpuff_premium_services");
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // 发放回调：把后端返回的权益写回用户状态
   const handleGranted = (payload: GrantPayload, orderId: string) => {
     setUser(prev => applyGrantToUser(prev, payload));
     if (payload.kind === "stardust_coins") {
       triggerToast(`💎 购买成功！星辰币 +${payload.amount}（订单 ${orderId}）`);
-    } else {
+    } else if (payload.kind === "membership") {
       triggerToast(`👑 会员开通成功！${payload.membershipLevel === "vip_year" ? "年卡" : "月卡"}权益即刻生效`);
+    } else if (payload.kind === "premium_service") {
+      // 专属纪念服务：写入已购服务列表（幂等去重）
+      const title = payload.serviceId || "";
+      if (title) {
+        setPremiumServices(prev => {
+          if (prev.includes(title)) return prev;
+          const next = [...prev, title];
+          try { localStorage.setItem("starpuff_premium_services", JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
+      triggerToast(`💎 服务「${title}」已开通！`);
     }
     void unlock(ACHIEVEMENTS.firstPurchase);
     playSound("success");
@@ -1253,15 +1275,6 @@ export default function App() {
   const [confettiTrigger, setConfettiTrigger] = useState(0);
   // [喂食功能区] 外部触发打开喂食菜单（星辰家园互动面板"喂食"按钮递增）
   const [feedMenuTrigger, setFeedMenuTrigger] = useState(0);
-  // [BUG-FIX] 专属纪念定制服务：记录已购买的服务，避免"点了只 toast 无落地"的假支付
-  const [premiumServices, setPremiumServices] = useState<string[]>(() => {
-    try {
-      const raw = localStorage.getItem("starpuff_premium_services");
-      return raw ? (JSON.parse(raw) as string[]) : [];
-    } catch {
-      return [];
-    }
-  });
 
   // --- PET MEMORY FLASHBACK SYSTEM STATES ---
   const [unlockedMemoryIds, setUnlockedMemoryIds] = useState<string[]>(() => {
@@ -2277,35 +2290,22 @@ export default function App() {
     }
   };
 
-  // Simulation buying direct RMB items
-  const handleBuyPremiumService = (title: string, cost: number) => {
-    // [BUG-FIX] 已购买过则不再重复扣费/购买
+  // 真实内购：购买专属纪念服务（itemId 对应 products.json 中的 premium_service 商品）
+  const handleBuyPremiumService = async (title: string, itemId: number) => {
+    // 已购买过则不再重复购买
     if (premiumServices.includes(title)) {
       triggerToast(`✅ 服务「${title}」已开通，无需重复购买。`);
       playSound("beep");
       return;
     }
-    playSound("bubble");
-    const confirmPay = window.confirm(`【支付模拟】\n确定支付 ￥${cost} 购买并启动：\n「${title}」吗？`);
-    if (confirmPay) {
-      playSound("success");
-      // [BUG-FIX] 持久化购买记录，刷新/重开后仍保留"已开通"状态
-      const next = [...premiumServices, title];
-      setPremiumServices(next);
-      try {
-        localStorage.setItem("starpuff_premium_services", JSON.stringify(next));
-      } catch {
-        /* 忽略存储失败 */
-      }
-      triggerToast(`💎 支付成功！服务「${title}」已生效。`);
-      // [BUG-FIX] 去掉无法兑现的承诺（原「已寄送邮箱」「已解锁装扮」实为纯文字），
-      // 改为如实告知「已开通」，避免欺骗性交付文案。
-      if (title.includes("视频")) {
-        triggerToast("📹 「星辰织梦视频包」已开通，纪念视频能力已解锁。");
-      } else {
-        triggerToast("🏠 「高级小窝孪生」已开通，专属纪念装扮已解锁。");
-      }
+    setPurchaseState({ status: "purchasing", orderId: null, error: null });
+    const result = await runPurchase(itemId, 1);
+    setPurchaseState(result);
+    if (result.status !== "success") {
+      triggerToast(`⚠️ 购买失败：${result.error || "未知错误"}`);
+      playSound("beep");
     }
+    // 成功时的发放由 handleGranted 统一处理（写入 premiumServices 并 toast）
   };
 
   // 真实内购：购买星辰币（itemId 对应 products.json 中的星辰币商品）
@@ -3373,7 +3373,7 @@ export default function App() {
                                 </p>
                               </div>
                               <button
-                                onClick={() => handleBuyPremiumService("星辰织梦视频包", 29.9)}
+                                onClick={() => handleBuyPremiumService("星辰织梦视频包", 202)}
                                 className={`${premiumServices.includes("星辰织梦视频包") ? "bg-slate-700 text-slate-300 cursor-not-allowed" : "bg-[#f72585] hover:bg-[#b5179e] text-white hover:scale-105"} font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all active:scale-95`}
                               >
                                 {premiumServices.includes("星辰织梦视频包") ? "✓ 已开通" : "￥29.9"}
@@ -3388,7 +3388,7 @@ export default function App() {
                                 </p>
                               </div>
                               <button
-                                onClick={() => handleBuyPremiumService("高级小窝孪生", 19.9)}
+                                onClick={() => handleBuyPremiumService("高级小窝孪生", 203)}
                                 className={`${premiumServices.includes("高级小窝孪生") ? "bg-slate-700 text-slate-300 cursor-not-allowed" : "bg-[#4cc9f0] hover:bg-[#4361ee] text-slate-900 hover:scale-105"} font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all active:scale-95`}
                               >
                                 {premiumServices.includes("高级小窝孪生") ? "✓ 已开通" : "￥19.9"}

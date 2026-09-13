@@ -61,5 +61,21 @@
     "currency": "CNY",
     "category": "membership",
     "tier": "vip_year"
+  },
+  {
+    "id": 202,
+    "name": "星辰织梦视频包",
+    "description": "专属纪念视频能力解锁",
+    "priceInCents": 2990,
+    "currency": "CNY",
+    "category": "premium_service"
+  },
+  {
+    "id": 203,
+    "name": "高级小窝孪生",
+    "description": "专属纪念装扮解锁",
+    "priceInCents": 1990,
+    "currency": "CNY",
+    "category": "premium_service"
   }
 ]
