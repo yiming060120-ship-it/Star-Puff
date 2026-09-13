@@ -27,3 +27,8 @@ public/models/species/*.gltf
 *.fbx
 *.obj
 *.mtl
+
+# SQLite 运行时临时文件（数据库运行自动生成，勿提交）
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-journal
