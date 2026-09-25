@@ -386,22 +386,21 @@ export default function App() {
   // Tabs: "home" (Stardust Home), "galaxy" (Nebula Gate), "community" (See Star People), "store" (Base Shop), "profile" (VIP/Dossier/Inventory)
   const [activeTab, setActiveTab] = useState<"home" | "galaxy" | "community" | "store" | "profile" | "v26_suite">("home");
 
-  // 本地专属面板：仅开发运行时加载，生产构建（便携版/正式版）会被 tree-shake 剔除。
-  // 该模块文件通过 .gitignore 排除，仅存在于本机；缺失时优雅降级为不渲染。
+  // 本地专属面板：文件仅存在于本机（已通过 .gitignore 排除、不上传）。
+  // 本机存在时（开发运行或打包便携版）自动加载显示；文件缺失（如他人拉取后）则静默跳过，不影响构建。
   const [LocalPanelComp, setLocalPanelComp] = useState<React.ComponentType<{ triggerToast: (msg: string) => void }> | null>(null);
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
+    const loader = import.meta.glob("./features/memorial/MemoryWhispers.tsx")["./features/memorial/MemoryWhispers.tsx"];
+    if (!loader) return;
     let cancelled = false;
-    import("./features/memorial/MemoryWhispers")
-      .then((mod) => {
-        if (!cancelled) setLocalPanelComp(() => mod.default);
-      })
-      .catch(() => {
-        /* 本机无该模块时静默跳过 */
-      });
-    return () => {
-      cancelled = true;
-    };
+    loader().then((mod) => {
+      if (!cancelled) {
+        setLocalPanelComp(() => (mod as { default: React.ComponentType<{ triggerToast: (msg: string) => void }> }).default);
+      }
+    }).catch(() => {
+      /* 加载失败时静默跳过 */
+    });
+    return () => { cancelled = true; };
   }, []);
 
   // 虚拟 AI 星友状态机：友好度 / 打招呼冷却 / 星门偶遇标记（单机版离线模拟）
