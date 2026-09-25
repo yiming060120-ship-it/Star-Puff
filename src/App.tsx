@@ -386,6 +386,24 @@ export default function App() {
   // Tabs: "home" (Stardust Home), "galaxy" (Nebula Gate), "community" (See Star People), "store" (Base Shop), "profile" (VIP/Dossier/Inventory)
   const [activeTab, setActiveTab] = useState<"home" | "galaxy" | "community" | "store" | "profile" | "v26_suite">("home");
 
+  // 本地专属面板：仅开发运行时加载，生产构建（便携版/正式版）会被 tree-shake 剔除。
+  // 该模块文件通过 .gitignore 排除，仅存在于本机；缺失时优雅降级为不渲染。
+  const [LocalPanelComp, setLocalPanelComp] = useState<React.ComponentType<{ triggerToast: (msg: string) => void }> | null>(null);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    let cancelled = false;
+    import("./features/memorial/MemoryWhispers")
+      .then((mod) => {
+        if (!cancelled) setLocalPanelComp(() => mod.default);
+      })
+      .catch(() => {
+        /* 本机无该模块时静默跳过 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // 虚拟 AI 星友状态机：友好度 / 打招呼冷却 / 星门偶遇标记（单机版离线模拟）
   const { getFriend, bumpFriendship, greetFriend, upsertMet, tierLabel } = useVirtualFriends();
 
@@ -3475,6 +3493,8 @@ export default function App() {
                         });
                       }}
                     />
+                    {/* 本地专属面板（仅开发模式渲染） */}
+                    {LocalPanelComp && <LocalPanelComp triggerToast={triggerToast} />}
                   </div>
                 )}
               </>

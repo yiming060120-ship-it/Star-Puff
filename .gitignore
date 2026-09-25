@@ -27,3 +27,6 @@ public/models/species/*.gltf
 *.fbx
 *.obj
 *.mtl
+
+# ---- 本地专属模块（仅本机存在，不进 git，也不打包进发布产物）----
+src/features/memorial/MemoryWhispers.tsx
