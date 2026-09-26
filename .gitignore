@@ -30,3 +30,17 @@ public/models/species/*.gltf
 
 # ---- 本地专属模块（仅本机存在，不进 git，也不打包进发布产物）----
 src/features/memorial/MemoryWhispers.tsx
+
+# ---- 开发期临时日志（原先散落在仓库根目录被误提交；留档请放 docs/archive/logs/）----
+# 必须用前导 "/" 锚定到仓库根，否则会连 docs/archive/logs/ 下的归档副本一起忽略。
+/dev-log.txt
+/build-log.txt
+/fetch-log.txt
+/fetch-err.txt
+/fetch2-log.txt
+/fetch2-err.txt
+
+# ---- 微交易运行时数据（SQLite + 发放账本，含用户发放记录，不应提交）----
+# 同样锚定到仓库根，避免误伤其他位置的同名目录。
+/microtransaction-data/
+/microtransaction-api/data/

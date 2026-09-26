@@ -1,0 +1,2 @@
+下载 Electron: https://npmmirror.com/mirrors/electron/43.4.0/electron-v43.4.0-win32-x64.zip
+目标: C:\Users\一鸣\AppData\Local\electron-builder\Cache\electron\electron-v43.4.0-win32-x64.zip
