@@ -12,13 +12,17 @@
 | 你想…… | 去看 |
 |---|---|
 | 把项目跑起来 | [快速开始](#-快速开始) |
+| 浏览全部文档 | **`docs/README.md`（文档索引）** |
 | 了解目录为什么这么分 | [目录结构](#-目录结构) + `docs/decisions/ADR-0001` |
 | 了解七大星云场景的玩法设计 | `docs/design/Scene_Features_Design.md` |
 | 理解核心数据结构（宠物/用户/场景契约） | `src/types.ts` |
 | 作为 AI / 新成员接手本项目 | **`docs/AI_HANDOFF.md`（必读）** |
+| 查看最近一次安全与竞态修复记录 | `docs/decisions/ADR-0004-security-hardening-and-race-fixes.md` |
+| 运维微交易模块（密钥/数据库/对账） | `docs/HANDOVER_MICROTRANSACTIONS.md` |
 | 提交代码前确认规范 | `CODE_OF_CONDUCT.md` |
 | 报告安全问题 | `SECURITY.md` |
 | 查看历史源码合集快照 | `docs/archive/StarPuff_Source_Code.md` |
+| 排查一次历史构建/运行失败 | `docs/archive/logs/`（含日志说明） |
 
 ---
 
@@ -33,6 +37,8 @@ npm run dev                 # 启动开发服务器（tsx server.ts，前后端�
 npm run lint                # 类型检查（tsc --noEmit，提交前必过）
 npm run build && npm start  # 生产构建并运行
 ```
+
+注意：项目新增原生依赖 `better-sqlite3`，Windows 上需本机构建工具链或在 CI/构建机中预构建二进制。建议在开发机上运行 `npm install` 前确认已安装 Visual Studio Build Tools。CI 推荐使用 Node 22 环境。 
 
 > 工程诚实性声明：`npm run lint` 是本地最低验证门槛；任何"已完成"的功能声明都必须以通过类型检查并能实际运行 `npm run dev` 为前提。
 

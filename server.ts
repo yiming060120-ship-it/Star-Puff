@@ -1,14 +1,60 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { pickSocialPet } from "./src/data/socialPetPool";
+
+// 微交易 API 依赖原生 better-sqlite3（需本机编译）。本机未编译时降级关闭微交易，
+// 保证核心功能（星门漫游 / 每日心语 / AI 对话）正常可用。
+let mtxApi: any = null;
+try {
+  mtxApi = require("./microtransaction-api/index");
+} catch (e) {
+  console.warn("⚠️ microtransaction-api 未加载（better-sqlite3 原生模块不可用），微交易已降级关闭。可安装 VS Build Tools 后执行 `npm rebuild better-sqlite3` 恢复。", (e as Error).message);
+}
+const mtxFallbackRouter = express.Router();
+mtxFallbackRouter.all("*", (_req: express.Request, res: express.Response) =>
+  res.status(503).json({ success: false, error: "微交易服务未启用（sqlite 不可用）" })
+);
+const microtransactionRoutes: express.Router = mtxApi?.microtransactionRoutes ?? mtxFallbackRouter;
+const updateConfig = mtxApi?.updateConfig ?? (() => {});
+const getConfig = mtxApi?.getConfig ?? (() => ({ mockMode: true, webApiKey: "" }));
+const getReport = mtxApi?.getReport ?? (async () => ({ success: false, data: [] }));
+const revokeGrant = mtxApi?.revokeGrant ?? (async () => ({}));
 
 dotenv.config();
 
 const app = express();
 // 3D 重建接口需承载 base64 图片，默认 100kb 限制会直接 413
 app.use(express.json({ limit: "15mb" }));
+
+// [BUG-FIX] 最后一道防线：任何逃逸的 Promise rejection 只记录日志，不再让整个后端进程退出。
+// Express 4 不捕获 async 处理器抛出的异常，一个畸形请求即可造成 unhandledRejection 使 Node 进程退出。
+process.on("unhandledRejection", (reason) => {
+  console.error("[server] unhandledRejection（已拦截，进程继续运行）:", reason);
+});
+
+// [BUG-FIX] 统一包装 API 处理器：把 async 异常交给 Express 错误中间件返回 500，而不是打崩进程。
+type RouteFn = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => unknown | Promise<unknown>;
+const handleAsync =
+  (fn: RouteFn) =>
+  (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+const api = {
+  // 用 app["post"] 下标写法：避免被「app.post → api.post」的全局替换波及而写成 api.post，
+  // 否则会变成 api.post 调用自身造成无限递归（栈溢出）。
+  post: (path: string, fn: RouteFn) => app["post"](path, handleAsync(fn)),
+};
+
+/** [BUG-FIX] 把不可信输入收敛为字符串，避免非字符串 body 触发 TypeError */
+function asString(v: unknown, fallback: string): string {
+  return typeof v === "string" ? v : fallback;
+}
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -31,18 +77,43 @@ function getGeminiClient(): GoogleGenAI | null {
   return aiClient;
 }
 
+/**
+ * 更新 Gemini key（设置页调用）。
+ * 传入非空 key 会重建客户端；传空字符串表示关闭在线 AI，回到离线模板模式。
+ */
+export function setGeminiApiKey(key: string): void {
+  aiClient = null;
+  const trimmed = (key || "").trim();
+  if (trimmed) {
+    process.env.GEMINI_API_KEY = trimmed;
+  } else {
+    delete process.env.GEMINI_API_KEY;
+  }
+}
+
 // REST API for Generating AI Pet Whispers
-app.post("/api/whisper", async (req, res) => {
-  const {
-    ownerName = "主人",
-    petName = "小星尘",
-    petType = "小狗",
-    activeLevel = 1,
-    recentEvents = [],
-    isVip = false,
-  } = req.body;
+api.post("/api/whisper", async (req, res) => {
+  // [BUG-FIX] 收敛不可信输入类型：原实现直接用 req.body.* 解构默认值，
+  // 传入数字/对象时 recentEvents.join / petType.includes 会抛 TypeError，
+  // 在 Express 4 下成为未捕获 rejection 直接打崩进程。
+  const body = req.body ?? {};
+  const ownerName = asString(body.ownerName, "主人");
+  const petName = asString(body.petName, "小星尘");
+  const petType = asString(body.petType, "小狗");
+  const activeLevel = typeof body.activeLevel === "number" ? body.activeLevel : 1;
+  const recentEvents: string[] = Array.isArray(body.recentEvents)
+    ? body.recentEvents.filter((t: unknown): t is string => typeof t === "string")
+    : [];
+  const isVip = body.isVip === true;
 
   const client = getGeminiClient();
+
+  // 每日心语社交化：性格标签有值 → 性格匹配模式；无值 → 随机偶遇模式
+  const personalityTags = Array.isArray(req.body.personalityTags)
+    ? req.body.personalityTags.filter((t: unknown) => typeof t === "string" && t.trim() !== "")
+    : [];
+  const socialMode = personalityTags.length > 0 ? "matched" : "random";
+  const socialPet = pickSocialPet(petName, personalityTags);
 
   // Create formatted context from interactive log
   const eventLogs = recentEvents.length > 0
@@ -74,8 +145,15 @@ app.post("/api/whisper", async (req, res) => {
 
     const collection = petType.includes("猫") ? kittyPhrases : petType.includes("狗") ? puppyPhrases : defaults;
     const items: string[] = [];
+    const SOCIAL_PLACES = ["玫瑰星云公园", "彗星跑道", "银河图书馆", "仙女座喷泉", "双子座沙滩", "织女星小镇", "猎户座森林"];
+    const socialIntro = socialMode === "matched" ? "性格很投缘的" : "";
     for (let i = 0; i < numWhispers; i++) {
-       items.push(collection[i % collection.length]);
+       const socialClause = i === 0
+         ? `今天${socialIntro}${socialPet.name}一直来找你家的${petName}玩，我们在${SOCIAL_PLACES[i % SOCIAL_PLACES.length]}一起追着星尘跑了好久。`
+         : i % 2 === 0
+           ? `而且${socialIntro}${socialPet.name}也来了，说它的主人和你一样温柔，让我多陪陪你。`
+           : `我们还和${socialIntro}${socialPet.name}一起在${SOCIAL_PLACES[(i + 2) % SOCIAL_PLACES.length]}拍了张星光合影，它说下次还要来找我们。`;
+       items.push(collection[i % collection.length] + " " + socialClause);
     }
     return res.json({
       success: true,
@@ -94,6 +172,9 @@ app.post("/api/whisper", async (req, res) => {
 - 宠物种类 (petType): ${petType}
 - 宠物羁绊等级 (activeLevel): ${activeLevel}级
 - 前一日交互事件 logs: ${eventLogs}
+- 今日社交对象 (socialPet): ${socialPet.name}（家长：${socialPet.ownerName}，性格标签：${socialPet.personalityTags.join("、")}）
+- 社交模式 (socialMode): ${socialMode === "matched" ? "性格匹配" : "随机偶遇"}
+${socialMode === "matched" ? `- 我家宠物性格标签 (personalityTags): ${personalityTags.join("、")}（与社交对象性格投缘）` : ""}
 - 生成耳语文案条数 (numWhispers): ${numWhispers}
 
 请为该宠物生成 ${numWhispers} 条独一无二的耳语。
@@ -103,7 +184,8 @@ app.post("/api/whisper", async (req, res) => {
 2. 格式：以主人称呼("${ownerName}")开头，并以宠物第一人称写信的口吻展开。比如: "${ownerName}，昨天我穿行在了玫瑰星云..."
 3. 主题与情绪：宇宙治愈像素风，不可悲哀，而是要把宠物的生活刻画得像一场奇妙的“星尘冒险”。宠物在星河中很幸福，长出了发光的星尘尾翼/光晕，每天都在思念、守护和感谢主人。
 4. 细节融合：必须将“前一日交互事件” natural地融入文本。比如：如果提到了“喂了饼干”，就写“尝到了带有巧克力星云味的饼干，让我在漂浮时更温暖”；如果是“碰撞了另一个宠物”，可以写“遇见了一个可爱的小玩伴，虽然在一起跑，但我心里的秘密还是只有我们两人懂”；如果是“星云之门地标停留”，就结合该地标的诗歌意境描述。
-5. 结果请以标准JSON格式返回，包含一个名为 "whispers" 的字符串数组，格式如下:
+5. 社交融入：请在生成的 ${numWhispers} 条耳语中至少一条自然融入以下社交互动——${socialPet.name} 今天经常和你家的 ${petName} 在一起玩（可写一起在地标追逐星尘、拍星光合影、性格投缘等），不要每条都写，保持自然不突兀。
+6. 结果请以标准JSON格式返回，包含一个名为 "whispers" 的字符串数组，格式如下:
 {
   "whispers": [
      "第一条耳语文案内容",
@@ -138,17 +220,17 @@ app.post("/api/whisper", async (req, res) => {
 });
 
 // REST API for Real-Time AI Chat with the Pet
-app.post("/api/chat", async (req, res) => {
-  const {
-    message,
-    chatHistory = [],
-    ownerName = "星之守护者",
-    petName = "天乐",
-    petType = "猫",
-    breed = "英短乳白",
-    lore = "",
-    personality = "温柔精灵",
-  } = req.body;
+api.post("/api/chat", async (req, res) => {
+  // [BUG-FIX] 同上：所有字段先做类型收敛，message 非字符串时 message.trim() 会直接抛错打崩进程。
+  const body = req.body ?? {};
+  const message = typeof body.message === "string" ? body.message : "";
+  const chatHistory: any[] = Array.isArray(body.chatHistory) ? body.chatHistory : [];
+  const ownerName = asString(body.ownerName, "星之守护者");
+  const petName = asString(body.petName, "天乐");
+  const petType = asString(body.petType, "猫");
+  const breed = asString(body.breed, "英短乳白");
+  const lore = asString(body.lore, "");
+  const personality = asString(body.personality, "温柔精灵");
 
   if (!message || message.trim() === "") {
     return res.status(400).json({ success: false, error: "消息内容不能为空" });
@@ -315,13 +397,13 @@ function generateOffline3DConfig(petName: string, petType: string, primaryColor:
 }
 
 // REST API for Photo-to-3D Reconstruction Sandbox
-app.post("/api/reconstruct-3d", async (req, res) => {
-  const {
-    petName = "流星喵",
-    petType = "猫",
-    primaryColor = "#ff6b6b",
-    base64Image = "", // image/png or image/jpeg base64 data
-  } = req.body;
+api.post("/api/reconstruct-3d", async (req, res) => {
+  // [BUG-FIX] 类型收敛：base64Image 非字符串时 .trim()/.includes() 会抛 TypeError 打崩进程
+  const body = req.body ?? {};
+  const petName = asString(body.petName, "流星喵");
+  const petType = asString(body.petType, "猫");
+  const primaryColor = asString(body.primaryColor, "#ff6b6b");
+  const base64Image = asString(body.base64Image, ""); // image/png or image/jpeg base64 data
 
   const client = getGeminiClient();
 
@@ -436,9 +518,36 @@ app.post("/api/reconstruct-3d", async (req, res) => {
   }
 });
 
+// ---- 微交易 API 路由 ----
+app.use("/api/mtx", microtransactionRoutes);
+
+// ---- 配置 API（供桌面版设置页读取/写入运行配置）----
+
+/** 当前 AI 模式状态：供设置页显示「在线 Gemini / 离线模板」 */
+function currentAiState() {
+  const raw = process.env.GEMINI_API_KEY || "";
+  const hasKey = Boolean(raw && raw !== "MY_GEMINI_API_KEY" && raw.trim() !== "");
+  return { aiEnabled: hasKey, providerMode: hasKey ? "Gemini" : "Offline" };
+}
+
+app.get("/api/config/status", (_req, res) => {
+  res.json({ success: true, ...currentAiState() });
+});
+
+/** 设置 Gemini key；key 为空字符串表示关闭在线 AI */
+api.post("/api/config/gemini-key", (req, res) => {
+  const key = asString((req.body ?? {}).key, "");
+  setGeminiApiKey(key);
+  res.json({ success: true, ...currentAiState() });
+});
+
 // REST API for Generating AI Growth Stories
-app.post("/api/growth-story", async (req, res) => {
-  const { petName = "小星尘", breed = "可爱宝宝", petType = "猫" } = req.body;
+api.post("/api/growth-story", async (req, res) => {
+  // [BUG-FIX] 类型收敛，避免非字符串字段进入 prompt 模板导致异常
+  const body = req.body ?? {};
+  const petName = asString(body.petName, "小星尘");
+  const breed = asString(body.breed, "可爱宝宝");
+  const petType = asString(body.petType, "猫");
   const client = getGeminiClient();
 
   if (!client) {
@@ -478,23 +587,62 @@ app.post("/api/growth-story", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Gemini growth-story error:", error);
-    return res.json({
+    // [BUG-FIX] 不再把内部错误信息原样透传客户端（与 whisper/chat 端点的策略保持一致）
+    return res.status(500).json({
       success: false,
-      error: error.message
+      error: "成长故事生成服务暂时不可用"
     });
   }
 });
 
-// Configure Vite integration for SPA mode or build delivery
-async function startServer() {
+// ---- 服务启动（可被 Electron 内嵌调用，也可直接作为 CLI 运行）----
+
+export interface StarPuffServerOptions {
+  /** 监听端口；传 0 表示随机端口（Electron 内嵌时使用） */
+  port?: number;
+  /** 监听地址；Electron 内嵌时固定 127.0.0.1，不对外开放 */
+  host?: string;
+  /** 静态资源目录（生产态服务 dist 的位置），默认 process.cwd()/dist */
+  appDir?: string;
+  /** 端口就绪后的回调，Electron 用它拿到实际端口再 loadURL */
+  onListening?: (port: number) => void;
+}
+
+export async function startStarPuffServer(opts: StarPuffServerOptions = {}): Promise<void> {
+  // [BUG-FIX] 默认只监听回环地址：原默认 0.0.0.0 会把后端（含微交易接口）暴露到整个局域网。
+  const { port = PORT, host = "127.0.0.1", appDir, onListening } = opts;
+
+  const isLoopbackHost = host === "127.0.0.1" || host === "localhost" || host === "::1";
+  // [BUG-FIX] mock 模式只允许在「非生产 + 回环监听」下自动启用。
+  // 原实现只要没设 NODE_ENV=production 且缺 API Key 就静默 mock（Finalize 永远返回 Succeeded），
+  // 配合 0.0.0.0 监听等于把「零元购」开放给局域网。现在对外监听时强制关闭 mock，宁可报错也不假发货。
+  const mockMode =
+    process.env.NODE_ENV === "production"
+      ? false
+      : process.env.STEAM_MOCK_MODE === "true" ||
+        (isLoopbackHost && !process.env.STEAM_WEB_API_KEY);
+
+  // 微交易配置跟随运行时注入（模块加载时的 env 快照可能已过时）
+  updateConfig({
+    webApiKey: process.env.STEAM_WEB_API_KEY || "",
+    appId: Number(process.env.STEAM_APP_ID) || 480,
+    sandbox: process.env.STEAM_SANDBOX === "true",
+    mockMode,
+  });
+  if (mockMode) {
+    console.warn("[microtransaction-api] ⚠️ 当前处于 mock 支付模式：不会真实扣款，仅限本地开发调试。");
+  }
+
   if (process.env.NODE_ENV !== "production") {
+    // vite 只在开发态需要；动态 import 避免生产打包时引入这个巨型依赖
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = appDir || path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     // 正则写法同时兼容 Express 4 与 Express 5（后者已移除 "*" 通配符语法）
     app.get(/.*/, (req, res) => {
@@ -502,9 +650,65 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`StarPuff full-stack server running on http://localhost:${PORT}`);
+  // [BUG-FIX] 错误兜底中间件：handleAsync 捕获的 async 异常最终汇聚到这里，
+  // 返回 500 而不是让进程崩溃（必须注册在所有路由之后）。
+  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error("[server] 未捕获的路由错误:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: "服务器内部错误" });
+    }
   });
+
+  const server = app.listen(port, host, () => {
+    const address = server.address();
+    const actualPort = typeof address === "object" && address ? address.port : port;
+    console.log(`StarPuff full-stack server running on http://localhost:${actualPort}`);
+    onListening?.(actualPort);
+  });
+
+  // 启动对账调度（首次运行后每 24 小时执行一次）
+  try {
+    const intervalMs = 24 * 3600 * 1000; // 24h
+    const runReport = async () => {
+      try {
+        const cfg = getConfig();
+        if (cfg.mockMode || !cfg.webApiKey) {
+          console.log("[report-scheduler] skipping: mockMode or missing webApiKey");
+          return;
+        }
+        const resp = await getReport({ type: "SETTLEMENT", maxResults: 500 });
+        if (!resp.success || !Array.isArray(resp.data)) return;
+        for (const rec of resp.data) {
+          const status = String(rec.status || "");
+          const orderid = String((rec as any).orderid || "");
+          if (!orderid) continue;
+          if (
+            status === "Refunded" ||
+            status === "Chargedback" ||
+            status.startsWith("Refunded")
+          ) {
+            try {
+              revokeGrant(orderid);
+              console.log(`[report-scheduler] revoked order ${orderid} due to status ${status}`);
+            } catch (e) {
+              console.warn("[report-scheduler] revokeGrant failed:", e?.message ?? e);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[report-scheduler] error:", e?.message ?? e);
+      }
+    };
+    // run immediately, then schedule
+    runReport().catch(() => {});
+    setInterval(() => runReport().catch(() => {}), intervalMs);
+  } catch (e) {
+    console.warn("[report-scheduler] init failed:", e?.message ?? e);
+  }
 }
 
-startServer();
+// 被 Electron 内嵌 require 时（设置了 STARPUFF_EMBEDDED=1）不自动启动；
+// 直接运行本文件（npm run dev / npm start）时保持原有行为。
+if (process.env.STARPUFF_EMBEDDED !== "1") {
+  startStarPuffServer();
+}

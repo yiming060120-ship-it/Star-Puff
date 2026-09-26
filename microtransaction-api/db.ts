@@ -1,0 +1,142 @@
+import fs from "fs";
+import path from "path";
+import { createRequire } from "module";
+
+// 数据目录定位：
+// - 优先用 STARPUFF_DATA_DIR 环境变量（Electron 主进程注入 userData，可写）
+// - 回退到 process.cwd()/microtransaction-data（dev 模式项目根，可写）
+// 不能用 import.meta.url/__dirname 定位：esbuild 打包 CJS 后 import.meta 为空，
+// 且打包后 __dirname 指向 asar 内只读目录，SQLite 无法写入。
+const DATA_ROOT = process.env.STARPUFF_DATA_DIR || path.join(process.cwd(), "microtransaction-data");
+const GRANTS_DIR = path.join(DATA_ROOT, "data");
+const DB_FILE = path.join(GRANTS_DIR, "starpuff.sqlite3");
+
+let db: any = null;
+
+function ensureDir() {
+  if (!fs.existsSync(GRANTS_DIR)) fs.mkdirSync(GRANTS_DIR, { recursive: true });
+}
+
+function init() {
+  if (db) return;
+  ensureDir();
+  // load better-sqlite3 via createRequire（动态 require，避免被 esbuild 打包）
+  const require = createRequire(typeof __filename !== "undefined" ? __filename : path.join(process.cwd(), "server.cjs"));
+  const Database = require("better-sqlite3");
+  db = new Database(DB_FILE);
+  db.pragma("journal_mode = WAL");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS grants (
+      orderId TEXT PRIMARY KEY,
+      steamId TEXT,
+      itemId INTEGER,
+      payload TEXT,
+      grantedAt TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      steamId TEXT PRIMARY KEY,
+      coins INTEGER DEFAULT 0,
+      membershipExpires TEXT
+    );
+  `);
+}
+
+init();
+
+export function insertGrant(grant: any) {
+  const stmt = db.prepare(`INSERT INTO grants (orderId, steamId, itemId, payload, grantedAt) VALUES (?, ?, ?, ?, ?)`);
+  stmt.run(grant.orderId, grant.steamId, grant.itemId, JSON.stringify(grant.payload), grant.grantedAt);
+}
+
+export function deleteGrant(orderId: string) {
+  const stmt = db.prepare(`DELETE FROM grants WHERE orderId = ?`);
+  stmt.run(orderId);
+}
+
+export function getGrant(orderId: string) {
+  const stmt = db.prepare(`SELECT * FROM grants WHERE orderId = ?`);
+  const row = stmt.get(orderId);
+  if (!row) return null;
+  return {
+    orderId: row.orderId,
+    steamId: row.steamId,
+    itemId: row.itemId,
+    payload: JSON.parse(row.payload),
+    grantedAt: row.grantedAt,
+  };
+}
+
+export function listGrants() {
+  const stmt = db.prepare(`SELECT * FROM grants ORDER BY grantedAt DESC`);
+  const rows = stmt.all();
+  return rows.map((row: any) => ({
+    orderId: row.orderId,
+    steamId: row.steamId,
+    itemId: row.itemId,
+    payload: JSON.parse(row.payload),
+    grantedAt: row.grantedAt,
+  }));
+}
+
+export function getUser(steamId: string) {
+  const stmt = db.prepare(`SELECT * FROM users WHERE steamId = ?`);
+  const row = stmt.get(steamId);
+  if (!row) return null;
+  return { steamId: row.steamId, coins: row.coins, membershipExpires: row.membershipExpires };
+}
+
+export function upsertUser(steamId: string, coins: number, membershipExpires: string | null) {
+  const stmt = db.prepare(`INSERT INTO users (steamId, coins, membershipExpires) VALUES (?, ?, ?) ON CONFLICT(steamId) DO UPDATE SET coins=excluded.coins, membershipExpires=excluded.membershipExpires`);
+  stmt.run(steamId, coins, membershipExpires);
+}
+
+export function applyGrantTransaction(grant: any) {
+  const tx = db.transaction((g: any) => {
+    // insert grant
+    insertGrant(g);
+    // update user
+    const user = getUser(g.steamId) || { steamId: g.steamId, coins: 0, membershipExpires: null };
+    if (g.payload.kind === "stardust_coins") {
+      user.coins = (user.coins || 0) + g.payload.amount;
+    } else if (g.payload.kind === "membership") {
+      const days = g.payload.membershipLevel === "vip_year" ? 365 * g.payload.amount : 30 * g.payload.amount;
+      const now = new Date();
+      const currentExpiry = user.membershipExpires ? new Date(user.membershipExpires) : null;
+      const base = currentExpiry && currentExpiry > now ? currentExpiry : now;
+      const newExpiry = new Date(base.getTime() + days * 24 * 3600 * 1000);
+      user.membershipExpires = newExpiry.toISOString();
+    }
+    upsertUser(user.steamId, user.coins, user.membershipExpires);
+  });
+  tx(grant);
+}
+
+export function revertGrantTransaction(grant: any) {
+  const tx = db.transaction((g: any) => {
+    deleteGrant(g.orderId);
+    const user = getUser(g.steamId);
+    if (!user) return;
+    if (g.payload.kind === "stardust_coins") {
+      // [BUG-FIX] 不再把回收后的余额 clamp 到 0：用户「买币 → 全部花掉 → 退款」时，
+      // clamp 会把差额静默吞掉，等于零成本消费、退款欺诈无成本。
+      // 这里保留负余额作为风控信号并记录告警，交由人工/后续风控处理。
+      const nextCoins = (user.coins || 0) - g.payload.amount;
+      if (nextCoins < 0) {
+        console.warn(`[revert] 用户 ${g.steamId} 回收后余额为负（${nextCoins}），可能存在退款欺诈`);
+      }
+      user.coins = nextCoins;
+      upsertUser(user.steamId, user.coins, user.membershipExpires);
+    } else if (g.payload.kind === "membership") {
+      if (user.membershipExpires) {
+        const days = g.payload.membershipLevel === "vip_year" ? 365 * g.payload.amount : 30 * g.payload.amount;
+        const expiry = new Date(user.membershipExpires);
+        const newExpiry = new Date(expiry.getTime() - days * 24 * 3600 * 1000);
+        const next = newExpiry > new Date() ? newExpiry.toISOString() : null;
+        upsertUser(user.steamId, user.coins, next);
+      }
+    }
+  });
+  tx(grant);
+}

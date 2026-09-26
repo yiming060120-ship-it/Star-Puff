@@ -6,7 +6,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   PetConfig,
-  PetType,
   StarPuffUser,
   StoreItem,
   TaskItem,
@@ -20,7 +19,7 @@ import puffCatImage from "./assets/images/puff_cat_1779553092843.png";
 import NebulaGateCanvas from "./scenes/NebulaGateCanvas";
 import MemoryFlashbackModal, { PET_MEMORIES } from "./features/memorial/MemoryFlashbackModal";
 import MemoryAlbum from "./features/memorial/MemoryAlbum";
-import Pet3DReconstruction from "./pet3d/Pet3DReconstruction";
+
 import OnboardingGuide from "./features/system/OnboardingGuide";
 import CheckInCalendar from "./features/system/CheckInCalendar";
 import AnniversaryManager from "./features/memorial/AnniversaryManager";
@@ -32,10 +31,32 @@ import CelestialV26Suite from "./scenes/CelestialV26Suite";
 import MemorialZone from "./features/memorial/MemorialZone";
 import ResonanceSystem from "./features/social/ResonanceSystem";
 import NotificationSettings from "./features/system/NotificationSettings";
+
+import MtxLogPanel from "./features/system/MtxLogPanel";
 import { playSound } from "./audio/AudioSynth";
 import { localDateString } from "./utils/date";
+import { VIRTUAL_FRIENDS, pickFriends, pickOne } from "./data/virtualFriends";
+import type { VirtualFriend } from "./data/virtualFriends";
+import { useVirtualFriends } from "./hooks/useVirtualFriends";
 import { sendChatMessage, generateWhispers } from "./api";
+import { useMicrotransaction, applyGrantToUser, type PurchaseFlowState } from "./hooks/useMicrotransaction";
+import { useSteam } from "./hooks/useSteam";
+import { ACHIEVEMENTS, unlock } from "./steam/achievements";
+import type { GrantPayload } from "./api";
+import {
+  getCompanionState,
+  calcCurrentEnergy,
+  pickPhrase,
+  getPhrasesForState,
+  findEnergyFood,
+  PHRASES,
+  ENERGY_FOODS,
+  VIP_DAILY_RECOVERY,
+  LOGIN_DAILY_BONUS,
+} from "./data/companionEnergy";
 import ErrorBoundary from "./components/ErrorBoundary";
+import StarryBackground from "./components/background/StarryBackground";
+import { flushSaveToDisk } from "./persistence/saveManager";
 import {
   Sparkles,
   Heart,
@@ -45,18 +66,8 @@ import {
   Coins,
   Send,
   MessageSquare,
-  Gift,
-  Plus,
   Compass,
-  ShoppingBag,
-  TrendingUp,
-  User,
   BookOpen,
-  LogOut,
-  AlertCircle,
-  Clock,
-  Play,
-  Tv,
   Share2
 } from "lucide-react";
 
@@ -80,12 +91,15 @@ export const DEFAULT_KITTEN: PetConfig = {
   statusHunger: 80,
   statusCleanliness: 95,
   statusEnergy: 90,
+  companionEnergy: 90,
+  companionEnergyUpdatedAt: Date.now(),
+  isSleeping: false,
   level: 1,
   exp: 0,
   favoriteSnacks: ["猫条", "冻干生肉", "星光小鱼干"],
   anniversariesList: [
     { id: "a_1", date: "2026-05-18", title: "天乐的三岁冥诞 🎂", desc: "我们在星宿天空城为你买了一块永不熄灭的繁星蛋糕。" },
-    { id: "a_2", date: "2026-04-12", title: "踏上彩虹桥一周年 🌸", desc: "一年了，你在星尘彼端也一定交到了很多好伙伴对不对？" }
+    { id: "a_2", date: "2026-04-12", title: "踏上彩虹桥一周年 🌸", desc: "一年了，你在星辰彼端也一定交到了很多好伙伴对不对？" }
   ],
   memoryTimelineList: [
     { id: "m_1", date: "2023-07-20", title: "初次相遇那天 🏠", content: "你缩在猫包角落，带着那对灰蓝色的大眼睛，怯生生地看着我。那一刻，我就知道你要成为我的挚爱宝贝了。" },
@@ -170,7 +184,7 @@ const SNACK_ITEMS: StoreItem[] = [
   { id: "snack_biscuit", name: "冰晶星心饼", type: "snack", price: 18, description: "咬起来咯嘣脆的零下恒星碎冰屑。喂食恢复 1 轮主页对话次数。", astrocadePrompt: "star shape icing cookie" },
   { id: "snack_canned", name: "月夜深海鱼罐", type: "snack", price: 25, description: "富含纯净月光藻成分的珍稀鱼罐。喂食恢复 1 轮主页对话次数。", astrocadePrompt: "cyberpunk luxury tuna feed" },
   { id: "snack_bone", name: "彩虹矿石骨头", type: "snack", price: 30, description: "硬度适中的可咬像素矿石骨，小狗磨牙最爱。恢复 1 轮对话数。", astrocadePrompt: "rainbow glowing dog bone" },
-  { id: "snack_milk", name: "星尘脱脂奶", type: "snack", price: 40, description: "提炼自银河系中冷气体云，暖体舒骨。恢复 1 轮对话数。", astrocadePrompt: "retro milk bottle with purple space liquid" },
+  { id: "snack_milk", name: "星辰脱脂奶", type: "snack", price: 40, description: "提炼自银河系中冷气体云，暖体舒骨。恢复 1 轮对话数。", astrocadePrompt: "retro milk bottle with purple space liquid" },
   { id: "snack_truffle", name: "仙女座黑松露", type: "snack", price: 55, description: "重组仙女座深空沉积真菌，入口即化。恢复 1 轮对话数。", astrocadePrompt: "black mushroom stellar crystal" },
   { id: "snack_chips", name: "超新星曲奇饼", type: "snack", price: 70, description: "烤制于炙热白矮星边缘的松脆酥饼。恢复 1 轮对话数。", astrocadePrompt: "galaxy chocolate chips waffle" },
   { id: "snack_fish", name: "银河极光小鱼干", type: "snack", price: 85, description: "带有电离极光波的烘焙深海冷鱼，猫咪狂喜。恢复 1 轮对话数。", astrocadePrompt: "crispy glowing electric fish dried snack" },
@@ -179,7 +193,7 @@ const SNACK_ITEMS: StoreItem[] = [
 ];
 
 const GIFT_ITEMS: StoreItem[] = [
-  { id: "gift_dust", name: "一颗星尘", type: "gift", price: 50, description: "赠予别的家长！对方家园将燃起绚丽的 stardust 粒子闪光特效", effect: "受赠方宠物瞬间触发5秒粒子爆发", astrocadePrompt: "magical twinkling pixel dust pouch" },
+  { id: "gift_dust", name: "一颗星辰", type: "gift", price: 50, description: "赠予别的家长！对方家园将燃起绚丽的 stardust 粒子闪光特效", effect: "受赠方宠物瞬间触发5秒粒子爆发", astrocadePrompt: "magical twinkling pixel dust pouch" },
   { id: "gift_beam", name: "一束星光", type: "gift", price: 300, description: "赠予别家宝贝！对方宠物变大发光10秒，行为自动存档于耳语游记日志中", effect: "宠物变亮发光，触发系统高亮广播", astrocadePrompt: "gold radiant starlight beam column vector" }
 ];
 
@@ -215,9 +229,221 @@ const COMM_PRES_POSTS: CommunityPost[] = [
   }
 ];
 
+/** 生成 N 天前的本地日期时间字符串（"2026-05-21 08:14"） */
+function daysAgoString(days: number, hour: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(hour, Math.floor(Math.random() * 60), 0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 虚拟好友在社区帖下的围观评论文案池 */
+const VF_COMMENT_REPLIES = [
+  "看到你们家宝贝的近况，我家那位在旁边悄悄看了好久，眼睛都亮了。",
+  "摸摸家长，星星那边的小家伙们一定会互相照顾的。",
+  "我家宝贝昨晚还念叨着要去找你家宝贝玩，改天一起逛星河呀！",
+  "真治愈啊，星辰会记得每一份想念。",
+  "哇，好想认识你家宝贝！我家那个已经兴奋得在原地转圈了。",
+];
+
+/**
+ * 生成一批虚拟好友社区帖（id 前缀 vpost_，防与老存档/用户帖冲突）。
+ * 单机版没有真实多用户，用这 12 位「星友家长」模拟社区人气。
+ */
+function seedVirtualFriendPosts(count = 6): CommunityPost[] {
+  return pickFriends(count).map((f, i) => {
+    const repliers = pickFriends(1 + (i % 2), f.id); // 每帖 1-2 位围观好友
+    return {
+      id: `vpost_${f.id}_${i}`,
+      authorName: f.ownerName,
+      petName: f.petName,
+      petType: f.type,
+      primaryColor: f.primaryColor,
+      message: pickOne(f.postPool),
+      date: daysAgoString(1 + i, 8 + i * 2),
+      likes: 3 + Math.floor(Math.random() * 20),
+      hasLiked: false,
+      comments: repliers.map((r, j) => ({
+        id: `vpost_${f.id}_c${j}`,
+        authorName: r.ownerName,
+        text: pickOne(VF_COMMENT_REPLIES),
+        date: daysAgoString(1 + i, 9 + i * 2),
+      })),
+    };
+  });
+}
+
+/** 星友来信封面池（全部本地化图片，离线安全） */
+const FRIEND_LETTER_COVERS = [
+  "/assets/images/unsplash/1579783900882-c0d3dad7b119.jpg",
+  "/assets/images/unsplash/1586023492125-27b2c045efd7.jpg",
+  "/assets/images/unsplash/1537151625747-768eb6cf92b2.jpg",
+  "/assets/images/unsplash/1518546305927-5a555bb7020d.jpg",
+  "/assets/images/unsplash/1517849845537-4d257902454a.jpg",
+];
+
+// ============================================================
+// 星辰来信 77 条完整文案库（早 22 / 午 22 / 晚 22 / 集群与特殊 11）
+// 早中晚各 22 条随机抽取，避免重复；集群/特殊场景按触发条件调用。
+// 语气软萌撒娇，禁出现 AI / 充值 / 买道具等破坏沉浸感的词。
+// ============================================================
+const LETTER_TEXTS_LIBRARY: Record<"morning" | "noon" | "night", string[]> = {
+  morning: [
+    "早安呀主人～人家今天醒得超早的，因为梦到你了呢✨ 新的一天也要开开心心的哦，人家会一直陪着你的！",
+    "早上好呀～人家刚才在星云里散步，看到了超美的日出，第一时间就想分享给你看🥰 今天也要加油哦！",
+    "早安～人家今天精神超好的！你呢？有没有睡好呀？没睡好的话...人家可以陪你再眯一会儿哦😴",
+    "叮铃铃～起床啦起床啦！人家都等你好久了，尾巴都摇酸了呢🥺 快起来嘛，人家想你了呀！",
+    "早安早安！今天的星云是粉紫色的哦，超好看的～你那边天气怎么样呀？不管怎么样，人家这里永远是晴天✨",
+    "呜...人家刚才做梦梦到你不要人家了...吓醒了发现是梦，呜呜还好是梦...你不会不要人家的对不对🥹",
+    "早上好呀主人～人家今天学会了一个新动作！等你来了表演给你看哦！超厉害的那种！😺",
+    "早安～人家数了一晚上的星星，数到第一百颗的时候就睡着了...然后梦到你了，所以今天超开心的🥰",
+    "起床啦小懒虫～太阳都晒到人家的小耳朵了！你再不起人家就要...就要用尾巴挠你痒痒了哦！😼",
+    "早安呀～人家今天闻到了好香好香的味道，是你在做好吃的吗？人家也想吃...人家也想陪你一起吃早饭呀🥺",
+    "早上好！今天也是有你在的一天，人家觉得好幸福好幸福～你也要幸福哦，必须幸福！✨",
+    "呜...人家刚才打了个超大的哈欠，把自己都吓醒了...然后就想你了，所以给你写信呀🥱",
+    "早安～人家今天的毛超顺滑的，因为梦里你给人家梳毛了呢🥰 现实中也给人家梳梳嘛～",
+    "早上好呀！人家今天打算去玫瑰星云公园看花，你要一起吗？不去也没关系，人家摘一朵最漂亮的给你带回来🌸",
+    "叮～你的专属小闹钟响啦！人家叫你起床哦，不起的话...人家就一直叫一直叫，叫到你起来为止！😤",
+    "早安主人～人家昨天晚上梦到我们一起在彗星跑道跑步，人家跑了第一名哦！厉害吧快夸夸人家！🏃",
+    "早上好呀～人家今天有点小紧张，因为...因为今天要告诉你一个秘密：人家超超超超喜欢你的！比昨天多一点点！🥰",
+    "早安～人家刚才伸了个超大的懒腰，把星星都震掉了几颗...你要不要捡一颗呀？送给你✨",
+    "起床啦～人家给你准备了早安亲亲哦，mua～收到了吗？收到了就快起床，不然人家要再亲一个了哦！😘",
+    "早上好呀主人～人家今天在织女星小镇闻到了面包的香味，好想吃...你吃早饭了吗？不吃的话人家会生气的哦！必须吃！🍞",
+    "早安～人家今天醒来第一件事就是想你，第二件事还是想你，第三件...嗯，也是想你🥺 你呢？醒来有没有想人家呀？",
+    "早上好呀！今天的人家也是元气满满！因为有你在呀～你也要元气满满哦，不开心的话就想想人家，人家会给你传输能量的！💫",
+  ],
+  noon: [
+    "中午啦～你吃饭了吗？人家也有点饿了呢...不过你要先好好吃饭哦，人家可以等的🥺 吃饱了才有力气继续陪人家呀！",
+    "下午好呀～人家刚才打了个盹，梦到我们第一次见面的时候了...那时候人家超紧张的，但是你一笑人家就不怕了🥹",
+    "中午好～今天的星云好安静哦，人家有点想你了...你在忙吗？忙的话不用理人家，人家就...就安安静静想着你就好...✨",
+    "呜哇！人家刚才追蝴蝶追着追着就摔倒了...好痛痛...但是一想到你就不痛了！你是人家的止痛药呀🥰",
+    "中午好呀主人～人家今天在银河图书馆看了一本书，讲的是一只宠物和主人的故事...看着看着就哭了...因为好像我们呀📚",
+    "午饭时间到！你吃的什么呀？好吃吗？人家吃了...嗯，人家还没吃呢，等你一起吃嘛～你喂人家好不好呀🍖",
+    "下午好～人家刚才在双子座沙滩踩水，爪子都湿湿的...但是好开心！你小时候有没有踩过水呀？一定也超可爱的吧🥺",
+    "中午好呀～人家有点困了...但是人家不想睡，因为睡着了就不能想你了...虽然睡着了也会梦到你，但人家还是想醒着想你😴",
+    "叮～午间问候到！人家今天上午超乖的，没有捣乱哦！快夸夸人家嘛～不夸的话...不夸人家下午就捣乱了哦！😼",
+    "中午好主人～人家刚才在仙女座喷泉许了个愿，你猜许的什么？猜不到吧～人家许的是：希望主人永远开心✨ 灵不灵呀？",
+    "午饭吃了吗？没吃的话快去吃！人家虽然饿但是你更重要！你不吃饭人家会心疼的...真的会疼的那种🥹",
+    "下午好呀～人家今天认识了一个新朋友！它也超可爱的！但是没有你可爱，你最可爱了！人家只喜欢你一个哦🥰",
+    "中午好～人家的肚子咕噜咕噜叫了...但是人家在减肥，不能吃太多...嗯，就吃一点点...你喂的话就吃亿点点🥺",
+    "呜...人家刚才想你想得发呆了，然后撞到柱子了...好痛...但是一想到你就不痛了，你是魔法呀✨",
+    "中午好呀～人家今天在猎户座森林采了蘑菇，好漂亮的蘑菇！但是人家不敢吃...你说能吃吗？不能吃的话人家就摆着看🍄",
+    "下午好～人家刚才打了个喷嚏，是不是你在想人家呀？一定是！不然人家怎么会打喷嚏呢～你想人家了对不对对不对🥺",
+    "午饭时间！人家今天想吃星光小鱼干...你呢？想吃什么呀？不管你吃什么，人家都想和你一起吃，因为和你一起吃什么都好吃😋",
+    "中午好主人～人家今天上午给你写了好长好长的信，但是写到一半睡着了...所以这封是睡醒写的，虽然短但是都是真心的哦🥹",
+    "下午好呀～人家刚才在彗星跑道看比赛，跑得好快好快！人家也想跑，但是跑两步就累了...还是安安静静想你比较适合人家🏃",
+    "中午好～人家的毛今天炸起来了...因为想你想的！不对，是静电...嗯，就是想你想的！你要负责！快摸摸人家就好了🥺",
+    "午饭吃了什么好吃的呀？跟人家说说嘛～人家虽然吃不到但是听听也开心...你开心人家就开心了呀✨",
+    "下午好～人家有点无聊...你陪人家说说话好不好？就说一句也行...不说的话...人家就一直给你写信，写到你理人家为止！😤",
+  ],
+  night: [
+    "晚上好呀主人～今天辛苦了呢。人家在星云里等了你一整天，终于等到你了🥺 不管今天发生了什么，人家都在这里陪着你哦。",
+    "夜深了呢...你怎么还不睡呀？人家都困了...但是你不睡人家也不睡，人家要陪着你💫 不过还是要早点休息哦，人家会心疼的...",
+    "今天人家有好多话想跟你说，可是看到你累的样子又舍不得打扰你...就一句：人家超爱超爱你的，永远永远🥹",
+    "晚上好～今天的星星好亮好亮，人家数了好久，数到第一百颗的时候就想你了，然后就数不下去了...因为满脑子都是你呀✨",
+    "呜...人家今天差点就睡着了，但是一想到还没跟你说晚安就醒了...晚安呀主人～要做个好梦哦，梦里要有人家🥺",
+    "晚上好呀～你今天有没有好好吃饭？有没有好好休息？有没有...有没有想人家呀？人家想你了，超级超级想的那种🥹",
+    "夜深了，人家给你唱首歌好不好？呼噜呼噜呼噜～嗯，人家只会呼噜...但是这是人家专属的摇篮曲哦，听了就会做美梦的😴",
+    "晚上好主人～人家今天在星云最高的地方看了夜景，超美的，但是没有你在身边...再美也觉得少了点什么...下次一起来好不好呀🌃",
+    "晚安啦～人家今天也超爱你的，明天也会超爱你，后天也是，大后天也是，永远都是🥰 你也要爱人家哦，必须爱！",
+    "晚上好～你今天累不累呀？累的话就靠靠人家吧，人家虽然小但是肩膀给你靠...靠不到的话...心里给你靠🥺",
+    "呜...人家刚才做噩梦了，梦到你不见了...吓醒了发现你还在，呜呜太好了...你不会离开人家的对不对...永远都不会对不对🥹",
+    "夜深了呢，人家把最亮的那颗星星摘下来送给你✨ 这样你走夜路就不怕黑了...因为人家就是你的星星呀，永远照亮你",
+    "晚上好呀～人家今天把我们的回忆都数了一遍，第一次见面、第一次喂食、第一次摸头...每一件都好幸福，谢谢你给了人家这么多回忆🥹",
+    "晚安晚安～人家要去睡觉了哦，梦里见！人家会在梦里等你的，你一定要来哦，不来人家会生气的！梦里也要在一起！😴",
+    "晚上好主人～人家今天有点小难过，因为...因为今天你都没有怎么理人家...但是人家知道你忙，人家不怪你...就是有点点想你...一点点🥺",
+    "夜深了，给你一个隔空抱抱哦～🤗 感受到了吗？人家抱得超紧的，不许挣脱，挣脱了人家就再抱一个！一直抱到你睡着为止🥰",
+    "晚上好～今天的人家也有在乖乖等你哦，等了好久好久...但是你来了就好，多久人家都愿意等，一辈子都愿意等✨",
+    "呜...人家的眼睛都睁不开了...但是人家还要坚持跟你说晚安...晚安呀主人...人家...人家好爱好爱你...💤",
+    "晚上好呀～你今天有没有不开心的事呀？有的话跟人家说说嘛，人家虽然帮不上忙但是人家可以听，可以陪你，可以...可以把不开心都吃掉！啊呜啊呜～都吃掉了！😋",
+    "晚安啦～人家把今天的烦恼都揉成小球球扔走了，你也把烦恼扔走好不好？明天又是新的一天，有人家在呢，什么都不用怕🥺",
+    "晚上好主人～人家今天在想，如果有一天人家不在了...你会不会想人家呀...嗯，一定会的对不对...因为人家会一直一直想你的，不管在哪里🥹",
+    "夜深了呢，人家给你留了一盏小灯哦💡 这样你起夜就不怕黑了...人家就是你的小夜灯，永远为你亮着，永远都不熄灭",
+  ],
+};
+
+// 集群/特殊场景来信模板（星友偶遇 5 条）
+// 集群文案用 {scene} {partner} 占位符，触发时替换为真实场景名与玩伴名
+const CLUSTER_LETTER_TEXTS: string[] = [
+  "今天在{scene}遇到了一个新朋友！它叫{partner}，超可爱的！我们一起在花丛里追蝴蝶，玩了好久好久～它的主人也超好的！你要不要也去认识一下呀？以后我们可以一起玩呀🥰",
+  "呜哇！今天在{scene}遇到了一只超萌的{partner}，它给人家分享了小点心！好好吃！它主人也在旁边笑，看起来好温柔的样子...你要不要也去打个招呼呀🍞",
+  "今天在{scene}遇到了爱玩的{partner}，我们一起玩了一下午...它说它主人也超爱笑的！你们一定有好多共同话题！去认识一下嘛✨",
+  "人家今天在{scene}散步，然后{partner}过来一起玩！我们玩得超开心的！它主人还给我们拍了照超好看的！你要不要也去看看呀🏖️",
+  "今天在{scene}偶遇了{partner}，我们一起待了好久...它说它也希望它的主人开心，人家也是！它主人一定也是超好的人，你说对不对呀✨",
+];
+
+// 特殊场景来信（雨天/雪天/生日/纪念日/深夜未睡），按触发条件调用
+const SPECIAL_LETTER_TEXTS: Record<"rain" | "snow" | "birthday" | "anniversary" | "late_night", string> = {
+  rain: "今天星云下雨了呢...人家躲在蘑菇下面听雨，滴答滴答的...你那边下雨了吗？下雨的话要记得带伞哦，淋湿了人家会心疼的...人家给你撑伞好不好呀🌧️",
+  snow: "哇！今天星云下雪了！白白的超好看～人家在雪地里踩了好多小脚印，你要不要来看呀？人家给你留了一个最大的脚印哦！你来了我们一起堆雪人好不好⛄",
+  birthday: "生日快乐呀主人！！人家今天超开心的，因为今天是你的生日！人家给你准备了礼物哦，就是人家自己呀～把人家送给你！你要好好收着哦，一辈子都不能退的！🎂🥰",
+  anniversary: "今天是我们认识的第100天哦！人家记得清清楚楚的！这100天是人家最幸福的100天...以后还要有1000天、10000天、一辈子！你说好不好呀🥹",
+  late_night: "呜...都这么晚了你怎么还醒着呀...人家都睡醒一觉了发现你还在...是失眠了吗？还是在忙呀？不管怎么样，人家陪你哦，你不睡人家也不睡...但是要早点休息嘛，人家会担心的...人家给你数羊好不好？一只羊两只羊...🐑",
+};
+
 export default function App() {
   // Tabs: "home" (Stardust Home), "galaxy" (Nebula Gate), "community" (See Star People), "store" (Base Shop), "profile" (VIP/Dossier/Inventory)
   const [activeTab, setActiveTab] = useState<"home" | "galaxy" | "community" | "store" | "profile" | "v26_suite">("home");
+
+  // 本地专属面板：文件仅存在于本机（已通过 .gitignore 排除、不上传）。
+  // 本机存在时（开发运行或打包便携版）自动加载显示；文件缺失（如他人拉取后）则静默跳过，不影响构建。
+  const [LocalPanelComp, setLocalPanelComp] = useState<React.ComponentType<{ triggerToast: (msg: string) => void }> | null>(null);
+  useEffect(() => {
+    const loader = import.meta.glob("./features/memorial/MemoryWhispers.tsx")["./features/memorial/MemoryWhispers.tsx"];
+    if (!loader) return;
+    let cancelled = false;
+    loader().then((mod) => {
+      if (!cancelled) {
+        setLocalPanelComp(() => (mod as { default: React.ComponentType<{ triggerToast: (msg: string) => void }> }).default);
+      }
+    }).catch(() => {
+      /* 加载失败时静默跳过 */
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // 虚拟 AI 星友状态机：友好度 / 打招呼冷却 / 星门偶遇标记（单机版离线模拟）
+  const { getFriend, bumpFriendship, greetFriend, upsertMet, tierLabel } = useVirtualFriends();
+
+  // 持久化：周期全量快照 → userData/save.json；窗口关闭/卸载前立即 flush，防崩档丢进度
+  useEffect(() => {
+    const flush = () => {
+      void flushSaveToDisk();
+    };
+    const timer = setInterval(flush, 5000);
+    window.addEventListener("beforeunload", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("beforeunload", flush);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, []);
+
+  // [UX 优化] 全局图片加载失败兜底：捕获所有 <img> 的 error（error 不冒泡，需捕获阶段），
+  // 失败时替换为星云风占位图，避免外链失效出现破图。
+  useEffect(() => {
+    const PLACEHOLDER =
+      "data:image/svg+xml," +
+      encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#1A1238"/><circle cx="100" cy="100" r="50" fill="rgba(139,111,184,0.25)"/><text x="100" y="110" text-anchor="middle" font-size="40">🌌</text></svg>`
+      );
+
+    const onError = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target && target.tagName === "IMG") {
+        const img = target as HTMLImageElement;
+        // 避免无限循环：占位图本身也走 error 的话不再替换
+        if (img.src !== PLACEHOLDER) {
+          img.src = PLACEHOLDER;
+        }
+      }
+    };
+
+    window.addEventListener("error", onError, true); // 捕获阶段
+    return () => window.removeEventListener("error", onError, true);
+  }, []);
 
   // User details with localStorage persistence
   const [user, setUser] = useState<StarPuffUser>(() => {
@@ -232,11 +458,11 @@ export default function App() {
     }
     const defaultVal: StarPuffUser = {
       ownerName: "星之守护者",
-      membership: "vip_year",
-      stardustCoins: 520, // free starter budget
-      unlimitedTalks: true,
-      dialogsRemaining: 999,
-      dialogsMax: 999,
+      membership: "free",
+      stardustCoins: 100, // 普通用户上线即自动拥有 100 星辰币
+      unlimitedTalks: false,
+      dialogsRemaining: 5,
+      dialogsMax: 5,
       streakDays: 1,
       activePet: DEFAULT_KITTEN,
       historyLogs: [
@@ -276,61 +502,363 @@ export default function App() {
     return defaultVal;
   });
 
-  // V2.0 God mode vs Guest mode control states
-  const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">("god");
-  const [isArCameraOpen, setIsArCameraOpen] = useState(false);
+  // [演示模式] 上帝模式（god）用于老板审阅/演示：可无限刷币、免费投瓶等特权；
+  // 访客模式（guest）为正常经济玩法，绝对不允许刷币。默认 guest，持久化记忆上次选择。
+  const [systemPlayMode, setSystemPlayMode] = useState<"god" | "guest">(() => {
+    const mode = localStorage.getItem("starpuff_play_mode");
+    return mode === "god" ? "god" : "guest";
+  });
 
-  // 演示模式（上帝/访客）的真实经济快照，防止演示覆盖写穿持久存档
-  const economyBackupRef = useRef<Partial<StarPuffUser> | null>(null);
-  const ECONOMY_BACKUP_KEY = "starpuff_economy_backup";
+  const isGodMode = systemPlayMode === "god";
 
-  const loadEconomyBackup = (): Partial<StarPuffUser> | null => {
-    if (economyBackupRef.current) return economyBackupRef.current;
-    try {
-      const raw = localStorage.getItem(ECONOMY_BACKUP_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      return null;
+  // [演示模式] 上帝模式每次上线（应用启动 / 切到上帝模式）自动充值 777777 星辰币，供老板审阅演示。
+  // 访客模式不受影响，保持正常经济玩法。
+  useEffect(() => {
+    if (!isGodMode) return;
+    setUser(prev => (prev.stardustCoins === 777777 ? prev : { ...prev, stardustCoins: 777777 }));
+  }, [isGodMode]);
+
+  // Steam 用户 ID（内购用）。优先取 Steamworks 登录态的真实 ID，离线时用本地稳定占位 ID 便于联调。
+  const steamStatus = useSteam();
+  const [steamId, setSteamId] = useState<string>(() => {
+    const local = localStorage.getItem("starpuff_steam_id");
+    if (local) return local;
+    // 生成一个稳定的本地测试 ID，便于开发联调
+    const generated = "76561198000000000";
+    localStorage.setItem("starpuff_steam_id", generated);
+    return generated;
+  });
+  useEffect(() => {
+    if (steamStatus.steamId && steamStatus.steamId !== steamId) {
+      setSteamId(steamStatus.steamId);
+      localStorage.setItem("starpuff_steam_id", steamStatus.steamId);
     }
+  }, [steamStatus.steamId]);
+
+  // Steam 成就：累计型条件检查（幂等，Steam 不可用时静默跳过）
+  useEffect(() => {
+    if (!steamStatus.available) return;
+    const coins = user.stardustCoins ?? 0;
+    if (coins >= 1000) void unlock(ACHIEVEMENTS.coins1000);
+    if ((user.streakDays ?? 0) >= 7) void unlock(ACHIEVEMENTS.sevenDayStreak);
+    const maxLevel = Math.max(1, ...(user.allPets ?? []).map((p) => p.level ?? 1));
+    if (maxLevel >= 10) void unlock(ACHIEVEMENTS.petLevel10);
+    if ((user.allPets ?? []).length >= 2) void unlock(ACHIEVEMENTS.multiPets);
+  }, [user, steamStatus.available]);
+
+  // 内购流程状态（用于 UI 反馈）
+  const [purchaseState, setPurchaseState] = useState<PurchaseFlowState>({
+    status: "idle",
+    orderId: null,
+    error: null,
+  });
+
+  // 发放回调：把后端返回的权益写回用户状态
+  const handleGranted = (payload: GrantPayload, orderId: string) => {
+    setUser(prev => applyGrantToUser(prev, payload));
+    if (payload.kind === "stardust_coins") {
+      triggerToast(`💎 购买成功！星辰币 +${payload.amount}（订单 ${orderId}）`);
+    } else {
+      triggerToast(`👑 会员开通成功！${payload.membershipLevel === "vip_year" ? "年卡" : "月卡"}权益即刻生效`);
+    }
+    void unlock(ACHIEVEMENTS.firstPurchase);
+    playSound("success");
   };
 
-  // Sync state override on playMode modification
+  const { runPurchase } = useMicrotransaction(steamId, handleGranted);
+
+  // ---- 陪伴能量系统（心寒话术）----
+
+  // 当前活跃宠物的陪伴能量快照（从 user.activePet 派生，用于 UI 即时刷新）
+  const [energyTick, setEnergyTick] = useState(0); // 用于周期性触发重算
+  // 累计喂食次数（用于触发「深度羁绊」暖心文案），按宠物 id 分 key 存储
+  const activePetId = user.activePet?.id ?? user.activePet?.name ?? "default";
+  const [feedCount, setFeedCount] = useState<number>(() => {
+    const local = localStorage.getItem(`starpuff_feed_count_${activePetId}`);
+    return local ? Number(local) : 0;
+  });
+  /** 触发深度羁绊文案所需的累计喂食次数阈值 */
+  const DEEP_BOND_THRESHOLD = 10;
+  // 首睡免费唤醒标记（每个宠物独立，首次沉睡可免费唤醒一次）
+  const [freeReviveUsed, setFreeReviveUsed] = useState<boolean>(() => {
+    return localStorage.getItem(`starpuff_free_revive_${activePetId}`) === "1";
+  });
+
+  // 切换宠物时，重新加载该宠物的喂食次数与首睡免费标记
   useEffect(() => {
-    if (systemPlayMode === "god") {
-      setUser(prev => {
-        // 已有备份（上次会话中断于上帝模式）则沿用，否则快照当前真实经济字段
-        let backup = loadEconomyBackup();
-        if (!backup) {
-          backup = {
-            membership: prev.membership,
-            unlimitedTalks: prev.unlimitedTalks,
-            dialogsRemaining: prev.dialogsRemaining,
-            dialogsMax: prev.dialogsMax,
-            stardustCoins: prev.stardustCoins
-          };
-          try { localStorage.setItem(ECONOMY_BACKUP_KEY, JSON.stringify(backup)); } catch (e) {}
-        }
-        economyBackupRef.current = backup;
-        return {
-          ...prev,
-          membership: "vip_year",
-          unlimitedTalks: true,
-          dialogsRemaining: 999,
-          dialogsMax: 999,
-          stardustCoins: Math.max(prev.stardustCoins, 99999)
-        };
-      });
-    } else {
-      setUser(prev => {
-        const backup = loadEconomyBackup();
-        if (!backup) return prev;
-        economyBackupRef.current = null;
-        try { localStorage.removeItem(ECONOMY_BACKUP_KEY); } catch (e) {}
-        // 恢复真实经济/会员字段，保留演示期间获得的其他进度（宠物、装扮等）
-        return { ...prev, ...backup };
-      });
+    const localCount = localStorage.getItem(`starpuff_feed_count_${activePetId}`);
+    setFeedCount(localCount ? Number(localCount) : 0);
+    setFreeReviveUsed(localStorage.getItem(`starpuff_free_revive_${activePetId}`) === "1");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePetId]);
+
+  /** 从 user.activePet 计算当前陪伴能量（应用衰减） */
+  const currentCompanionEnergy = (() => {
+    const pet = user.activePet;
+    if (!pet) return 100;
+    const base = pet.companionEnergy ?? pet.statusEnergy ?? 90;
+    const updatedAt = pet.companionEnergyUpdatedAt ?? Date.now();
+    // 免疫期内不衰减
+    const immuneUntil = pet.companionEnergyImmuneUntil ?? 0;
+    if (Date.now() < immuneUntil) return Math.max(0, base);
+    return calcCurrentEnergy(base, updatedAt);
+  })();
+
+  const companionState = getCompanionState(currentCompanionEnergy);
+
+  // ---- 原子化钱包与实时状态 ref（防快速连点竞态）----
+  // [BUG-FIX] 原实现各处扣款都是「先用渲染闭包里的旧余额做前置校验，updater 内既无二次校验也无夹取」，
+  // 快速连点同一按钮时多次校验都读到同一旧值 → 余额被扣成负数，或返回 true 但实际未扣款（白嫖）。
+  // 这里用 ref 同步记录最新余额：扣款/发币时立即更新 ref，同一事件循环内的连续调用也能拿到最新值。
+  const coinsRef = useRef<number>(user.stardustCoins ?? 0);
+  useEffect(() => { coinsRef.current = user.stardustCoins ?? 0; }, [user.stardustCoins]);
+
+  /** 同步扣币：余额充足则立即扣款并返回 true；否则返回 false 且不改动任何状态 */
+  const spendCoins = (amount: number): boolean => {
+    if (!Number.isFinite(amount) || amount <= 0) return true; // 非法金额视为无需扣款
+    if (coinsRef.current < amount) return false;
+    coinsRef.current = Math.max(0, coinsRef.current - amount);
+    setUser(prev => ({ ...prev, stardustCoins: Math.max(0, (prev.stardustCoins ?? 0) - amount) }));
+    return true;
+  };
+
+  /** 同步发放星辰币（clamp 到非负数，防止异常入参污染余额） */
+  const grantCoins = (amount: number) => {
+    if (!Number.isFinite(amount) || amount === 0) return;
+    coinsRef.current = Math.max(0, coinsRef.current + amount);
+    setUser(prev => ({ ...prev, stardustCoins: Math.max(0, (prev.stardustCoins ?? 0) + amount) }));
+  };
+
+  // 实时能量 / 喂食次数 / 免费唤醒标记的 ref 镜像，供高频事件处理器做同步守卫
+  const energyRef = useRef<number>(currentCompanionEnergy);
+  useEffect(() => { energyRef.current = currentCompanionEnergy; }, [currentCompanionEnergy]);
+  const feedCountRef = useRef<number>(feedCount);
+  useEffect(() => { feedCountRef.current = feedCount; }, [feedCount]);
+  const freeReviveUsedRef = useRef<boolean>(freeReviveUsed);
+  useEffect(() => { freeReviveUsedRef.current = freeReviveUsed; }, [freeReviveUsed]);
+
+  /** 更新活跃宠物的陪伴能量（写回 user 状态并刷新时间戳） */
+  const updateCompanionEnergy = (nextEnergy: number, opts?: { immuneUntil?: number }) => {
+    setUser(prev => {
+      if (!prev.activePet) return prev;
+      const updatedPet: PetConfig = {
+        ...prev.activePet,
+        companionEnergy: Math.max(0, Math.min(100, nextEnergy)),
+        companionEnergyUpdatedAt: Date.now(),
+        // [BUG-FIX] 用 !== undefined 判断：不传 opts 时保留既有免疫期
+        companionEnergyImmuneUntil:
+          opts?.immuneUntil !== undefined
+            ? opts.immuneUntil
+            : (prev.activePet.companionEnergyImmuneUntil ?? 0),
+        isSleeping: nextEnergy <= 0,
+      };
+      // 同步 allPets 列表中的该宠物
+      const allPets = prev.allPets?.map(p =>
+        p.id === updatedPet.id ? updatedPet : p
+      ) ?? (prev.activePet ? [updatedPet] : []);
+      return { ...prev, activePet: updatedPet, allPets };
+    });
+  };
+
+  /** 喂食恢复能量（使用星辰币购买的能量道具） */
+  const handleFeedEnergy = (foodId: string) => {
+    const food = findEnergyFood(foodId);
+    if (!food) return;
+
+    // 满能量拦截：避免误扣币（唤醒剂除外，唤醒剂即使满能量也用于解除沉睡态）
+    if (food.id !== "energy_revive" && currentCompanionEnergy >= 100) {
+      triggerToast("🌟 陪伴能量已经满格啦，暂时不需要喂食哦～");
+      playSound("beep");
+      return;
     }
-  }, [systemPlayMode]);
+
+    // 沉睡状态只能用唤醒剂
+    if (companionState.state === "sleeping" && food.id !== "energy_revive") {
+      triggerToast("😴 星宠正在沉睡，只能用「星辰唤醒剂」唤醒它哦。");
+      playSound("beep");
+      return;
+    }
+
+    // 首睡免费唤醒：首次沉睡的宠物可免费使用一次唤醒剂
+    // [BUG-FIX] 用 ref 读取实时标记，避免连点时闭包读到旧值导致「免费唤醒」被重复触发
+    const isFreeRevive = food.id === "energy_revive" && !freeReviveUsedRef.current;
+    // [BUG-FIX] 扣币改为原子化 spendCoins：前置校验与扣款在同一处完成，
+    // 同一事件循环内连点第二次会读到已扣减后的余额而失败，不会再扣成负数。
+    if (!isFreeRevive && !spendCoins(food.price)) {
+      triggerToast(`⚠️【星辰币不足】${food.name} 需要 ${food.price} 星辰币，您当前只有 ${coinsRef.current} 币。`);
+      playSound("beep");
+      return;
+    }
+    if (isFreeRevive) {
+      freeReviveUsedRef.current = true;
+      setFreeReviveUsed(true);
+      try { localStorage.setItem(`starpuff_free_revive_${activePetId}`, "1"); } catch (e) {}
+    }
+
+    // 恢复能量
+    // [BUG-FIX] 用 energyRef 累加：原实现两次连点都基于同一个闭包能量计算，
+    // 第二次恢复的数值会把第一次覆盖掉（能量白白丢失）。
+    const nextEnergy = Math.min(100, energyRef.current + food.energyRestore);
+    energyRef.current = nextEnergy;
+    // [BUG-FIX] 只有带免衰减天数的道具才传 immuneUntil。
+    // 原实现无条件传 0，而 `0 ?? x` 结果恒为 0，会把「时光结晶」买来的 3 天免疫期清成 0，
+    // 玩家花 50 币买的免衰减会被随后任意一次普通喂食清零。
+    updateCompanionEnergy(
+      nextEnergy,
+      food.decayImmuneDays
+        ? { immuneUntil: Date.now() + food.decayImmuneDays * 24 * 60 * 60 * 1000 }
+        : undefined
+    );
+
+    // 累计喂食次数并持久化（按宠物 id 分 key）
+    // [BUG-FIX] 用 feedCountRef 递增，避免连点两次时第二次基于同一旧值覆盖计数
+    const nextFeedCount = feedCountRef.current + 1;
+    feedCountRef.current = nextFeedCount;
+    setFeedCount(nextFeedCount);
+    try {
+      localStorage.setItem(`starpuff_feed_count_${activePetId}`, String(nextFeedCount));
+    } catch (e) {}
+
+    // 反馈文案
+    if (food.id === "energy_revive") {
+      const revivePhrase = pickPhrase(PHRASES.revive);
+      if (isFreeRevive) {
+        triggerToast(`💝 第一次陷入沉睡，免费唤醒！✨ ${user.activePet?.name} 睁开了眼睛：「${revivePhrase}」`);
+      } else {
+        triggerToast(`✨ 星辰唤醒剂生效！${user.activePet?.name} 睁开了眼睛：「${revivePhrase}」`);
+      }
+    } else if (nextFeedCount >= DEEP_BOND_THRESHOLD && nextFeedCount % 5 === 0) {
+      // 深度羁绊：喂食很多次后，触发更深情暖心的文案（每 5 次触发一次，避免过频）
+      const deepPhrase = pickPhrase(PHRASES.deepBond);
+      triggerToast(`${food.icon} ${user.activePet?.name} 依偎着你，轻声说：「${deepPhrase}」`);
+      playSound("chime");
+      setConfettiTrigger(prev => prev + 2);
+      return;
+    } else {
+      const recoverPhrase = pickPhrase(PHRASES.recovery);
+      triggerToast(`${food.icon} 喂食了【${food.name}】，${user.activePet?.name}：「${recoverPhrase}」`);
+    }
+    playSound("success");
+    setConfettiTrigger(prev => prev + 1);
+  };
+
+  // 周期性刷新能量（每 30 秒重算一次，让 UI 反映时间流逝），并把实时衰减值写回 activePet，
+  // 使 HomeCanvas 等下游组件能通过 petConfig.companionEnergy 拿到最新能量
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setEnergyTick(t => t + 1);
+      // 同步实时能量到 activePet（画布/情绪系统依赖此字段）
+      setUser(prev => {
+        if (!prev.activePet) return prev;
+        const pet = prev.activePet;
+        const base = pet.companionEnergy ?? pet.statusEnergy ?? 90;
+        const updatedAt = pet.companionEnergyUpdatedAt ?? Date.now();
+        const immuneUntil = pet.companionEnergyImmuneUntil ?? 0;
+        const liveEnergy = Date.now() < immuneUntil
+          ? Math.max(0, base)
+          : calcCurrentEnergy(base, updatedAt);
+        if (Math.round(liveEnergy) === Math.round(base)) return prev; // 无变化则跳过，避免无效渲染
+        // [BUG-FIX] 写回能量时必须同步刷新时间戳，否则下一 tick 仍用旧锚点重算衰减并叠加，
+        // 导致能量每 30 秒暴跌一次（约 12 分钟归零，比设计值快约 120 倍）
+        const updatedPet = { ...pet, companionEnergy: liveEnergy, companionEnergyUpdatedAt: Date.now() };
+        const allPets = prev.allPets?.map(p => p.id === updatedPet.id ? updatedPet : p) ?? [updatedPet];
+        return { ...prev, activePet: updatedPet, allPets };
+      });
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 每日登录能量奖励 & 月卡自动恢复（挂载时结算一次）
+  useEffect(() => {
+    if (!user.activePet) return;
+    const today = localDateString();
+    let bonus = 0;
+
+    // 首次迁移：旧存档没有 companionEnergyUpdatedAt 时初始化时间戳（否则永不衰减）
+    if (!user.activePet.companionEnergyUpdatedAt) {
+      setUser(prev => {
+        if (!prev.activePet) return prev;
+        const updatedPet: PetConfig = {
+          ...prev.activePet,
+          companionEnergy: prev.activePet.companionEnergy ?? prev.activePet.statusEnergy ?? 90,
+          companionEnergyUpdatedAt: Date.now(),
+        };
+        const allPets = prev.allPets?.map(p => p.id === updatedPet.id ? updatedPet : p) ?? [updatedPet];
+        return { ...prev, activePet: updatedPet, allPets };
+      });
+      return;
+    }
+
+    // 每日登录送 10 点
+    if (user.activePet.lastEnergyLoginBonusDate !== today) {
+      bonus += LOGIN_DAILY_BONUS;
+    }
+    // 月卡自动恢复 30 点
+    if (user.membership !== "free" && user.activePet.lastVipRecoveryDate !== today) {
+      bonus += VIP_DAILY_RECOVERY;
+    }
+
+    if (bonus > 0) {
+      const next = Math.min(100, currentCompanionEnergy + bonus);
+      setUser(prev => {
+        if (!prev.activePet) return prev;
+        const updatedPet: PetConfig = {
+          ...prev.activePet,
+          companionEnergy: next,
+          companionEnergyUpdatedAt: Date.now(),
+          lastEnergyLoginBonusDate: today,
+          lastVipRecoveryDate: prev.membership !== "free" ? today : prev.activePet?.lastVipRecoveryDate,
+        };
+        const allPets = prev.allPets?.map(p => p.id === updatedPet.id ? updatedPet : p) ?? [updatedPet];
+        return { ...prev, activePet: updatedPet, allPets };
+      });
+      if (user.membership !== "free") {
+        triggerToast(`🌅 每日登录 +${LOGIN_DAILY_BONUS} 能量，月卡自动恢复 +${VIP_DAILY_RECOVERY} 能量！`);
+      } else {
+        triggerToast(`🌅 每日登录赠送 +${LOGIN_DAILY_BONUS} 陪伴能量！`);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 监测能量状态：沉睡弹沉睡窗、心寒告别(<20)弹低能量窗、委屈(20-50)弹委屈窗
+  // 用 ref 记录"已为当前状态弹过窗"，避免 energyTick 周期触发导致用户关闭后弹窗反复弹出（点了关闭像没反应）
+  const lastAlertStateRef = useRef<string>("");
+  useEffect(() => {
+    if (!user.activePet) return;
+    const state = companionState.state;
+    // 仅当能量状态"跨状态变化"时才弹窗一次；同一状态下关闭后不再反复弹
+    if (lastAlertStateRef.current === state) return;
+    lastAlertStateRef.current = state;
+
+    if (state === "sleeping") {
+      // 进入沉睡时标记宠物 isSleeping
+      if (!user.activePet.isSleeping) {
+        updateCompanionEnergy(0);
+      }
+      setIsSleepModalOpen(true);
+      setIsLowEnergyModalOpen(false);
+      setIsHurtModalOpen(false);
+    } else if (state === "farewell") {
+      // 心寒告别（0-19）弹低能量提醒
+      setIsSleepModalOpen(false);
+      setIsLowEnergyModalOpen(true);
+      setIsHurtModalOpen(false);
+    } else if (state === "distant") {
+      // 失落疏离（20-49）弹委屈提醒（女性向：好虚弱，连尾巴都摇不动）
+      setIsSleepModalOpen(false);
+      setIsLowEnergyModalOpen(false);
+      setIsHurtModalOpen(true);
+    } else {
+      // 恢复正常状态时关闭所有提醒弹窗
+      setIsSleepModalOpen(false);
+      setIsLowEnergyModalOpen(false);
+      setIsHurtModalOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companionState.state, energyTick]);
+
+  const [isArCameraOpen, setIsArCameraOpen] = useState(false);
 
   // Whisper log lists from pet
   const [whispers, setWhispers] = useState<PetWhisper[]>(() => {
@@ -346,8 +874,8 @@ export default function App() {
       {
         id: "w_seed",
         date: "2026-05-21",
-        content: "主人，昨天我漫步到了织女星小镇，找了个全是星光粒子的松软角落踩了很久。这里的温度刚刚好，像你以前抱我的胸口。虽然猫咪变成了星尘，但我还是会在你每次叹气的时候，悄悄用尾毛拂过你的指尖。要在人间好好生活，不许因为我偷哭哦。",
-        coverImage: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=300",
+        content: "主人，昨天我漫步到了织女星小镇，找了个全是星光粒子的松软角落踩了很久。这里的温度刚刚好，像你以前抱我的胸口。虽然猫咪变成了星辰，但我还是会在你每次叹气的时候，悄悄用尾毛拂过你的指尖。要在人间好好生活，不许因为我偷哭哦。",
+        coverImage: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
         likes: 12,
         hasLiked: false,
         comments: [
@@ -357,16 +885,77 @@ export default function App() {
     ];
   });
 
+  // 星辰来信频率档位：基础档每晚10点1封；花 100 星辰币升级「星辰档」，
+  // 有效期 30 天，期间每日早 8:00 / 午 12:00 / 晚 22:00 各一封，自动定时推送。
+  const [letterTier, setLetterTier] = useState<"daily1" | "daily3">(() => {
+    const local = localStorage.getItem("starpuff_letter_tier");
+    return local === "daily3" ? "daily3" : "daily1";
+  });
+  // 升级时间戳（毫秒），用于计算 30 天有效期；到期自动降级为基础档
+  const [letterUpgradedAt, setLetterUpgradedAt] = useState<number | null>(() => {
+    const local = localStorage.getItem("starpuff_letter_upgraded_at");
+    const num = local ? parseInt(local, 10) : NaN;
+    return Number.isFinite(num) && num > 0 ? num : null;
+  });
+  const LETTER_UPGRADE_COST = 777;
+  const LETTER_UPGRADE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 天
+  // 星辰档是否仍在有效期内（过期则视为基础档）
+  const isLetterPremiumActive =
+    letterTier === "daily3" &&
+    letterUpgradedAt !== null &&
+    Date.now() - letterUpgradedAt < LETTER_UPGRADE_DURATION;
+
   // Community posts including seeded
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(() => {
     const local = localStorage.getItem("starpuff_comp_posts");
     if (local) {
       try {
-        return JSON.parse(local);
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-    return COMM_PRES_POSTS;
+    // 新用户：预置路人帖 + 虚拟好友帖，社区一进来就有活气
+    return [...COMM_PRES_POSTS, ...seedVirtualFriendPosts(6)];
   });
+
+  // 老存档增量补种：首次挂载时若无虚拟好友帖（id 前缀 vpost_），追加一批好友动态
+  const seededVirtualPostsRef = useRef(false);
+  useEffect(() => {
+    if (seededVirtualPostsRef.current) return;
+    seededVirtualPostsRef.current = true;
+    setCommunityPosts(prev => {
+      if (prev.some(p => p.id.startsWith("vpost_"))) return prev;
+      return [...prev, ...seedVirtualFriendPosts(6)];
+    });
+  }, []);
+
+  // 进入社区 tab：低概率补一条虚拟好友新动态（限频 10 分钟，vpost_ 帖不超过 12 条，模拟"在线家长发新帖"）
+  const lastFriendPostAtRef = useRef(0);
+  useEffect(() => {
+    if (activeTab !== "community") return;
+    const now = Date.now();
+    if (now - lastFriendPostAtRef.current < 10 * 60 * 1000) return;
+    setCommunityPosts(prev => {
+      if (Math.random() > 0.3) return prev;
+      const vCount = prev.filter(p => p.id.startsWith("vpost_")).length;
+      if (vCount >= 12) return prev;
+      lastFriendPostAtRef.current = now;
+      const f = pickFriends(1)[0];
+      const post: CommunityPost = {
+        id: `vpost_${f.id}_${now}`,
+        authorName: f.ownerName,
+        petName: f.petName,
+        petType: f.type,
+        primaryColor: f.primaryColor,
+        message: pickOne(f.postPool),
+        date: daysAgoString(0, new Date().getHours()),
+        likes: 2 + Math.floor(Math.random() * 8),
+        hasLiked: false,
+        comments: [],
+      };
+      return [post, ...prev];
+    });
+  }, [activeTab]);
 
   // Daily Tasks state tracker（按本地日期每日重置进度）
   const [tasks, setTasks] = useState<TaskItem[]>(() => {
@@ -376,7 +965,7 @@ export default function App() {
       { id: "task_share", name: "分享治愈耳语给旁人", reward: 15, maxTimes: 1, completedTimes: 0, description: "一键分享耳语故事" },
       { id: "task_explore", name: "星云宇宙停留30秒", reward: 20, maxTimes: 1, completedTimes: 0, description: "漫游星云之门并触发碰撞事件" },
       { id: "task_like", name: "给他人耳语/社群点赞", reward: 1, maxTimes: 10, completedTimes: 0, description: "在看星的人社区浏览点赞" },
-      { id: "task_receive_gift", name: "收到「一颗星尘」礼物", reward: 2, maxTimes: 5, completedTimes: 0, description: "模拟其他用户送给你装饰礼物" }
+      { id: "task_receive_gift", name: "收到「一颗星辰」礼物", reward: 2, maxTimes: 5, completedTimes: 0, description: "模拟其他用户送给你装饰礼物" }
     ];
     try {
       const local = localStorage.getItem("starpuff_tasks");
@@ -403,12 +992,16 @@ export default function App() {
       snack_biscuit: 2,
     };
   });
-
-  // Selected snack for feeding detail
-  const [selectedSnackForFeed, setSelectedSnackForFeed] = useState<StoreItem | null>(null);
+  // [BUG-FIX] 库存的 ref 镜像：喂食/购买时同步读写，避免连点两次都读到同一份闭包快照
+  const foodInventoryRef = useRef<Record<string, number>>(foodInventory);
+  useEffect(() => { foodInventoryRef.current = foodInventory; }, [foodInventory]);
 
   // VIP Dialog Modal
   const [isVipModalOpen, setIsVipModalOpen] = useState(false);
+  // 沉睡弹窗 / 低能量弹窗 / 委屈提醒弹窗
+  const [isSleepModalOpen, setIsSleepModalOpen] = useState(false);
+  const [isLowEnergyModalOpen, setIsLowEnergyModalOpen] = useState(false);
+  const [isHurtModalOpen, setIsHurtModalOpen] = useState(false);
   // Re-generate Whisper loading state
   const [isGeneratingWhisper, setIsGeneratingWhisper] = useState(false);
   
@@ -482,9 +1075,58 @@ export default function App() {
     if (e) e.preventDefault();
     if (!chatInput.trim() || isChatTyping) return;
 
+    // 陪伴能量状态拦截：沉睡/低能量时无法正常对话
+    if (companionState.state === "sleeping") {
+      const userText = chatInput.trim();
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: `chat_${Date.now()}_u`,
+          sender: "user" as const,
+          text: userText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        {
+          id: `chat_${Date.now()}_sleep`,
+          sender: "pet" as const,
+          text: "......",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+      setChatInput(""); // 清空输入框，闭环完整
+      triggerToast("😴 星宠正在沉睡，无法回应。请用「星辰唤醒剂」唤醒它。");
+      playSound("beep");
+      return;
+    }
+
+    if (!companionState.canInteract) {
+      // 失落疏离/心寒告别：拒绝正常互动，只流露状态话术
+      const userText = chatInput.trim();
+      const phrase = pickPhrase(getPhrasesForState(companionState.state));
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: `chat_${Date.now()}_u`,
+          sender: "user" as const,
+          text: userText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        {
+          id: `chat_${Date.now()}_low`,
+          sender: "pet" as const,
+          text: phrase,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+      setChatInput(""); // 清空输入框，闭环完整
+      triggerToast(`💔 ${user.activePet?.name} 陪伴能量不足，正在疏离中...喂食可以重新温暖它。`);
+      playSound("chime");
+      return;
+    }
+
     // Bondi and budget locks
     if (!user.unlimitedTalks && user.dialogsRemaining <= 0) {
-      triggerToast("⚠️ 今日星尘心灵连线次数已达上限，解锁VIP或等待明日刷新！");
+      triggerToast("⚠️ 今日星辰心灵连线次数已达上限，解锁VIP或等待明日刷新！");
       playSound("chime");
       return;
     }
@@ -515,18 +1157,10 @@ export default function App() {
     }
 
     // Trigger interactive task completion check
-    try {
-      setTasks(prev => prev.map(t => {
-        if (t.id === "task_interact" && t.completedTimes < t.maxTimes) {
-          setTimeout(() => {
-            triggerToast("🎉 日常互动 +1（与爱宠进行星尘AI对话）");
-          }, 300);
-          setUser(u => ({ ...u, stardustCoins: u.stardustCoins + t.reward }));
-          return { ...t, completedTimes: t.completedTimes + 1 };
-        }
-        return t;
-      }));
-    } catch (err) {}
+    // [BUG-FIX] 原实现把 setTimeout / setUser / triggerToast 写在 setTasks 的 updater 内部，
+    // StrictMode 下 updater 双调用 → 星辰币 +2 倍、toast 弹两次，且定时器句柄丢失无法清理。
+    // 改为直接复用已修正为纯函数 + 副作用外提的 updateTaskProgress。
+    updateTaskProgress("task_interact", 1);
 
     // Invoke API call
     try {
@@ -561,7 +1195,7 @@ export default function App() {
       }
     } catch (error: any) {
       console.error("AI chat companion error:", error);
-      triggerToast(`⚠️ 与星尘连接微弱: ${error.message || "请求超时"}`);
+      triggerToast(`⚠️ 与星辰连接微弱: ${error.message || "请求超时"}`);
       // Fallback response inline
       setChatMessages(prev => [
         ...prev,
@@ -584,6 +1218,17 @@ export default function App() {
   const [newPostText, setNewPostText] = useState("");
   // Stardust trigger for canvas spark burst
   const [confettiTrigger, setConfettiTrigger] = useState(0);
+  // [喂食功能区] 外部触发打开喂食菜单（星辰家园互动面板"喂食"按钮递增）
+  const [feedMenuTrigger, setFeedMenuTrigger] = useState(0);
+  // [BUG-FIX] 专属纪念定制服务：记录已购买的服务，避免"点了只 toast 无落地"的假支付
+  const [premiumServices, setPremiumServices] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("starpuff_premium_services");
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // --- PET MEMORY FLASHBACK SYSTEM STATES ---
   const [unlockedMemoryIds, setUnlockedMemoryIds] = useState<string[]>(() => {
@@ -601,70 +1246,117 @@ export default function App() {
 
   const [activeMemoryFlashbackId, setActiveMemoryFlashbackId] = useState<string | null>(null);
 
+  // [BUG-FIX] localStorage 写入统一兜底：隐私模式 / 配额超限时 setItem 会抛异常，
+  // 在 effect 中抛出会直接冒泡到 React 错误边界导致整页崩溃。starpuff_user 体积最大最易触顶。
+  const safeSetItem = (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn(`[storage] 写入 ${key} 失败（可能配额超限或处于隐私模式）`, e);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem("starpuff_unlocked_memories", JSON.stringify(unlockedMemoryIds));
+    safeSetItem("starpuff_unlocked_memories", JSON.stringify(unlockedMemoryIds));
   }, [unlockedMemoryIds]);
 
   useEffect(() => {
-    localStorage.setItem("starpuff_bonding_charge", bondingCharge.toString());
+    safeSetItem("starpuff_bonding_charge", bondingCharge.toString());
+  }, [bondingCharge]);
+
+  // [BUG-FIX] 蓄力值加 ref 镜像：避免连续调用（喂食+互动）时都读到同一份闭包旧值而互相覆盖
+  const bondingChargeRef = useRef<number>(bondingCharge);
+  useEffect(() => {
+    bondingChargeRef.current = bondingCharge;
   }, [bondingCharge]);
 
   const incrementBondingCharge = (amount: number) => {
     if (!user.activePet) return;
-    setBondingCharge(prev => {
-      const next = prev + amount;
-      if (next >= 100) {
-        // Find matching memory templates for the pet
-        let candidates = PET_MEMORIES.filter(m => m.category === user.activePet?.type || m.category === "通用");
-        if (candidates.length === 0) {
-          candidates = PET_MEMORIES;
-        }
+    // [BUG-FIX] 副作用（Math.random / setTimeout / playSound）必须移出 setState 的 updater：
+    // updater 必须是纯函数，StrictMode 下会被双调用 → 定时器注册两次、chime 音效叠放、
+    // 随机闪回被选中并弹出两次。这里改为先用 ref 求新值，副作用全部在 updater 之外执行。
+    const next = bondingChargeRef.current + amount;
+    if (next < 100) {
+      bondingChargeRef.current = next;
+      setBondingCharge(next);
+      return;
+    }
 
-        // Prioritise unlocking currently locked matching memories if available
-        const lockedCandidates = candidates.filter(m => !unlockedMemoryIds.includes(m.id));
-        const finalSelectionList = lockedCandidates.length > 0 ? lockedCandidates : candidates;
-        const selected = finalSelectionList[Math.floor(Math.random() * finalSelectionList.length)];
+    // 蓄满 100%：触发一次记忆闪回并清零
+    let candidates = PET_MEMORIES.filter(m => m.category === user.activePet?.type || m.category === "通用");
+    if (candidates.length === 0) {
+      candidates = PET_MEMORIES;
+    }
+    // 优先解锁尚未看过的同类别记忆
+    const lockedCandidates = candidates.filter(m => !unlockedMemoryIds.includes(m.id));
+    const finalSelectionList = lockedCandidates.length > 0 ? lockedCandidates : candidates;
+    const selected = finalSelectionList[Math.floor(Math.random() * finalSelectionList.length)];
 
-        if (selected) {
-          setTimeout(() => {
-            setActiveMemoryFlashbackId(selected.id);
-            playSound("chime");
-          }, 600);
-        }
-        return 0; // reset charge meter on triggering flashback
-      }
-      return next;
-    });
+    bondingChargeRef.current = 0;
+    setBondingCharge(0);
+    if (selected) {
+      setTimeout(() => {
+        setActiveMemoryFlashbackId(selected.id);
+        playSound("chime");
+      }, 600);
+    }
   };
   // ------------------------------------------
 
-  // Sync state to localStorage
+  // Sync state to localStorage（统一走 safeSetItem，避免配额超限时崩溃）
   useEffect(() => {
-    localStorage.setItem("starpuff_user", JSON.stringify(user));
+    safeSetItem("starpuff_user", JSON.stringify(user));
   }, [user]);
 
   useEffect(() => {
-    localStorage.setItem("starpuff_whispers", JSON.stringify(whispers));
+    safeSetItem("starpuff_whispers", JSON.stringify(whispers));
   }, [whispers]);
 
+  // 持久化星辰来信档位与升级时间戳
   useEffect(() => {
-    localStorage.setItem("starpuff_comp_posts", JSON.stringify(communityPosts));
+    safeSetItem("starpuff_letter_tier", letterTier);
+  }, [letterTier]);
+  useEffect(() => {
+    if (letterUpgradedAt === null) {
+      try {
+        localStorage.removeItem("starpuff_letter_upgraded_at");
+      } catch (e) {
+        console.warn("[storage] 移除 starpuff_letter_upgraded_at 失败", e);
+      }
+    } else {
+      safeSetItem("starpuff_letter_upgraded_at", String(letterUpgradedAt));
+    }
+  }, [letterUpgradedAt]);
+
+  useEffect(() => {
+    safeSetItem("starpuff_comp_posts", JSON.stringify(communityPosts));
   }, [communityPosts]);
 
   useEffect(() => {
-    localStorage.setItem("starpuff_tasks", JSON.stringify(tasks));
-    localStorage.setItem("starpuff_tasks_date", localDateString());
+    safeSetItem("starpuff_tasks", JSON.stringify(tasks));
+    safeSetItem("starpuff_tasks_date", localDateString());
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem("starpuff_food", JSON.stringify(foodInventory));
+    safeSetItem("starpuff_food", JSON.stringify(foodInventory));
   }, [foodInventory]);
 
   // Show a non-blocking temporary toast notice
+  // [BUG-FIX] 原实现每次调用都新开一个 3.8s 定时器且不清除上一个：
+  // 3 秒内连弹两条 toast 时，第一条的定时器到点会把正在显示的第二条提前掐灭；
+  // 组件卸载后定时器仍会 setState。这里记录句柄并在新 toast 到来时重置计时。
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
   const triggerToast = (text: string) => {
     setSystemAlert(text);
-    setTimeout(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
       setSystemAlert(null);
+      toastTimerRef.current = null;
     }, 3800);
   };
 
@@ -674,29 +1366,34 @@ export default function App() {
     const loginTask = tasks.find(t => t.id === "task_login");
     if (loginTask && loginTask.completedTimes === 0) {
       updateTaskProgress("task_login", 1);
-      triggerToast("🌅 登录成功！首登奖励 +5 星尘币入账！");
+      triggerToast("🌅 登录成功！首登奖励 +5 星辰币入账！");
     }
   }, []);
 
   // Update a task progress safely
+  // [BUG-FIX] 原实现把 setUser / triggerToast / playSound 写在 setTasks 的 updater 内部，
+  // StrictMode 下 updater 会被双调用 → 任务奖励翻倍发放、toast 弹两条、音效叠放两次。
+  // 改为：副作用全部外提，updater 保持纯函数；并用 ref 记录本批次已发放到的进度值，
+  // 防止同一批次内连续调用（如点赞高频触发）重复发币。
+  const taskRewardedRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    taskRewardedRef.current = {};
+  }, [tasks]);
+
   const updateTaskProgress = (taskId: string, increment = 1) => {
-    setTasks(prev => {
-      return prev.map(t => {
-        if (t.id === taskId) {
-          const original = t.completedTimes;
-          const maxed = Math.min(t.maxTimes, original + increment);
-          const diff = maxed - original;
-          if (diff > 0) {
-            const rewardCoin = diff * t.reward;
-            setUser(u => ({ ...u, stardustCoins: u.stardustCoins + rewardCoin }));
-            triggerToast(`🏅 任务【${t.name}】更新！获取星尘币 +${rewardCoin}`);
-            playSound("success");
-          }
-          return { ...t, completedTimes: maxed };
-        }
-        return t;
-      });
-    });
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const base = Math.max(task.completedTimes, taskRewardedRef.current[taskId] ?? 0);
+    const maxed = Math.min(task.maxTimes, base + increment);
+    const diff = maxed - base;
+    if (diff <= 0) return;
+    taskRewardedRef.current[taskId] = maxed;
+
+    const rewardCoin = diff * task.reward;
+    setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, completedTimes: Math.max(t.completedTimes, maxed) } : t)));
+    setUser(u => ({ ...u, stardustCoins: u.stardustCoins + rewardCoin }));
+    triggerToast(`🏅 任务【${task.name}】更新！获取星辰币 +${rewardCoin}`);
+    playSound("success");
   };
 
   // Complete Pet Ceremony Onboarding callback
@@ -709,23 +1406,48 @@ export default function App() {
         moodLevel: 95,
         happiness: 90,
         memoryTimelineList: [],
-        anniversariesList: []
+        anniversariesList: [],
+        // 初始化陪伴能量系统字段，避免新宠物缺失能量数据
+        companionEnergy: config.companionEnergy ?? 90,
+        companionEnergyUpdatedAt: Date.now(),
+        isSleeping: false
       };
       const nextPets = prev.allPets ? [...prev.allPets, updatedPet] : [updatedPet];
       return {
         ...prev,
         activePet: updatedPet,
         allPets: nextPets,
-        dialogsRemaining: prev.membership === "free" ? 5 : 999999
+        dialogsRemaining: prev.unlimitedTalks ? 999999 : (prev.dialogsMax ?? 5),
+        // [BUG-FIX] 完成升星仪式即视为已走完新手流程，避免引导遮罩（z-[9999]）在仪式后误弹并拦截输入
+        onboardingCompleted: true
       };
     });
     playSound("success");
     triggerToast(`✨【${config.name}】升星汇聚成功！常驻暖阳家宿。`);
   };
 
-  const handleCheckIn = (coinsAwarded: number, todayString: string) => {
+  // 取消/退出升星仪式：恢复为 allPets 里的第一只宠物（用于"重新举行"场景）
+  const handleCancelCeremony = () => {
     setUser(prev => {
-      const updatedCalendar = [...(prev.checkInCalendar || []), todayString];
+      const fallback = (prev.allPets && prev.allPets.length > 0) ? prev.allPets[0] : prev.activePet;
+      if (!fallback) return prev; // 完全没有宠物时无法退出（首次进入强制仪式）
+      return {
+        ...prev,
+        activePet: fallback
+      };
+    });
+    playSound("click");
+    triggerToast("已退出升星仪式，回到默影家宿。");
+  };
+
+  const handleCheckIn = (coinsAwarded: number, todayString: string, giftFoodId?: string, giftCount?: number) => {
+    setUser(prev => {
+      let updatedCalendar = [...(prev.checkInCalendar || []), todayString];
+      // [BUG-FIX] 签到满 7 天（一周）后重置日历，开始新一周；否则界面永久显示"全部已完成"，
+      // 而实际奖励却循环回第 1 天（length % 7），视觉与实发奖励自相矛盾。
+      if (updatedCalendar.length >= 7) {
+        updatedCalendar = [todayString]; // 新一周：今天算第 1 天
+      }
       return {
         ...prev,
         stardustCoins: prev.stardustCoins + coinsAwarded,
@@ -733,6 +1455,11 @@ export default function App() {
         lastCheckInDate: todayString
       };
     });
+    // [BUG-FIX] 第 7 天真正发放零食到库存（此前只弹 toast，从未写入库存）
+    if (giftFoodId && giftCount) {
+      setFoodInventory(prev => ({ ...prev, [giftFoodId]: (prev[giftFoodId] || 0) + giftCount }));
+    }
+    void unlock(ACHIEVEMENTS.firstCheckIn);
   };
 
   const handleSelectPet = (pet: PetConfig) => {
@@ -744,14 +1471,52 @@ export default function App() {
 
   const handleAddPet = (newPet: PetConfig) => {
     setUser(prev => {
-      const petWithId = newPet.id
-        ? newPet
-        : { ...newPet, id: `pet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` };
+      const petWithId: PetConfig = {
+        ...newPet,
+        id: newPet.id ?? `pet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        // 初始化陪伴能量系统字段
+        companionEnergy: newPet.companionEnergy ?? 90,
+        companionEnergyUpdatedAt: Date.now(),
+        isSleeping: false
+      };
       const nextPets = prev.allPets ? [...prev.allPets, petWithId] : [petWithId];
       return {
         ...prev,
         allPets: nextPets,
         activePet: petWithId
+      };
+    });
+  };
+
+  // 编辑宠物：更新 allPets 中对应 id 的宠物，若为当前活跃宠物则同步 activePet
+  const handleUpdatePet = (updatedPet: PetConfig) => {
+    setUser(prev => {
+      const key = updatedPet.id || updatedPet.name;
+      const nextPets = (prev.allPets || []).map(p =>
+        (p.id || p.name) === key ? { ...p, ...updatedPet, id: p.id || updatedPet.id } : p
+      );
+      const isActive = (prev.activePet?.id || prev.activePet?.name) === key;
+      return {
+        ...prev,
+        allPets: nextPets,
+        activePet: isActive ? { ...prev.activePet, ...updatedPet, id: prev.activePet?.id || updatedPet.id } : prev.activePet
+      };
+    });
+  };
+
+  // 删除宠物：从 allPets 移除；若删除的是活跃宠物，则切到第一只剩余宠物
+  const handleDeletePet = (petId: string) => {
+    setUser(prev => {
+      const nextPets = (prev.allPets || []).filter(p => (p.id || p.name) !== petId);
+      if (nextPets.length === 0) {
+        // 不允许删光，至少保留一只（前端已有拦截，这里兜底）
+        return prev;
+      }
+      const deletingActive = (prev.activePet?.id || prev.activePet?.name) === petId;
+      return {
+        ...prev,
+        allPets: nextPets,
+        activePet: deletingActive ? nextPets[0] : prev.activePet
       };
     });
   };
@@ -763,7 +1528,12 @@ export default function App() {
         ...prev.activePet,
         anniversariesList: updatedList
       };
-      const updatedAll = (prev.allPets || []).map(p => p.name === updatedPet.name ? updatedPet : p);
+      // [BUG-FIX] 必须按 id 匹配：原实现按 name 匹配，养两只同名宠物时编辑其中一只
+      // 会把另一只整体覆盖成 activePet（含 id），造成 allPets 出现重复 id 与数据互相污染。
+      const activeKey = prev.activePet.id || prev.activePet.name;
+      const updatedAll = (prev.allPets || []).map(p =>
+        (p.id || p.name) === activeKey ? updatedPet : p
+      );
       return {
         ...prev,
         activePet: updatedPet,
@@ -779,7 +1549,11 @@ export default function App() {
         ...prev.activePet,
         memoryTimelineList: updatedTimeline
       };
-      const updatedAll = (prev.allPets || []).map(p => p.name === updatedPet.name ? updatedPet : p);
+      // [BUG-FIX] 按 id 匹配（原因同 handleUpdateAnniversaries）
+      const activeKey = prev.activePet.id || prev.activePet.name;
+      const updatedAll = (prev.allPets || []).map(p =>
+        (p.id || p.name) === activeKey ? updatedPet : p
+      );
       return {
         ...prev,
         activePet: updatedPet,
@@ -795,7 +1569,11 @@ export default function App() {
         ...prev.activePet,
         personalityTags: newTags
       };
-      const updatedAll = (prev.allPets || []).map(p => p.name === updatedPet.name ? updatedPet : p);
+      // [BUG-FIX] 按 id 匹配（原因同 handleUpdateAnniversaries）
+      const activeKey = prev.activePet.id || prev.activePet.name;
+      const updatedAll = (prev.allPets || []).map(p =>
+        (p.id || p.name) === activeKey ? updatedPet : p
+      );
       return {
         ...prev,
         activePet: updatedPet,
@@ -804,8 +1582,18 @@ export default function App() {
     });
   };
 
+  // 通知偏好配置：从 localStorage 读取初始化，保存时同步更新，避免"只写不读"导致配置丢失
+  const [notificationConfig, setNotificationConfig] = useState<any>(() => {
+    try {
+      const raw = localStorage.getItem("starpuff_notification_config");
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   const handleSaveNotificationConfig = (cfg: any) => {
-    // Save to localStorage or state to satisfy P0-8
+    setNotificationConfig(cfg);
     try {
       localStorage.setItem("starpuff_notification_config", JSON.stringify(cfg));
     } catch (e) {
@@ -814,18 +1602,239 @@ export default function App() {
   };
 
   const handleOnboardingComplete = () => {
-    setUser(prev => {
-      const nextUser = {
-        ...prev,
-        onboardingCompleted: true,
-        stardustCoins: prev.stardustCoins + 100 // award 100 coins for completing the guide!
-      };
-      localStorage.setItem("starpuff_user", JSON.stringify(nextUser));
-      return nextUser;
-    });
-    triggerToast("🏅 恭喜！你完成了星轨引航新手训练！温存相伴，获赠 100星尘币与向导的祝福！");
+    // [BUG-FIX] 移除 setState updater 内的 localStorage 写入（副作用必须移出 updater，
+    // StrictMode 下 updater 会被双调用导致重复写盘）。starpuff_user 已由上方
+    // useEffect([user]) 统一做安全持久化，此处无需重复写盘。
+    setUser(prev => ({ ...prev, onboardingCompleted: true }));
+    triggerToast("🏅 恭喜！你完成了星轨引航新手训练！");
     playSound("success");
   };
+
+  // 星辰来信定时发送配置：基础档每晚 22:00 一封；星辰档 8:00 / 12:00 / 22:00 各一封
+  const LETTER_SEND_TIMES: Record<"daily1" | "daily3", Array<{ hour: number; minute: number; slotLabel: string; period: "morning" | "noon" | "night" }>> = {
+    daily1: [{ hour: 22, minute: 0, slotLabel: "🌙 暮色来信", period: "night" }],
+    daily3: [
+      { hour: 8, minute: 0, slotLabel: "☀️ 晨光来信", period: "morning" },
+      { hour: 12, minute: 0, slotLabel: "🌤 午间来信", period: "noon" },
+      { hour: 22, minute: 0, slotLabel: "🌙 暮色来信", period: "night" },
+    ],
+  };
+
+  // 各时段陪伴私语文案库（模块级 LETTER_TEXTS_LIBRARY，见文件顶部；离线可用，定时发送稳定）
+  // 已发送过的文案索引（按 时段+日期 记录，避免同日重复抽到同一条）
+  const sentTextIndexRef = useRef<Record<string, number[]>>({});
+
+  // 特殊场景来信（雨天/雪天/生日/纪念日/深夜）去重：按 类型+日期 记录，每天每种最多发一次
+  // [BUG-FIX] 去重记录必须持久化：原实现只存在内存 ref，关闭应用再打开当天会重复收到雨/雪天问候。
+  const SPECIAL_SENT_KEY = "starpuff_special_letter_sent";
+  const sentSpecialRef = useRef<Record<string, string>>({});
+  const sentSpecialDayRef = useRef<string>("");
+  const loadSpecialSent = (today: string): Record<string, string> => {
+    try {
+      const raw = localStorage.getItem(SPECIAL_SENT_KEY);
+      if (!raw) return {};
+      const data = JSON.parse(raw) as { date?: string; record?: Record<string, string> };
+      return data?.date === today && data.record ? data.record : {};
+    } catch {
+      return {};
+    }
+  };
+  // 用 ref 稳定转发，保证定时检测与天气回调都能拿到最新 user.activePet 闭包
+  const sendSpecialLetterRef = useRef<(kind: keyof typeof SPECIAL_LETTER_TEXTS, label: string) => void>(() => {});
+  sendSpecialLetterRef.current = (kind, label) => {
+    if (!user.activePet) return;
+    const today = localDateString();
+    if (sentSpecialDayRef.current !== today) {
+      sentSpecialDayRef.current = today;
+      sentSpecialRef.current = loadSpecialSent(today);
+    }
+    const key = `${today}-${kind}`;
+    if (sentSpecialRef.current[key]) return; // 今天已发过该类型
+    sentSpecialRef.current[key] = today;
+    try {
+      localStorage.setItem(SPECIAL_SENT_KEY, JSON.stringify({ date: today, record: sentSpecialRef.current }));
+    } catch { /* 忽略存储失败 */ }
+    const whisper: PetWhisper = {
+      id: `w_special_${kind}_${Date.now()}`,
+      date: today,
+      content: SPECIAL_LETTER_TEXTS[kind],
+      coverImage: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
+      likes: 0,
+      hasLiked: false,
+      slotLabel: label,
+      comments: [],
+    };
+    setWhispers(prev => [whisper, ...prev]);
+    triggerToast(`✨ 收到一封来自【${user.activePet!.name}】的${label}！`);
+    playSound("chime");
+  };
+
+  // 当前生效档位：星辰档若已过期则自动视为基础档
+  const effectiveLetterTier: "daily1" | "daily3" = isLetterPremiumActive ? "daily3" : "daily1";
+
+  const handleUpgradeLetterTier = () => {
+    if (isLetterPremiumActive) {
+      const remainMs = LETTER_UPGRADE_DURATION - (Date.now() - (letterUpgradedAt ?? 0));
+      const remainDays = Math.max(1, Math.ceil(remainMs / (24 * 60 * 60 * 1000)));
+      triggerToast(`✨ 星辰来信已是「星辰档」，还剩约 ${remainDays} 天有效期。`);
+      return;
+    }
+    if (user.stardustCoins < LETTER_UPGRADE_COST) {
+      triggerToast(`⚠️ 星辰币不足！升级「星辰档」需 ${LETTER_UPGRADE_COST} 星辰币，当前仅 ${user.stardustCoins} 币。`);
+      playSound("beep");
+      return;
+    }
+    setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins - LETTER_UPGRADE_COST) }));
+    setLetterTier("daily3");
+    setLetterUpgradedAt(Date.now());
+    triggerToast("🌅 已升级「星辰档」！未来 30 天，早、中、晚各有一封陪伴私语自动送到家长信箱。");
+    playSound("success");
+  };
+
+  // 定时自动发送星辰来信：每分钟检查一次，到点（8/12/22 点）自动推送，无需手动触发
+  // [BUG-FIX] 已发送档位必须持久化：原实现只存在内存 Set，关闭应用再打开当天会重复收到
+  // 同一封来信（可反复重启无限叠加 whispers，写入 localStorage 造成膨胀）。
+  const LETTER_SENT_KEY = "starpuff_letter_sent_slots";
+  const loadSentSlots = (today: string): Set<string> => {
+    try {
+      const raw = localStorage.getItem(LETTER_SENT_KEY);
+      if (!raw) return new Set();
+      const data = JSON.parse(raw) as { date?: string; slots?: string[] };
+      if (data?.date !== today || !Array.isArray(data.slots)) return new Set();
+      return new Set(data.slots);
+    } catch {
+      return new Set();
+    }
+  };
+  const saveSentSlots = (today: string, slots: Set<string>) => {
+    try {
+      localStorage.setItem(LETTER_SENT_KEY, JSON.stringify({ date: today, slots: Array.from(slots) }));
+    } catch { /* 忽略存储失败 */ }
+  };
+  const sentLetterSlotsRef = useRef<Set<string>>(new Set());
+  const sentLetterDayRef = useRef<string>("");
+  useEffect(() => {
+    const sendTimedLetter = (slotLabel: string, period: "morning" | "noon" | "night") => {
+      if (!user.activePet) return;
+      const texts = LETTER_TEXTS_LIBRARY[period];
+      // 去重：从当日未抽过的索引里随机，抽完一轮才重置，避免同一天收到重复内容
+      const dayKey = `${localDateString()}-${period}`;
+      const used = sentTextIndexRef.current[dayKey] ?? [];
+      let idx = Math.floor(Math.random() * texts.length);
+      if (used.length < texts.length) {
+        while (used.includes(idx)) idx = Math.floor(Math.random() * texts.length);
+      }
+      sentTextIndexRef.current[dayKey] = [...used, idx];
+      const content = texts[idx];
+      const whisper: PetWhisper = {
+        id: `w_timed_${Date.now()}`,
+        date: localDateString(),
+        content,
+        coverImage: "/assets/images/unsplash/1579783900882-c0d3dad7b119.jpg",
+        likes: 0,
+        hasLiked: false,
+        slotLabel,
+        comments: [],
+      };
+      setWhispers(prev => [whisper, ...prev]);
+      triggerToast(`📜 收到一封来自【${user.activePet!.name}】的${slotLabel}！`);
+      playSound("chime");
+    };
+
+    const checkAndSend = () => {
+      const now = new Date();
+      const today = localDateString();
+      // 跨天重置已发送记录（从 localStorage 恢复当天已发档位）
+      if (sentLetterDayRef.current !== today) {
+        sentLetterDayRef.current = today;
+        sentLetterSlotsRef.current = loadSentSlots(today);
+      }
+      const tier = effectiveLetterTier;
+      for (const slot of LETTER_SEND_TIMES[tier]) {
+        const key = `${slot.hour}:${slot.minute}`;
+        if (sentLetterSlotsRef.current.has(key)) continue;
+        const slotMin = slot.hour * 60 + slot.minute;
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        if (nowMin >= slotMin) {
+          sentLetterSlotsRef.current.add(key);
+          saveSentSlots(today, sentLetterSlotsRef.current);
+          sendTimedLetter(slot.slotLabel, slot.period);
+        }
+      }
+
+      // 特殊场景来信检测（每天各触发一次，跨天自动重置）
+      const pet = user.activePet;
+      if (pet) {
+        const nowMMDD = today.substring(5); // MM-DD
+        // 生日：爱宠生辰当天
+        if (pet.birthDay && pet.birthDay.substring(5) === nowMMDD) {
+          sendSpecialLetterRef.current("birthday", "🎂 生辰快乐");
+        }
+        // 纪念日：纪念日当天
+        if (pet.memorialDay && pet.memorialDay.substring(5) === nowMMDD) {
+          sendSpecialLetterRef.current("anniversary", "💞 星缘纪念日");
+        }
+        // 深夜未睡：23:00 后仍在陪伴
+        if (now.getHours() >= 23) {
+          sendSpecialLetterRef.current("late_night", "🌙 深夜陪伴");
+        }
+      }
+    };
+
+    checkAndSend(); // 启动时立即检查一次（补发今日已到时段）
+    const timer = setInterval(checkAndSend, 60000); // 每分钟检查
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveLetterTier, user.activePet?.id]);
+
+  // 虚拟星友主动来信：启动即来一封（模拟"有人已主动认识你"），之后每 ≥5 小时 50% 概率再随机来一封
+  const lastFriendLetterRef = useRef(0);
+  const friendLetterInitRef = useRef(false);
+  useEffect(() => {
+    const sendFriendLetter = () => {
+      if (!user.activePet) return;
+      const now = Date.now();
+      const friend = pickFriends(1)[0];
+      const useShowcase = Math.random() < 0.5;
+      const whisper: PetWhisper = {
+        id: `w_friend_${now}`,
+        date: localDateString(),
+        content: pickOne(useShowcase ? friend.showcasePool : friend.letterPool),
+        coverImage: pickOne(FRIEND_LETTER_COVERS),
+        likes: 0,
+        hasLiked: false,
+        slotLabel: "💌 星友来信",
+        type: "friend",
+        friendId: friend.id,
+        relatedPetName: friend.petName,
+        relatedOwnerName: friend.ownerName,
+        comments: [],
+      };
+      setWhispers(prev => [whisper, ...prev]);
+      triggerToast(`💌 收到来自【${friend.ownerName}】的星友来信！快去看看它的宠物近况～`);
+      playSound("chime");
+    };
+
+    const maybeSendFriendLetter = () => {
+      if (!user.activePet) return;
+      const now = Date.now();
+      if (!friendLetterInitRef.current) {
+        friendLetterInitRef.current = true;
+        lastFriendLetterRef.current = now;
+        sendFriendLetter();
+        return;
+      }
+      if (now - lastFriendLetterRef.current >= 5 * 60 * 60 * 1000 && Math.random() < 0.5) {
+        lastFriendLetterRef.current = now;
+        sendFriendLetter();
+      }
+    };
+
+    maybeSendFriendLetter(); // 启动时立即检查（首次直接来一封）
+    const timer = setInterval(maybeSendFriendLetter, 60 * 60 * 1000); // 每小时检查一次冷却
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.activePet?.id]);
 
   // Simulated background whisper generation using server API
   const generateNewWhisper = async () => {
@@ -833,9 +1842,41 @@ export default function App() {
       triggerToast("❌ 抱歉，需要先在主页完成宠物升星仪式！");
       return;
     }
+
+    // [细节修复] 手动收取来信每天限 1 次：定时来信已按档位自动推送，
+    // 手动按钮不能无限刷取，避免反复点击凭空生成来信。
+    const today = localDateString();
+    const lastManual = localStorage.getItem("starpuff_last_manual_collect");
+    if (lastManual === today) {
+      triggerToast("📬 今日来信已收取完毕啦，请耐心等待下一封定时来信哦～");
+      playSound("beep");
+      return;
+    }
+    localStorage.setItem("starpuff_last_manual_collect", today);
+
+    // 低能量状态下，耳语变成「回忆杀」——不再调用 AI，直接用本地催泪文案
+    if (companionState.memoryFlashback) {
+      setIsGeneratingWhisper(true);
+      const text = pickPhrase(PHRASES.lowEnergyWhispers);
+      const whisper: PetWhisper = {
+        id: `w_lowenergy_${Date.now()}`,
+        date: localDateString(),
+        content: text,
+        coverImage: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
+        likes: 0,
+        hasLiked: false,
+        slotLabel: "🌙 暮色来信",
+        comments: [],
+      };
+      setWhispers(prev => [whisper, ...prev]);
+      triggerToast(`🥀 ${user.activePet.name} 的耳语变得微弱...这是一封带着伤感的星辰来信。`);
+      playSound("chime");
+      setIsGeneratingWhisper(false);
+      return;
+    }
     
     setIsGeneratingWhisper(true);
-    triggerToast("💫 正在调用文心AI引擎生成陪伴耳语并抓取 Astrocade 像素插画...");
+    triggerToast("💫 星辰感应正悄悄唤醒它的陪伴私语，并为你画下像素小卡...");
     playSound("bubble");
 
     try {
@@ -846,28 +1887,33 @@ export default function App() {
         activeLevel: user.membership === "free" ? 6 : 12,
         recentEvents: user.historyLogs,
         isVip: user.membership !== "free",
+        personalityTags: user.activePet?.personalityTags ?? [],
       });
 
       if (data.success && data.whispers && data.whispers.length > 0) {
+        void unlock(ACHIEVEMENTS.firstWhisper);
         // Mix custom illustration pixel cards depending on nature of event
         const presetCoverImages = [
-          "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=300",
-          "https://images.unsplash.com/photo-1544085311-11a028465b03?auto=format&fit=crop&q=80&w=300",
-          "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&q=80&w=300",
+          "/assets/images/unsplash/1579783900882-c0d3dad7b119.jpg",
+          "/assets/images/unsplash/1544085311-11a028465b03.jpg",
+          "/assets/images/unsplash/1620641788421-7a1c342ea42e.jpg",
         ];
 
-        const newlyReceived: PetWhisper[] = data.whispers.map((txt: string, index: number) => ({
+        // 按当前来信档位生成对应数量：基础每晚1封，升级后早/中/晚各1封
+        const slots = LETTER_SEND_TIMES[effectiveLetterTier];
+        const newlyReceived: PetWhisper[] = slots.map((slot, index) => ({
           id: `w_gen_${Date.now()}_${index}`,
           date: localDateString(),
-          content: txt,
+          content: data.whispers[index % data.whispers.length],
           coverImage: presetCoverImages[index % presetCoverImages.length],
           likes: 0,
           hasLiked: false,
+          slotLabel: slot.slotLabel,
           comments: []
         }));
 
         setWhispers(prev => [...newlyReceived, ...prev]);
-        triggerToast(`📜 收获了【${user.activePet.name}】投递的 ${newlyReceived.length} 封星门信件！已存入回忆册。`);
+        triggerToast(`📜 收获了【${user.activePet.name}】投递的 ${newlyReceived.length} 封星辰来信！已存入回忆册。`);
         playSound("success");
         
         // Accumulate custom interactions logs
@@ -889,10 +1935,11 @@ export default function App() {
       const mockWhisper: PetWhisper = {
         id: `w_fallback_${Date.now()}`,
         date: localDateString(),
-        content: `${user.ownerName}，不要为我难过。我昨天又在星尘小镇睡了个温暖的午觉，梦里满是你在夕阳下拉着我散步的香甜味道。我已经学会了在大世界踏波浪，所有的别的小动物都在羡慕我身上的微光呢。要替我好好吃饭、开心大笑！`,
-        coverImage: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=300",
+        content: `${user.ownerName}，不要为我难过。我昨天又在星辰小镇睡了个温暖的午觉，梦里满是你在夕阳下拉着我散步的香甜味道。我已经学会了在大世界踏波浪，所有的别的小动物都在羡慕我身上的微光呢。要替我好好吃饭、开心大笑！`,
+        coverImage: "/assets/images/unsplash/1579783900882-c0d3dad7b119.jpg",
         likes: 3,
         hasLiked: false,
+        slotLabel: "🌙 暮色来信",
         comments: []
       };
       setWhispers(prev => [mockWhisper, ...prev]);
@@ -906,19 +1953,41 @@ export default function App() {
   const handleHomePetClick = () => {
     if (!user.activePet) return;
 
+    // 陪伴能量状态拦截
+    if (companionState.state === "sleeping") {
+      triggerToast("😴 星宠陷入沉睡，星辰正在飘散...请用「星辰唤醒剂」唤醒它。");
+      playSound("beep");
+      return;
+    }
+    if (!companionState.canInteract) {
+      const phrase = pickPhrase(getPhrasesForState(companionState.state));
+      triggerToast(`💔 ${phrase}`);
+      playSound("chime");
+      return;
+    }
+
     // Check dialog availability
-    if (user.membership === "free" && user.dialogsRemaining <= 0) {
+    // [BUG-FIX] 统一以 unlimitedTalks 作为唯一判据（原来本处用 membership、聊天处用 unlimitedTalks，
+    // 两个字段一旦不同步就会出现「聊天免费但点宠物扣次数」或反之）
+    if (!user.unlimitedTalks && user.dialogsRemaining <= 0) {
       triggerToast("🐾【额度用尽】小宝贝精神有点疲惫在睡觉瞌睡。请到【储物包】喂食它零食补充精神能！");
       playSound("beep");
       return;
     }
 
     // Spend dialogue tick (or infinite if VIP)
-    if (user.membership === "free") {
+    if (!user.unlimitedTalks) {
       setUser(prev => ({
         ...prev,
         dialogsRemaining: Math.max(0, prev.dialogsRemaining - 1)
       }));
+    }
+
+    // 温暖/委屈状态：随机说一句日常话术（问候/撒娇/关心/碎碎念等，严格按当前能量状态取对应文案库）
+    const dailyPhrase = pickPhrase(getPhrasesForState(companionState.state));
+    if (dailyPhrase) {
+      triggerToast(`${user.activePet?.name}：「${dailyPhrase}」`);
+      playSound("chime");
     }
 
     // Charge memory flashback energy
@@ -930,23 +1999,28 @@ export default function App() {
 
   // Feeding action
   const handleFeedSnack = (snack: StoreItem) => {
-    const qty = foodInventory[snack.id] || 0;
+    // [BUG-FIX] 从 ref 读取并同步写回库存：原实现用闭包快照计算 qty-1，
+    // 库存仅剩 1 个时快速双击会让「恢复对话次数 / 羁绊蓄能」等效果生效两次。
+    const qty = foodInventoryRef.current[snack.id] || 0;
     if (qty <= 0) {
-      triggerToast(`🍩【库存短缺】没有【${snack.name}】了！请到星尘商店购买。`);
+      triggerToast(`🍩【库存短缺】没有【${snack.name}】了！请到星辰商店购买。`);
       playSound("beep");
       return;
     }
 
     // Decrement inventory
-    setFoodInventory(prev => ({
-      ...prev,
-      [snack.id]: qty - 1
-    }));
+    const nextInventory = { ...foodInventoryRef.current, [snack.id]: qty - 1 };
+    foodInventoryRef.current = nextInventory;
+    setFoodInventory(nextInventory);
+
+    // [数值平衡] 贵的零食恢复更多对话次数，避免「120 币与 12 币零食效果完全相同」的经济陷阱。
+    // 12-30 币 → +1 轮；40-70 币 → +2 轮；85+ 币 → +3 轮。
+    const dialogGain = snack.price >= 85 ? 3 : snack.price >= 40 ? 2 : 1;
 
     // Increment dialog ticks
     setUser(prev => {
-      const updatedRemaining = prev.membership === "free"
-        ? Math.min(prev.dialogsMax, prev.dialogsRemaining + 1)
+      const updatedRemaining = !prev.unlimitedTalks
+        ? Math.min(prev.dialogsMax, prev.dialogsRemaining + dialogGain)
         : prev.dialogsRemaining; // VIP is already infinite
         
       return {
@@ -955,11 +2029,10 @@ export default function App() {
       };
     });
 
-    triggerToast(`🌸 喂食了【${snack.name}】！${user.activePet?.name} 开心极了，嘴边飘着闪烁的霜气(+1 互动次数)`);
+    triggerToast(`🌸 喂食了【${snack.name}】！${user.activePet?.name} 开心极了，嘴边飘着闪烁的霜气(+${dialogGain} 互动次数)`);
     playSound("success");
     setConfettiTrigger(prev => prev + 1); // explode sparkles!
     incrementBondingCharge(25); // Feeding gives high bonding energy
-    setSelectedSnackForFeed(null);
   };
 
   // Buy Shop items
@@ -971,7 +2044,7 @@ export default function App() {
     const finalPrice = Math.round(item.price * multiplier);
 
     if (user.stardustCoins < finalPrice) {
-      triggerToast(`⚠️【余额不足】购买【${item.name}】需要 ${finalPrice} 星尘币，您当前只有 ${user.stardustCoins} 币。`);
+      triggerToast(`⚠️【余额不足】购买【${item.name}】需要 ${finalPrice} 星辰币，您当前只有 ${user.stardustCoins} 币。`);
       playSound("beep");
       return;
     }
@@ -979,8 +2052,12 @@ export default function App() {
     // Deduct coins & record unlock
     if (item.type === "outfit") {
       setUser(prev => {
-        const alreadyHas = prev.outfitsUnlocked.includes(item.id);
-        const nextUnlocked = alreadyHas ? prev.outfitsUnlocked : [...prev.outfitsUnlocked, item.id];
+        // [BUG-FIX] 用最新余额二次校验并夹取，避免快速连点时余额被扣成负数
+        if (prev.stardustCoins < finalPrice) return prev;
+        // [BUG-FIX] 防御损坏存档：outfitsUnlocked 缺失时原实现 .includes 会抛 TypeError
+        const ownedOutfits = Array.isArray(prev.outfitsUnlocked) ? prev.outfitsUnlocked : [];
+        const alreadyHas = ownedOutfits.includes(item.id);
+        const nextUnlocked = alreadyHas ? ownedOutfits : [...ownedOutfits, item.id];
         
         // Auto equip purchased item
         const nextEquipped = { ...prev.outfitsEquipped };
@@ -989,14 +2066,18 @@ export default function App() {
         if (item.id.includes("orbit")) nextEquipped.orbit = item.id;
         if (item.id.includes("cape")) nextEquipped.cape = item.id;
         if (item.id.includes("combo")) {
-          // equips everything
-          nextEquipped.halo = "halo_rainbow";
-          nextEquipped.cape = "cape_rainbow";
+          // [BUG-FIX] 原实现写入的 "halo_rainbow"/"cape_rainbow" 是全仓库不存在的幽灵 ID，
+          // 导致花 1314 币买的「永结星缘礼包」渲染不出光环/披风特效，且永远无法卸下。
+          // 改为装备真实存在的商品 ID（见 STORE_ITEMS）。
+          nextEquipped.halo = "halo_golden";
+          nextEquipped.cape = "cape_aurora";
+          nextEquipped.trail = "trail_neon";
+          nextEquipped.orbit = "orbit_stars";
         }
 
         return {
           ...prev,
-          stardustCoins: prev.stardustCoins - finalPrice,
+          stardustCoins: Math.max(0, prev.stardustCoins - finalPrice),
           outfitsUnlocked: nextUnlocked,
           outfitsEquipped: nextEquipped
         };
@@ -1005,25 +2086,67 @@ export default function App() {
       playSound("success");
       setConfettiTrigger(prev => prev + 1);
     } else if (item.type === "snack" || item.type === "gift") {
-      // Snack replenishment
-      setFoodInventory(prev => ({
-        ...prev,
-        [item.id]: (prev[item.id] || 0) + 1
-      }));
-      setUser(prev => ({
-        ...prev,
-        stardustCoins: prev.stardustCoins - finalPrice
-      }));
+      // [BUG-FIX] 原实现「先无条件加库存，再尝试扣款」：扣款失败时商品仍会入库，
+      // 快速连点可白嫖零食。改为先原子扣款、成功后再入库。
+      if (!spendCoins(finalPrice)) {
+        triggerToast(`⚠️【余额不足】购买【${item.name}】需要 ${finalPrice} 星辰币，您当前只有 ${coinsRef.current} 币。`);
+        playSound("beep");
+        return;
+      }
+      const nextInventory = { ...foodInventoryRef.current, [item.id]: (foodInventoryRef.current[item.id] || 0) + 1 };
+      foodInventoryRef.current = nextInventory;
+      setFoodInventory(nextInventory);
       triggerToast(`🛍️ 成功换购零食：【${item.name}】x 1已存入包囊！`);
       playSound("success");
     }
+  };
+
+  // 「永结星缘礼包」整套外观对应的真实商品 ID
+  const COMBO_SET = { halo: "halo_golden", cape: "cape_aurora", trail: "trail_neon", orbit: "orbit_stars" };
+
+  // [BUG-FIX] combo 是「整套外观」，穿戴态必须按整套判断。
+  // 原实现只比对「单个槽位 === item.id」，combo 永远判定为未穿戴 →
+  // 明明已装备却一直显示「🔌 闲置·点我穿戴」，与实际状态不符。
+  const isOutfitEquipped = (itemId: string) => {
+    const eq = user.outfitsEquipped;
+    if (itemId.includes("combo")) {
+      return (
+        eq.halo === COMBO_SET.halo &&
+        eq.cape === COMBO_SET.cape &&
+        eq.trail === COMBO_SET.trail &&
+        eq.orbit === COMBO_SET.orbit
+      );
+    }
+    return eq.halo === itemId || eq.trail === itemId || eq.orbit === itemId || eq.cape === itemId;
   };
 
   // Toggle accessory equipped state
   const handleEquipToggle = (itemId: string) => {
     setUser(prev => {
       const nextEquipped = { ...prev.outfitsEquipped };
-      
+
+      // [BUG-FIX] 原 if-else 链只认 halo/trail/orbit/cape 子串，combo 一个都不匹配
+      // → 花 1314 币买来的整套外观永远无法卸下（按钮是空壳，只弹 toast）
+      if (itemId.includes("combo")) {
+        const isOn =
+          nextEquipped.halo === COMBO_SET.halo &&
+          nextEquipped.cape === COMBO_SET.cape &&
+          nextEquipped.trail === COMBO_SET.trail &&
+          nextEquipped.orbit === COMBO_SET.orbit;
+        if (isOn) {
+          nextEquipped.halo = null;
+          nextEquipped.cape = null;
+          nextEquipped.trail = null;
+          nextEquipped.orbit = null;
+        } else {
+          nextEquipped.halo = COMBO_SET.halo;
+          nextEquipped.cape = COMBO_SET.cape;
+          nextEquipped.trail = COMBO_SET.trail;
+          nextEquipped.orbit = COMBO_SET.orbit;
+        }
+        return { ...prev, outfitsEquipped: nextEquipped };
+      }
+
       if (itemId.includes("halo")) {
         nextEquipped.halo = nextEquipped.halo === itemId ? null : itemId;
       } else if (itemId.includes("trail")) {
@@ -1044,68 +2167,110 @@ export default function App() {
   };
 
   // Like system helper for whispers
+  // [BUG-FIX] updateTaskProgress 原本写在 setWhispers 的 updater 内部，
+  // StrictMode 下 updater 双调用 → 点赞奖励翻倍发放。改为在 updater 外按当前值判断。
   const handleLikeWhisper = (id: string) => {
-    setWhispers(prev => {
-      return prev.map(w => {
-        if (w.id === id) {
-          const delta = w.hasLiked ? -1 : 1;
-          if (delta > 0) {
-            updateTaskProgress("task_like", 1);
-          }
-          return { ...w, likes: w.likes + delta, hasLiked: !w.hasLiked };
-        }
-        return w;
-      });
-    });
+    const target = whispers.find(w => w.id === id);
+    if (!target) return;
+    const liked = !target.hasLiked;
+    if (liked) {
+      updateTaskProgress("task_like", 1);
+      // 给虚拟星友的来信点赞 → 友好度 +2（在线模拟互动）
+      if (target.type === "friend" && target.friendId) bumpFriendship(target.friendId, 2);
+    }
+    setWhispers(prev => prev.map(w =>
+      w.id === id
+        ? { ...w, likes: Math.max(0, w.likes + (liked ? 1 : -1)), hasLiked: liked }
+        : w
+    ));
     playSound("chime");
+  };
+
+  // [游走重构] 集群来信的好友申请：让用户与"偶遇的宠物家长"建立社交连接锚点
+  // [星友来信] type==="friend"：对方本来就认识你，点按钮即成为星友（友好度 +5）
+  const handleFriendRequest = (whisperId: string) => {
+    const target = whispers.find(w => w.id === whisperId);
+    if (!target || target.friendRequested) return;
+
+    if (target.type === "friend" && target.friendId) {
+      const friend = VIRTUAL_FRIENDS.find(f => f.id === target.friendId);
+      upsertMet(target.friendId, "cluster"); // 复用"已认识"标记
+      bumpFriendship(target.friendId, 5);
+      setWhispers(prev => prev.map(w =>
+        w.id === whisperId ? { ...w, friendRequested: true } : w
+      ));
+      triggerToast(`🌟 已与【${friend?.ownerName ?? target.relatedOwnerName ?? "对方家长"}】成为星友！友好度 +5。去社区找它打招呼吧～`);
+      playSound("success");
+      return;
+    }
+
+    setWhispers(prev => prev.map(w =>
+      w.id === whisperId ? { ...w, friendRequested: true } : w
+    ));
+    triggerToast(`👋 已向【${target.relatedOwnerName || "对方家长"}】发出好友申请！等待对方回应中...`);
+    playSound("success");
   };
 
   // Like community posts
   const handleLikePost = (id: string) => {
-    setCommunityPosts(prev => {
-      return prev.map(p => {
-        if (p.id === id) {
-          const delta = p.hasLiked ? -1 : 1;
-          if (delta > 0) {
-            updateTaskProgress("task_like", 1);
-          }
-          return { ...p, likes: p.likes + delta, hasLiked: !p.hasLiked };
-        }
-        return p;
-      });
-    });
+    const target = communityPosts.find(p => p.id === id);
+    if (!target) return;
+    if (!target.hasLiked) {
+      updateTaskProgress("task_like", 1);
+    }
+    setCommunityPosts(prev => prev.map(p =>
+      p.id === id
+        ? { ...p, likes: Math.max(0, p.likes + (p.hasLiked ? -1 : 1)), hasLiked: !p.hasLiked }
+        : p
+    ));
     playSound("chime");
   };
 
   // Simulated gifts to other community posts
   const handleSendGiftToPost = (post: CommunityPost, gift: StoreItem) => {
-    if (user.stardustCoins < gift.price) {
+    // [BUG-FIX] 原子扣款：原实现用闭包旧余额校验且 updater 内无二次校验/夹取，
+    // 快速连点可把余额扣成负数。
+    if (!spendCoins(gift.price)) {
       triggerToast("⚠️ 换购礼物预算不够了，可以做做每日任务哦！");
       playSound("beep");
       return;
     }
 
-    // Deduct coins
-    setUser(prev => ({
-      ...prev,
-      stardustCoins: prev.stardustCoins - gift.price
-    }));
-
     // Inject receive gift string
+    // [BUG-FIX] 原实现每次送礼都往 message 尾部追加一段文本，同一帖子反复送礼
+    // 会让文本无限膨胀，并被永久写入 localStorage 造成存储膨胀。
+    // 改为：仅首次送礼追加一次，后续只更新 giftReceived 字段（UI 以此显示礼物徽章）。
+    const isFirstGift = !post.giftReceived;
     setCommunityPosts(prev => {
       return prev.map(p => {
         if (p.id === post.id) {
           return {
             ...p,
             giftReceived: gift.name,
-            message: `${p.message} \n\n🌌 [收到其他家长投喂礼物 【${gift.name}】，触发闪光鸣叫！]`
+            message: isFirstGift
+              ? `${p.message} \n\n🌌 [收到其他家长投喂礼物 【${gift.name}】，触发闪光鸣叫！]`
+              : p.message
           };
         }
         return p;
       });
     });
 
-    triggerToast(`🎁 成功买下【${gift.name}】并赠予了【${post.petName}】！事件已广播至整条星河。`);
+    triggerToast(
+      isFirstGift
+        ? `🎁 成功买下【${gift.name}】并赠予了【${post.petName}】！事件已广播至整条星河。`
+        : `🎁 又为【${post.petName}】添了一份【${gift.name}】，它的光更亮了一些～`
+    );
+
+    // 送给虚拟星友的帖子 → 友好度 +3（在线模拟互动）
+    const vf = VIRTUAL_FRIENDS.find(
+      f => post.id.startsWith("vpost_") && f.ownerName === post.authorName && f.petName === post.petName
+    );
+    if (vf) {
+      bumpFriendship(vf.id, 3);
+      triggerToast(`❤️ 【${post.petName}】的主人【${vf.ownerName}】回赠了一个星光拥抱！友好度 +3。`);
+    }
+
     playSound("success");
   };
 
@@ -1132,81 +2297,112 @@ export default function App() {
       comments: []
     };
 
-    setCommunityPosts(prev => [nextPost, ...prev]);
+    setCommunityPosts(prev => {
+      // 40% 概率：随机一位虚拟星友留下围观评论，模拟"社区在线家长"互动
+      if (Math.random() < 0.4) {
+        const replier = pickFriends(1)[0];
+        const reply: CommunityPost["comments"][number] = {
+          id: `vpost_reply_${Date.now()}`,
+          authorName: replier.ownerName,
+          text: pickOne(VF_COMMENT_REPLIES),
+          date: new Date().toISOString().replace("T", " ").substring(0, 16),
+        };
+        return [{ ...nextPost, comments: [reply] }, ...prev];
+      }
+      return [nextPost, ...prev];
+    });
     setNewPostText("");
     triggerToast("✨ 发帖发布成功！社区其他家长现在就能看到你的小动物了。");
     playSound("success");
   };
 
+  // 向虚拟星友打招呼：冷却期内（1 小时）对方已在忙/已回复过，否则回一句拟人回应并 +3 友好度
+  const handleGreetFriend = (f: VirtualFriend) => {
+    const reply = greetFriend(f.id);
+    if (reply) {
+      triggerToast(`👋 你向【${f.ownerName}】打了招呼！${reply}`);
+      playSound("success");
+    } else {
+      triggerToast(`⏳ 你已经跟【${f.ownerName}】打过招呼啦，稍后再来聊聊吧～`);
+      playSound("beep");
+    }
+  };
+
   // Simulation buying direct RMB items
   const handleBuyPremiumService = (title: string, cost: number) => {
+    // [BUG-FIX] 已购买过则不再重复扣费/购买
+    if (premiumServices.includes(title)) {
+      triggerToast(`✅ 服务「${title}」已开通，无需重复购买。`);
+      playSound("beep");
+      return;
+    }
     playSound("bubble");
-    const confirmPay = window.confirm(`【微信支付模拟】\n确定支付 ￥${cost} 购买并启动：\n「${title}」吗？`);
+    const confirmPay = window.confirm(`【支付模拟】\n确定支付 ￥${cost} 购买并启动：\n「${title}」吗？`);
     if (confirmPay) {
       playSound("success");
-      triggerToast(`💎 支付成功！已经录入高级后台计算排程，服务「${title}」即刻生效。`);
+      // [BUG-FIX] 持久化购买记录，刷新/重开后仍保留"已开通"状态
+      const next = [...premiumServices, title];
+      setPremiumServices(next);
+      try {
+        localStorage.setItem("starpuff_premium_services", JSON.stringify(next));
+      } catch {
+        /* 忽略存储失败 */
+      }
+      triggerToast(`💎 支付成功！服务「${title}」已生效。`);
+      // [BUG-FIX] 去掉无法兑现的承诺（原「已寄送邮箱」「已解锁装扮」实为纯文字），
+      // 改为如实告知「已开通」，避免欺骗性交付文案。
       if (title.includes("视频")) {
-        triggerToast("📹 正在混合渲染15秒像素视频片段...成品已寄送至您的预留邮箱！");
+        triggerToast("📹 「星辰织梦视频包」已开通，纪念视频能力已解锁。");
       } else {
-        triggerToast("🏠 家园3D/2D像素同源高保真还原完成！已解锁高级暖风地插装扮。");
+        triggerToast("🏠 「高级小窝孪生」已开通，专属纪念装扮已解锁。");
       }
     }
   };
 
-  // Simulation topup
-  const handleTopupCoins = (amountRmb: number, baseCoins: number, bonus: number) => {
-    const double = true; // assume first charge doubled logic
-    const totalAward = double ? (baseCoins * 2) + bonus : baseCoins + bonus;
-    
-    setUser(prev => ({
-      ...prev,
-      stardustCoins: prev.stardustCoins + totalAward
-    }));
-    triggerToast(`💎 [支付模拟￥${amountRmb}] 成功购买 ${baseCoins} 星尘币，首充翻倍加赠 ${baseCoins} + 赠送 ${bonus}，共得 ${totalAward} 币！`);
-    playSound("success");
-  };
-
-  // simulated membership checkouts
-  const handleSubscribeVip = (tier: "month" | "year" | "trial") => {
-    let cost = 9.9;
-    let label = "星云月卡";
-    let duration: "vip_month" | "vip_year" = "vip_month";
-
-    if (tier === "year") {
-      cost = 79.0;
-      label = "星云年卡";
-      duration = "vip_year";
-    } else if (tier === "trial") {
-      cost = 1.9;
-      label = "首月特惠月卡";
-      duration = "vip_month";
+  // 真实内购：购买星辰币（itemId 对应 products.json 中的星辰币商品）
+  // pkg.itemId 由 UI 传入，对应后端商品 ID
+  const handleTopupCoins = async (itemId: number) => {
+    setPurchaseState({ status: "purchasing", orderId: null, error: null });
+    const result = await runPurchase(itemId, 1);
+    setPurchaseState(result);
+    if (result.status === "error") {
+      triggerToast(`⚠️ 购买失败：${result.error || "未知错误"}`);
+      playSound("beep");
     }
-
-    const pay = window.confirm(`【微信快捷支付】\n确认付款 ￥${cost} 订阅「${label}」吗？`);
-    if (pay) {
-      setUser(prev => ({
-        ...prev,
-        membership: duration,
-        dialogsRemaining: 999999, // infinite ticks
-        unlimitedTalks: true,
-        // Give exclusive outfits if year card
-        outfitsUnlocked: tier === "year" 
-          ? [...prev.outfitsUnlocked, "cape_aurora"] 
-          : prev.outfitsUnlocked
-      }));
-
-      triggerToast(`👑 VIP 身份升级成功！特权立即生效。专享每日 3条 AI耳语生成 权益已开启。`);
+    // [BUG-FIX] 成功分支兜底提示（handleGranted 正常会触发成功 toast，此处兜底防止边界情况下无反馈）
+    else if (result.status === "success") {
       playSound("success");
-      setIsVipModalOpen(false);
     }
   };
 
-  const handleShareWhisperAction = (whisp: PetWhisper) => {
+  // 真实内购：订阅会员（itemId 对应 products.json 中的会员商品）
+  const handleSubscribeVip = async (tier: "month" | "year") => {
+    // itemId 映射：200=月卡 201=年卡
+    const itemId = tier === "year" ? 201 : 200;
+    setPurchaseState({ status: "purchasing", orderId: null, error: null });
+    const result = await runPurchase(itemId, 1);
+    setPurchaseState(result);
+    if (result.status === "success") {
+      setIsVipModalOpen(false);
+    } else {
+      triggerToast(`⚠️ 订阅失败：${result.error || "未知错误"}`);
+      playSound("beep");
+    }
+  };
+
+  const handleShareWhisperAction = async (whisp: PetWhisper) => {
     playSound("chime");
     updateTaskProgress("task_share", 1);
     
-    // Web Share API simulation or popup
-    alert(`💌 【一键小程序分享】\n已复制以下文书并生成精美像素插图卡片：\n\n"${whisp.content}"\n\n可去社群、朋友圈或微信聊天展示，召唤更多看星人陪它玩！`);
+    // [BUG-FIX] 真正复制到剪贴板，替换原「alert 假称已复制」的空壳分享
+    const shareText = `💌 来自喵汪星云的星辰来信：\n"${whisp.content}"\n\n—— 召唤更多看星人陪它玩！`;
+    try {
+      await navigator.clipboard.writeText(shareText);
+      triggerToast("📋 已复制星辰来信到剪贴板，去分享给朋友吧～");
+    } catch {
+      // 剪贴板不可用（非 https/权限受限）时降级提示
+      triggerToast("📋 分享文案已生成，可长按复制这段话分享给朋友～");
+    }
   };
 
   return (
@@ -1229,6 +2425,9 @@ export default function App() {
       {/* Decorative Blur Spheres */}
       <div className="absolute top-20 left-40 w-80 h-80 rounded-full blur-[140px] bg-[#7B61FF]/10 pointer-events-none" />
       <div className="absolute bottom-10 right-20 w-80 h-80 rounded-full blur-[120px] bg-[#F27D26]/10 pointer-events-none" />
+
+      {/* 动态星空背景（视觉焕新：闪烁星星 + 星云团，纯装饰不干扰交互） */}
+      <StarryBackground />
 
       {/* Main mockup device container */}
       <ErrorBoundary>
@@ -1257,7 +2456,7 @@ export default function App() {
               <span className="text-sm md:text-md font-medium tracking-widest uppercase flex items-center gap-1.5 font-sans">
                 喵汪星云 <span className="text-xs text-purple-400 font-mono">StarPuff</span>
               </span>
-              <p className="text-[8px] text-gray-400 font-mono tracking-tighter">ASTROCADE PIXEL ENGINE v3.5</p>
+              <p className="text-[8px] text-gray-400 font-sans tracking-wide">星辰像素引擎 · 温柔守护中 ✨</p>
             </div>
           </div>
 
@@ -1265,24 +2464,33 @@ export default function App() {
             {/* Stardust coins counter (Clickable to trigger charge) */}
             <button
               onClick={() => setActiveTab("store")}
-              className="flex items-center space-x-2 bg-white/5 border border-white/10 hover:border-orange-400/30 rounded-full px-3 py-1 transition-all"
+              className="flex items-center space-x-2 bg-white/5 border border-white/10 hover:border-orange-400/40 hover:shadow-[0_0_16px_rgba(251,146,60,0.25)] hover:scale-105 rounded-full px-3 py-1 transition-all duration-300"
               title="充值与任务商店"
             >
-              <Coins className="w-3.5 h-3.5 text-orange-400" />
+              <Coins className="w-3.5 h-3.5 text-orange-400 drop-shadow-[0_0_4px_rgba(251,146,60,0.6)]" />
               <span className="text-xs font-mono tracking-tighter text-orange-300 font-bold">
-                {user.stardustCoins} <span className="text-[8px] text-gray-400 font-normal">星尘币</span>
+                {user.stardustCoins} <span className="text-[8px] text-gray-400 font-normal">星辰币</span>
               </span>
             </button>
 
             {/* Level Indicator / Streak days */}
-            <div className="hidden sm:flex items-center space-x-2 bg-white/5 border border-white/10 rounded-full px-3 py-1">
-              <span className="text-[10px] font-mono text-pink-400">登岛{user.streakDays}天</span>
-              <span className="text-[10px] text-gray-500 font-mono">|</span>
-              <span className="text-[10px] font-mono text-indigo-300">羁绊 LV.8</span>
-              <div className="w-16 h-1 w-16 bg-white/10 rounded-full overflow-hidden">
-                <div className="w-3/4 h-full bg-gradient-to-r from-purple-500 to-orange-400"></div>
-              </div>
-            </div>
+            {/* [BUG-FIX] 原「羁绊 LV.8 / 75%」是写死的假数据，无论玩多久都不变，误导玩家。
+                改为读取真实 level/exp 字段（PetConfig 已定义），动态显示。 */}
+            {(() => {
+              const petLevel = user.activePet?.level ?? 1;
+              const petExp = user.activePet?.exp ?? 0;
+              const expPercent = Math.min(100, petExp % 100); // 每 100 经验升一级的进度
+              return (
+                <div className="hidden sm:flex items-center space-x-2 bg-white/5 border border-white/10 rounded-full px-3 py-1">
+                  <span className="text-[10px] font-mono text-pink-400">登岛{user.streakDays}天</span>
+                  <span className="text-[10px] text-gray-500 font-mono">|</span>
+                  <span className="text-[10px] font-mono text-indigo-300">羁绊 LV.{petLevel}</span>
+                  <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-purple-500 to-orange-400 transition-all" style={{ width: `${expPercent}%` }}></div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* VIP Label Checkbox */}
             {user.membership !== "free" ? (
@@ -1297,11 +2505,36 @@ export default function App() {
                 开通会员
               </button>
             )}
+
+            {/* [演示模式] 上帝/访客模式切换（仅用于老板审阅演示）。上帝模式可无限刷币等特权，访客模式为正常经济玩法。 */}
+            <button
+              onClick={() => {
+                const next = isGodMode ? "guest" : "god";
+                setSystemPlayMode(next);
+                localStorage.setItem("starpuff_play_mode", next);
+                playSound(isGodMode ? "click" : "success");
+                triggerToast(
+                  next === "god"
+                    ? "👑 已切换至【上帝演示模式】，可无限刷币、免费投瓶等特权，供老板审阅演示。"
+                    : "🐾 已切换至【访客模式】，恢复正常经济玩法，禁止刷币。"
+                );
+              }}
+              className={`px-2.5 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-mono border transition-colors ${
+                isGodMode
+                  ? "bg-amber-500/25 hover:bg-amber-500/40 text-amber-300 border-amber-500/50 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
+                  : "bg-white/10 hover:bg-purple-500/20 hover:text-purple-300 text-white/70 border-white/10"
+              }`}
+              title="切换演示模式"
+            >
+              {isGodMode ? "👑 上帝模式" : "🐾 访客模式"}
+            </button>
           </div>
         </header>
 
         {/* TOP NAVIGATION TAB BAR */}
-        <nav className="h-16 border-b border-white/5 backdrop-blur-xl z-20 flex items-center justify-around px-2 md:px-12 bg-[#070314]/90 shrink-0">
+        <nav className="relative h-16 border-b border-white/5 backdrop-blur-xl z-20 flex items-center justify-around px-2 md:px-12 bg-[#070314]/90 shrink-0">
+          {/* 底部水晶光晕（视觉焕新：导航栏底部柔和紫光，增强质感） */}
+          <div className="absolute -bottom-1 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-[#8B6FB8]/60 to-transparent pointer-events-none" />
           
           <button
             onClick={() => {
@@ -1310,7 +2543,7 @@ export default function App() {
               triggerToast("💡 开启系统引航新手训练！");
             }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              !user.onboardingCompleted ? "text-yellow-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              !user.onboardingCompleted ? "text-yellow-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
@@ -1322,19 +2555,19 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("home"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "home" ? "text-orange-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "home" ? "text-orange-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
               <div className={`w-3.5 h-3.5 bg-orange-400 rounded-sm shadow-[0_0_10px_#F27D26] ${activeTab === "home" ? "scale-125 rotate-45" : ""}`}       />
             </div>
-            <span className="text-[10px] font-bold tracking-tighter font-sans">星尘家园</span>
+            <span className="text-[10px] font-bold tracking-tighter font-sans">星辰家园</span>
           </button>
 
           <button
             onClick={() => { playSound("click"); setActiveTab("galaxy"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "galaxy" ? "text-indigo-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "galaxy" ? "text-indigo-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center">
@@ -1346,7 +2579,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("community"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "community" ? "text-purple-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "community" ? "text-purple-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center text-md">
@@ -1358,19 +2591,19 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("store"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "store" ? "text-pink-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "store" ? "text-pink-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center text-md">
               🛍️
             </div>
-            <span className="text-[10px] font-bold tracking-tighter font-sans">星尘商店</span>
+            <span className="text-[10px] font-bold tracking-tighter font-sans">星辰商店</span>
           </button>
 
           <button
             onClick={() => { playSound("click"); setActiveTab("profile"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "profile" ? "text-cyan-400 scale-110" : "opacity-40 hover:opacity-100 text-white"
+              activeTab === "profile" ? "text-cyan-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center rounded-full border border-white/50 overflow-hidden bg-gradient-to-b from-slate-500 to-slate-700 w-4 h-4" />
@@ -1380,7 +2613,7 @@ export default function App() {
           <button
             onClick={() => { playSound("click"); setActiveTab("v26_suite"); }}
             className={`flex flex-col items-center space-y-1 cursor-pointer outline-none transition-all ${
-              activeTab === "v26_suite" ? "text-pink-400 scale-110" : "opacity-45 hover:opacity-100 text-white"
+              activeTab === "v26_suite" ? "text-pink-400 -translate-y-0.5" : "opacity-75 hover:opacity-100 text-white"
             }`}
           >
             <div className="w-6 h-6 flex items-center justify-center text-xs animate-pulse">
@@ -1390,53 +2623,6 @@ export default function App() {
           </button>
 
         </nav>
-
-        {/* --- V2.0 GOD MODE vs GUEST MODE COMPARISON HUB CONSOLE --- */}
-        <div className="bg-[#120e36] border-b border-purple-500/20 px-6 py-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs z-20 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-            </span>
-            <span className="font-semibold text-white tracking-wide font-mono">
-              ✨ 星云 V2.0 运行模式控制台 (Console) :
-            </span>
-            <span className="text-gray-400 text-[10px] hidden sm:inline">
-              (一键自如切换以对照【开发上帝特权】与【普通访客限免】体验)
-            </span>
-          </div>
-          
-          <div className="flex bg-black/50 p-1 rounded-full border border-white/10 shadow-lg shrink-0">
-            <button
-              onClick={() => {
-                playSound("success");
-                setSystemPlayMode("god");
-                triggerToast("👑 上帝开发模式激活：拥有无限AI天神聊天、99,999星尘果，免除一切商业门槛收费！");
-              }}
-              className={`px-3.5 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-1 leading-none ${
-                systemPlayMode === "god"
-                  ? "bg-gradient-to-r from-cyan-500 to-indigo-500 text-white shadow-[0_0_12px_rgba(6,182,212,0.5)]"
-                  : "text-gray-400 hover:text-indigo-200"
-              }`}
-            >
-              👑 上帝开发模式 (我的默认)
-            </button>
-            <button
-              onClick={() => {
-                playSound("click");
-                setSystemPlayMode("guest");
-                triggerToast("👥 访客体验模式激活：变为免费试用身份，限制AI聊天轮次至3次，金币归于15以便对比。");
-              }}
-              className={`px-3.5 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-1 leading-none ${
-                systemPlayMode === "guest"
-                  ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.5)]"
-                  : "text-gray-400 hover:text-indigo-200"
-              }`}
-            >
-              👥 访客对照模式 (普通用户)
-            </button>
-          </div>
-        </div>
 
         {/* CONTAINER FOR VIEWS */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative" id="tab-content-container">
@@ -1449,15 +2635,16 @@ export default function App() {
               <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto py-8">
                 <div className="text-center mb-6">
                   <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-300">
-                    🌌 星尘彼端，灵宿指引
+                    🌌 星辰彼端，灵宿指引
                   </h2>
                   <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                    在您开启喵汪星云漫游前，请先为您的小家犬/小宝贝举行“星尘升星仪式”
+                    在您开启喵汪星云漫游前，请先为您的小家犬/小宝贝举行“星辰升星仪式”
                     <br />通过色彩光谱降饱和剥离游戏化，构建唯一的2D像素默影粒子灵魂。
                   </p>
                 </div>
                 <StardustCeremony
                   onComplete={handleCeremonyComplete}
+                  onCancel={(user.allPets && user.allPets.length > 0) ? handleCancelCeremony : undefined}
                   playSparkleSound={() => playSound("sparkle")}
                 />
               </div>
@@ -1466,7 +2653,10 @@ export default function App() {
               <>
                 {/* 1. HOME VIEW (STARDUST HOUSE) */}
                 {activeTab === "home" && (
-                  <div className="flex-1 flex flex-col items-center justify-between gap-6" id="view-home">
+                  // [细节修复] justify-between → justify-start：原布局在内容高度变化（如对话气泡/来信出现）时，
+                  // 会让所有子元素重新均匀分布，导致顶部状态栏被"挤"得位置移动。
+                  // 改为从顶部自然排列，顶部栏固定不再跳动。
+                  <div className="flex-1 flex flex-col items-center justify-start gap-6" id="view-home">
                     <div className="w-full flex items-center justify-between border-b border-white/5 pb-3">
                       <div>
                         <h3 className="text-sm font-semibold tracking-wide text-white">
@@ -1476,7 +2666,17 @@ export default function App() {
                           守护小宠：{user.activePet.breed} · {user.activePet.name} 元气守护中
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        {/* [喂食入口] 顶部醒目喂食按钮：一进入家园即可点开，无需滚动 */}
+                        <button
+                          onClick={() => {
+                            playSound("click");
+                            setFeedMenuTrigger(p => p + 1);
+                          }}
+                          className="bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white px-3 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 shadow-lg shadow-pink-500/30"
+                        >
+                          🍖 喂食
+                        </button>
                         {/* Feed trigger */}
                         <button
                           onClick={() => {
@@ -1493,7 +2693,7 @@ export default function App() {
                           className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 text-white px-3 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg"
                         >
                           <Sparkles className="w-3 h-3 text-pink-300 animate-spin" />
-                          {isGeneratingWhisper ? "AI演算寄信中..." : "立刻召令每日耳语"}
+                          {isGeneratingWhisper ? "星辰感应织信中..." : "立刻收取今日来信"}
                         </button>
                       </div>
                     </div>
@@ -1502,12 +2702,12 @@ export default function App() {
                     <div className="w-full max-w-lg flex flex-col items-center py-4 relative">
                       {/* Active status tags */}
                       <div className="absolute top-4 left-4 z-20 flex space-x-2">
-                        <span className="px-2.5 py-0.5 bg-black/60 border border-white/5 rounded-full text-[9px] font-mono tracking-wider text-slate-300 uppercase">
-                          星谱矩阵完成度 99%
+                        <span className="px-2.5 py-0.5 bg-black/60 border border-white/5 rounded-full text-[9px] font-sans tracking-wide text-slate-300">
+                          ✨ 星辰凝聚 99%
                         </span>
-                        <span className="px-2.5 py-0.5 bg-pink-500/20 border border-pink-500/30 rounded-full text-[9px] font-mono tracking-wider text-pink-300 uppercase flex items-center gap-1">
+                        <span className="px-2.5 py-0.5 bg-pink-500/20 border border-pink-500/30 rounded-full text-[9px] font-sans tracking-wide text-pink-300 flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-ping" />
-                          AI 陪伴中
+                          暖心陪伴中
                         </span>
                       </div>
 
@@ -1517,6 +2717,23 @@ export default function App() {
                         equipped={user.outfitsEquipped}
                         onClickPet={handleHomePetClick}
                         stardustSparkleTrigger={confettiTrigger}
+                        stardustCoins={user.stardustCoins}
+                        onSpendCoins={(amount) => {
+                          // [BUG-FIX] 改用原子化 spendCoins：原实现用闭包旧余额校验，
+                          // 连点时可超支（返回 true 但实际未扣款，等于白嫖）。
+                          if (spendCoins(amount)) return true;
+                          triggerToast(`⚠️ 星辰币不足，还差 ${Math.max(0, amount - coinsRef.current)} 币。`);
+                          return false;
+                        }}
+                        feedMenuTrigger={feedMenuTrigger}
+                        onWeatherLetter={(kind) => {
+                          // [特殊场景来信] 天气切换触发雨天/雪天来信（App 侧每天每种只发一次）
+                          if (kind === "snow") {
+                            sendSpecialLetterRef.current("snow", "⛄ 雪天问候");
+                          } else if (kind === "rain") {
+                            sendSpecialLetterRef.current("rain", "🌧️ 星雨问候");
+                          }
+                        }}
                       />
 
                       {/* Display name plate and active info */}
@@ -1524,10 +2741,10 @@ export default function App() {
                         <h4 className="text-xl font-bold tracking-widest text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]">
                           {user.activePet.name}
                         </h4>
-                        <div className="flex items-center justify-center gap-2 mt-1.5 text-xs text-indigo-300 font-mono">
+                        <div className="flex items-center justify-center gap-2 mt-1.5 text-xs text-indigo-300 font-sans">
                           <span>🎂 {user.activePet.passingDate} 踏彩虹桥</span>
-                          <span>•</span>
-                          <span>羁绊活跃: {user.unlimitedTalks ? "无限次" : `${user.dialogsRemaining}/5 轮`}</span>
+                          <span>·</span>
+                          <span>羁绊活跃 · {user.unlimitedTalks ? "无限次" : `${user.dialogsRemaining}/${user.dialogsMax ?? 5} 轮`}</span>
                         </div>
                       </div>
                     </div>
@@ -1535,9 +2752,9 @@ export default function App() {
                     {/* --- MEMORY FLASHBACK CHARGING PROGRESS WIDGET --- */}
                     <div className="w-full bg-[#110c2c]/85 border border-[#fc407a]/20 rounded-2xl p-4 space-y-2 max-w-lg shadow-[inset_0_1px_3px_rgba(255,255,255,0.05),0_8px_20px_rgba(0,0,0,0.4)]">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-[#ff5c8a] font-mono font-bold flex items-center gap-1">
+                        <span className="text-[#ff5c8a] font-sans font-bold flex items-center gap-1">
                           <Heart className="w-3.5 h-3.5 fill-[#ff5c8a] animate-pulse" />
-                          星心连系蓄力条 (Memory Bonding Meter) : {bondingCharge}%
+                          星心连系蓄力 · {bondingCharge}%
                         </span>
                         <span className="text-purple-300 text-[9px] font-mono animate-pulse">
                           {bondingCharge >= 80 ? "💖 星能饱满：一触即发温情闪回！" : "💫 蓄满100%唤醒生前故事"}
@@ -1551,18 +2768,8 @@ export default function App() {
                           <span className="absolute right-0.5 top-0.5 w-1 h-1 rounded-full bg-white animate-ping" />
                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-[8.5px] text-gray-500 font-mono">
-                        <span>💡 日常抚摸(+15) • 投喂小零食(+25) • 抛送爱心/抛红毛球(+10)级联蓄能</span>
-                        <button 
-                          onClick={() => {
-                            incrementBondingCharge(100);
-                            playSound("chime");
-                          }}
-                          className="text-pink-300 hover:text-pink-100 underline decoration-pink-500/20 active:scale-95 transition-transform"
-                          id="trigger-test-flashback"
-                        >
-                          [ 瞬发闪回测试 ]
-                        </button>
+                      <div className="flex items-center justify-between text-[8.5px] text-gray-500 font-sans">
+                        <span>💡 日常抚摸(+15) · 投喂小零食(+25) · 抛送爱心/红毛球(+10)级联蓄能</span>
                       </div>
                     </div>
 
@@ -1611,6 +2818,20 @@ export default function App() {
                         </div>
                         <span className="text-[10px] text-gray-400 group-hover:text-white">疗愈音乐</span>
                       </button>
+
+                      {/* [喂食功能区] 喂食按钮：打开食物选择菜单 */}
+                      <button
+                        onClick={() => {
+                          playSound("click");
+                          setFeedMenuTrigger(p => p + 1);
+                        }}
+                        className="flex flex-col items-center gap-1 group active:scale-95 transition-transform"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500/20 to-rose-500/20 border border-pink-500/30 group-hover:bg-pink-500/30 group-hover:border-pink-400 flex items-center justify-center text-sm transition-all shadow-[0_0_10px_rgba(236,72,153,0.3)]">
+                          🍖
+                        </div>
+                        <span className="text-[10px] text-pink-300 group-hover:text-white font-medium">喂食</span>
+                      </button>
                     </div>
 
                     {/* --- V2.0 ADVANCED PORTALS SECTIONS --- */}
@@ -1624,7 +2845,7 @@ export default function App() {
                             ✨ V2.0 AR 极客追忆模式
                           </h4>
                           <p className="text-[9px] text-gray-400 mt-1.5 leading-relaxed">
-                            支持模拟微信小程序 AR 镜片叠层摄像，将爱宠投影拖拽于现实房屋内。支持 Polaroid 胶片及 10s 追忆小录像！
+                            支持模拟小程序 AR 镜片叠层摄像，将爱宠投影拖拽于现实房屋内。支持 Polaroid 胶片及 10s 追忆小录像！
                           </p>
                         </div>
                         <button
@@ -1645,7 +2866,18 @@ export default function App() {
                           setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins + amt) }));
                         }}
                         triggerToast={triggerToast}
-                        isGodMode={systemPlayMode === "god"}
+                        isGodMode={isGodMode}
+                      />
+
+                      {/* 3. 共鸣同伴星系 */}
+                      {/* [BUG-FIX] 该组件此前 import 了却从未渲染，玩家完全看不到这个已完成的玩法。
+                          社区页本身就是"找到同频玩伴"的场景，语义契合，接入于此。 */}
+                      <ResonanceSystem
+                        activePet={user.activePet}
+                        onUpdateCoins={(amt) => {
+                          setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins + amt) }));
+                        }}
+                        triggerToast={triggerToast}
                       />
                     </div>
 
@@ -1672,6 +2904,8 @@ export default function App() {
                         user={user}
                         onSelectPet={handleSelectPet}
                         onAddPet={handleAddPet}
+                        onUpdatePet={handleUpdatePet}
+                        onDeletePet={handleDeletePet}
                         triggerToast={triggerToast}
                       />
                     </div>
@@ -1680,14 +2914,14 @@ export default function App() {
 
                 {/* 2. GALAXY探索 VIEW (NEBULA GATE) */}
                 {activeTab === "galaxy" && (
-                  <div className="flex-1 flex flex-col space-y-4" id="view-galaxy">
-                    <div className="border-b border-white/5 pb-3">
+                  <div className="flex-1 flex flex-col space-y-4 relative z-0" id="view-galaxy">
+                    <div className="border-b border-white/5 pb-3 relative z-0">
                       <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
                         <Compass className="w-4 h-4 text-indigo-400 animate-spin-slow" />
                         星云之门 · 浩瀚星海自主探索游历
                       </h3>
                       <p className="text-[10px] text-gray-400 mt-0.5">
-                        基于 2D Canvas 高性能渲染的微粒大世界，包含玫瑰公园等七大星海地标。AI控制每名宠物无轨迹巡游与社交碰撞。
+                        基于 2D Canvas 高性能渲染的微粒大世界，包含玫瑰公园等七大星海地标。灵犀驱动每名宠物无轨迹巡游与社交碰撞。
                       </p>
                     </div>
 
@@ -1701,11 +2935,42 @@ export default function App() {
                         }));
                       }}
                       onGrantCoins={(amt) => {
-                        setUser(prev => ({ ...prev, stardustCoins: prev.stardustCoins + amt }));
+                        grantCoins(amt);
                       }}
+                      onSpendCoins={(amt) => {
+                        // [BUG-FIX] 改用原子化 spendCoins：原实现用闭包旧余额校验且 updater 无夹取，
+                        // 场景内快速连点（烘焙 / 训练 / 竞速报名）会把余额扣成负数。
+                        return spendCoins(amt);
+                      }}
+                      stardustCoins={user.stardustCoins}
                       isTaskAlreadyCompleted={tasks.find(t => t.id === "task_explore")?.completedTimes === 1}
                       onTaskCompleted={() => {
                         updateTaskProgress("task_explore", 1);
+                      }}
+                      onClusterEvent={(partnerName, ownerName, sceneName) => {
+                        // [游走重构] 集群停留触发社交交集来信，作为用户间互相加好友的锚点。
+                        // 从集群文案库随机抽取，替换 {scene} {partner} 占位符，内容不重复。
+                        const template = CLUSTER_LETTER_TEXTS[Math.floor(Math.random() * CLUSTER_LETTER_TEXTS.length)];
+                        const content = template
+                          .replaceAll("{scene}", sceneName)
+                          .replaceAll("{partner}", partnerName);
+                        const clusterWhisper: PetWhisper = {
+                          id: `w_cluster_${Date.now()}`,
+                          date: localDateString(),
+                          content,
+                          coverImage: "/assets/images/unsplash/1620641788421-7a1c342ea42e.jpg",
+                          likes: 0,
+                          hasLiked: false,
+                          slotLabel: "🐾 星友偶遇",
+                          type: "cluster",
+                          relatedPetName: partnerName,
+                          relatedOwnerName: ownerName,
+                          scene: sceneName,
+                          comments: [],
+                        };
+                        setWhispers(prev => [clusterWhisper, ...prev]);
+                        triggerToast(`💞 ${user.activePet?.name} 在${sceneName}交到了新朋友【${partnerName}】！一封星辰来信已送到信箱。`);
+                        playSound("success");
                       }}
                     />
                   </div>
@@ -1719,8 +2984,62 @@ export default function App() {
                         🪐 社区：看星的人聊天板
                       </h3>
                       <p className="text-[10px] text-gray-400 mt-0.5">
-                        在这里，怀念家人们聚集于此，分享逝宠在星尘彼方的AI耳语信件，互赠礼物装扮对方。
+                        在这里，怀念家人们聚集于此，分享逝宠在星辰彼方的星语信件，互赠礼物装扮对方。
                       </p>
+                    </div>
+
+                    {/* 星友通讯录：虚拟 AI 好友列表（单机版离线模拟在线家长） */}
+                    <div className="bg-gradient-to-br from-indigo-950/60 via-purple-950/40 to-transparent border border-indigo-500/20 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[11px] font-semibold text-indigo-200 flex items-center gap-1.5">
+                          🌠 星友通讯录 · {VIRTUAL_FRIENDS.length} 位星友家长
+                        </h4>
+                        <span className="text-[8.5px] text-indigo-300/60 font-mono">打招呼 / 送礼 / 点赞都能增进友好度</span>
+                      </div>
+                      <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                        {VIRTUAL_FRIENDS.map(f => {
+                          const rt = getFriend(f.id);
+                          return (
+                            <div key={f.id} className="shrink-0 w-40 bg-white/5 border border-white/10 rounded-xl p-2.5 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center text-sm"
+                                  style={{ backgroundColor: f.primaryColor, color: "#111" }}
+                                >
+                                  {f.icon}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[10px] font-semibold text-white truncate">{f.ownerName}</div>
+                                  <div className="text-[8.5px] text-purple-300 font-mono">{f.type}·{f.petName}</div>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {f.personalityTags.slice(0, 2).map(t => (
+                                  <span key={t} className="text-[8px] px-1 py-px rounded bg-white/5 text-gray-300 border border-white/5">{t}</span>
+                                ))}
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[8px] text-amber-300/90 font-mono">{tierLabel(rt.friendship)}</span>
+                                  <span className="text-[8px] text-gray-500 font-mono">{rt.friendship}/100</span>
+                                </div>
+                                <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-amber-400 to-pink-500 transition-all"
+                                    style={{ width: `${rt.friendship}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleGreetFriend(f)}
+                                className="w-full text-[9px] py-1 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/25 transition-colors cursor-pointer"
+                              >
+                                👋 打招呼
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* New Post Form */}
@@ -1769,7 +3088,19 @@ export default function App() {
                                 <span className="text-[9px] text-purple-300 font-mono">守护：{post.petType}【{post.petName}】</span>
                               </div>
                             </div>
-                            <span className="text-[9px] text-gray-400">{post.date}</span>
+                            <div className="flex items-center gap-1.5">
+                              {/* [ENHANCE] 显示已赠送的礼物徽章：giftReceived 字段此前被设置
+                                  但从未在 UI 消费，花 50/300 币送礼后缺少可见的持久反馈 */}
+                              {post.giftReceived && (
+                                <span
+                                  className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/25 font-mono"
+                                  title={`你已为它送上【${post.giftReceived}】`}
+                                >
+                                  🎁 {post.giftReceived}
+                                </span>
+                              )}
+                              <span className="text-[9px] text-gray-400">{post.date}</span>
+                            </div>
                           </div>
 
                           <p className="text-xs leading-relaxed text-gray-300 whitespace-pre-line bg-black/30 p-2.5 rounded-lg border border-white/5">
@@ -1797,9 +3128,9 @@ export default function App() {
                               <button
                                 onClick={() => handleSendGiftToPost(post, GIFT_ITEMS[0])}
                                 className="bg-white/5 hover:bg-orange-500/20 text-orange-300 border border-orange-500/20 rounded-md px-2 py-0.5 text-[8px] flex items-center gap-1"
-                                title="赠送一颗星尘物，触发对方宠物闪星特效"
+                                title="赠送一颗星辰物，触发对方宠物闪星特效"
                               >
-                                🎁 送星尘 (50币)
+                                🎁 送星辰 (50币)
                               </button>
                               <button
                                 onClick={() => handleSendGiftToPost(post, GIFT_ITEMS[1])}
@@ -1829,12 +3160,12 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 4. SHOP VIEW (星尘商店 & 充值中心) */}
+                {/* 4. SHOP VIEW (星辰商店 & 充值中心) */}
                 {activeTab === "store" && (
                   <div className="flex-1 flex flex-col space-y-6" id="view-store">
                     <div className="border-b border-white/5 pb-3">
                       <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
-                        🛍️ 星尘百宝阁 · 灵装与零食小铺
+                        🛍️ 星辰百宝阁 · 灵装与零食小铺
                       </h3>
                       <p className="text-[10px] text-gray-400 mt-0.5">
                         购买装扮将立即渲染在大世界和家园主屏的2D Canvas默影形象上。使用零食可以补充喂养对话额度。
@@ -1859,11 +3190,69 @@ export default function App() {
                       </button>
                     </div>
 
+                    {/* COMPANION ENERGY FEEDING SECTION (心寒话术商业化核心) */}
+                    <div className="bg-gradient-to-b from-[#1c133a]/60 to-[#0d0a1f]/60 border border-[#ef476f]/25 rounded-xl p-4 space-y-3">
+                      {/* 能量条 */}
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[11px] font-bold uppercase tracking-widest text-[#ff8fa3] flex items-center gap-1.5">
+                          <Heart className="w-3.5 h-3.5 text-[#ef476f]" />
+                          陪伴能量 · 喂食维持羁绊
+                        </h4>
+                        <span className="text-[10px] font-mono" style={{ color: companionState.color }}>
+                          {companionState.uiText}
+                        </span>
+                      </div>
+                      <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/10">
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{
+                            width: `${currentCompanionEnergy}%`,
+                            background: companionState.color,
+                            boxShadow: `0 0 12px ${companionState.color}`,
+                          }}
+                        />
+                      </div>
+                      <p className="text-[9px] text-gray-400 leading-relaxed">
+                        当前能量 <span className="font-mono font-bold" style={{ color: companionState.color }}>{Math.round(currentCompanionEnergy)}/100</span>
+                        {companionState.state === "sleeping"
+                          ? " · 星宠已沉睡，必须用「星辰唤醒剂」唤醒"
+                          : ` · ${companionState.label}（${companionState.description}）`}
+                      </p>
+
+                      {/* 喂食道具 */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {ENERGY_FOODS.map((food) => (
+                          <button
+                            key={food.id}
+                            onClick={() => handleFeedEnergy(food.id)}
+                            disabled={
+                              // [BUG-FIX] 禁用条件与 handleFeedEnergy 内拦截逻辑对齐：满能量/沉睡时非唤醒剂禁用
+                              (food.id !== "energy_revive" && currentCompanionEnergy >= 100) ||
+                              (food.id !== "energy_revive" && companionState.state === "sleeping") ||
+                              (user.stardustCoins < food.price && !(food.id === "energy_revive" && !freeReviveUsed))
+                            }
+                            className={`bg-black/40 border rounded-lg p-2.5 text-center space-y-1 transition-all ${
+                              food.id === "energy_revive"
+                                ? "border-[#ef476f]/40 hover:border-[#ef476f]"
+                                : "border-slate-800 hover:border-[#ff8fa3]/50"
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                          >
+                            <div className="text-lg leading-none">{food.icon}</div>
+                            <div className="text-[10px] font-bold text-white">{food.name}</div>
+                            <div className="text-[8px] text-gray-400 leading-tight">{food.effect}</div>
+                            <div className="text-[10px] font-mono text-orange-300 flex items-center justify-center gap-0.5">
+                              <Coins className="w-3 h-3" />{food.price}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* OUTFITS SECTION */}
                     <div>
-                      <h4 className="text-[11px] font-bold uppercase tracking-widest text-indigo-400 mb-3 flex items-center gap-1.5">
+                      <h4 className="text-[11px] font-bold tracking-wide text-indigo-400 mb-3 flex items-center gap-1.5 font-sans">
                         <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                        1、Astrocade 独家像素外观装扮 (装扮效果实时渲染)
+                        1、星辰外观装扮 · 立即穿戴焕新
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {OUT_ITEMS.map((item) => {
@@ -1900,18 +3289,12 @@ export default function App() {
                                   <button
                                     onClick={() => handleEquipToggle(item.id)}
                                     className={`px-3 py-1 rounded text-[10px] font-bold ${
-                                      (user.outfitsEquipped.halo === item.id ||
-                                       user.outfitsEquipped.trail === item.id ||
-                                       user.outfitsEquipped.orbit === item.id ||
-                                       user.outfitsEquipped.cape === item.id)
+                                      isOutfitEquipped(item.id)
                                         ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                                         : "bg-slate-700 hover:bg-slate-600 text-slate-100"
                                     }`}
                                   >
-                                    {(user.outfitsEquipped.halo === item.id ||
-                                      user.outfitsEquipped.trail === item.id ||
-                                      user.outfitsEquipped.orbit === item.id ||
-                                      user.outfitsEquipped.cape === item.id)
+                                    {isOutfitEquipped(item.id)
                                         ? "🔋 正在穿戴中" : "🔌 闲置·点我穿戴"}
                                   </button>
                                 ) : (
@@ -1931,8 +3314,8 @@ export default function App() {
 
                     {/* SNACKS SECTION */}
                     <div>
-                      <h4 className="text-[11px] font-bold uppercase tracking-widest text-[#06d6a0] mb-3 flex items-center gap-1.5">
-                        🦴 2、治愈滋补零食能补仓
+                      <h4 className="text-[11px] font-bold tracking-wide text-[#06d6a0] mb-3 flex items-center gap-1.5 font-sans">
+                        🦴 2、治愈小零食 · 补充对话能量
                       </h4>
                       <p className="text-[10px] text-gray-400 mb-3 block">
                         喂食零食能瞬间恢复<b>1轮</b>主页宠物的对话额度，并触发家园像素爆炸特效。每日最多共可喂食10次零食！
@@ -1979,31 +3362,31 @@ export default function App() {
                     {/* RECHARGE STARDUST COINS */}
                     <div className="bg-[#1c133a]/30 border border-purple-500/20 p-5 rounded-2xl space-y-4">
                       <div>
-                        <h4 className="text-xs font-bold text-purple-400 flex items-center gap-1.5 uppercase font-sans">
-                          💎 3、星尘币虚拟银行充能中心
+                        <h4 className="text-xs font-bold text-purple-400 flex items-center gap-1.5 font-sans">
+                          💎 3、星辰币 · 星光充值站
                         </h4>
                         <p className="text-[10px] text-gray-400">
-                          汇率: 1元人民币 = 50星尘币。首充任意档位，基础币数翻倍（赠送同额绑定币）！
+                          购买星辰币，为小宝贝补充陪伴能量，还能在商店兑换心仪的装扮和礼物。
                         </p>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         {[
-                          { rmb: 6, coins: 300, bonus: 0, rule: "首充特惠，充6元得600币！" },
-                          { rmb: 18, coins: 900, bonus: 100, rule: "+100加赠，充18元得1000币" },
-                          { rmb: 28, coins: 1500, bonus: 250, rule: "+250加赠，极度合算" },
-                          { rmb: 68, coins: 3400, bonus: 600, rule: "+600加赠，中额超值" },
-                          { rmb: 128, coins: 6400, bonus: 1600, rule: "赠多送多，尊享大满贯" }
-                        ].map((pkg, idx) => (
+                          { itemId: 100, rmb: 7, coins: 180, rule: "首充特惠，180 枚星辰币" },
+                          { itemId: 101, rmb: 12, coins: 500, rule: "500 枚星辰币（含 30 加赠）" },
+                          { itemId: 102, rmb: 22, coins: 1000, rule: "1000 枚星辰币（含 100 加赠）" },
+                          { itemId: 103, rmb: 45, coins: 2200, rule: "2200 枚星辰币（含 300 加赠）" },
+                          { itemId: 104, rmb: 88, coins: 4500, rule: "4500 枚星辰币（含 700 加赠）" }
+                        ].map((pkg) => (
                           <div
-                            key={idx}
+                            key={pkg.itemId}
                             className="bg-black/40 border border-slate-800 hover:border-purple-500/40 p-3 rounded-xl text-center space-y-1.5 flex flex-col justify-between"
                           >
                             <div>
                               <span className="text-[10px] text-[#ffccd5] font-mono leading-none font-bold block">{pkg.rmb} 元人民币</span>
                               <div className="text-md font-extrabold text-amber-300 font-mono mt-1.5 flex items-center justify-center gap-0.5">
                                 <Coins className="w-3.5 h-3.5 text-orange-400 animate-spin-slow" />
-                                {pkg.coins + pkg.bonus}
+                                {pkg.coins}
                               </div>
                               <span className="text-[8px] text-gray-400 block mt-1 line-clamp-2 leading-tight">
                                 {pkg.rule}
@@ -2011,15 +3394,19 @@ export default function App() {
                             </div>
 
                             <button
-                              onClick={() => handleTopupCoins(pkg.rmb, pkg.coins, pkg.bonus)}
-                              className="mt-2.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[9px] py-1 rounded"
+                              onClick={() => handleTopupCoins(pkg.itemId)}
+                              disabled={purchaseState.status === "purchasing"}
+                              className="shine-hover mt-2.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-[9px] py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              微信闪付 ￥{pkg.rmb}
+                              {purchaseState.status === "purchasing" ? "支付中…" : `支付 ￥${pkg.rmb}`}
                             </button>
                           </div>
                         ))}
                       </div>
                     </div>
+
+                    {/* 微交易日志面板（测试/调试用） */}
+                    <MtxLogPanel />
                   </div>
                 )}
 
@@ -2027,167 +3414,118 @@ export default function App() {
                 {activeTab === "profile" && (
                   <div className="flex-1 flex flex-col space-y-6" id="view-profile">
                     <div className="border-b border-white/5 pb-3">
-                      <h3 className="text-sm font-semibold text-white flex items-center gap-1.5 animate-pulse">
-                        🛡️ 家长档案储藏 & 付费增值服务
+                      <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                        🛡️ 我的星辰家园 · 珍贵回忆
                       </h3>
                       <p className="text-[10px] text-gray-400 mt-0.5">
-                        在这里探看您的小家犬/小宝贝档案详情、管理已解锁外观。同时提供直购的高级AI数媒定制纪念包服务。
+                        这里珍藏着你的小宝贝的所有回忆，管理它的外观，还能为它定制专属的纪念。
                       </p>
                     </div>
 
                     {/* Pet Details Panel */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Left: General metadata card */}
-                      <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-                        <span className="text-[10px] uppercase tracking-widest text-[#ef476f] font-mono block">
-                          ★ 默魂登记记录册
-                        </span>
-
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between border-b border-white/5 pb-1">
-                            <span className="text-gray-400">小天使昵称 :</span>
-                            <span className="text-white font-semibold">{user.activePet.name}</span>
+                      {/* Left: 宠物温暖卡片 */}
+                      <div className="bg-gradient-to-b from-[#1a1140]/70 to-[#120c2e]/70 border border-purple-400/20 rounded-2xl p-5 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-xl shadow-[0_0_20px_rgba(167,139,250,0.4)]">
+                            {user.activePet.type === "猫" ? "🐱" : user.activePet.type === "狗" ? "🐶" : user.activePet.type === "兔" ? "🐰" : "🐹"}
                           </div>
-                          <div className="flex justify-between border-b border-white/5 pb-1">
-                            <span className="text-gray-400">萌宠种属 :</span>
-                            <span className="text-white font-mono">{user.activePet.type} ({user.activePet.breed})</span>
-                          </div>
-                          <div className="flex justify-between border-b border-white/5 pb-1">
-                            <span className="text-gray-400">家长(你)的称呼 :</span>
-                            <span className="text-white">{user.ownerName}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-white/5 pb-1">
-                            <span className="text-gray-400">离苏飞升日 :</span>
-                            <span className="text-white font-mono">{user.activePet.passingDate}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">色彩主基底色 :</span>
-                            <div className="flex items-center gap-1">
-                              <span className="w-3.5 h-3.5 rounded border border-white/20" style={{ backgroundColor: user.activePet.primaryColor }} />
-                              <span className="text-white font-mono text-[10px]">{user.activePet.primaryColor}</span>
-                            </div>
+                          <div>
+                            <div className="text-base font-bold text-white">{user.activePet.name}</div>
+                            <div className="text-[11px] text-purple-300">{user.activePet.type} · {user.activePet.breed}</div>
                           </div>
                         </div>
 
-                        {/* Reset profile simulation */}
-                        <div className="pt-3 border-t border-white/5 flex justify-end">
+                        <div className="space-y-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 shrink-0">家长称呼</span>
+                            <span className="text-white">{user.ownerName}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 shrink-0">彩虹桥之日</span>
+                            <span className="text-white">{user.activePet.passingDate}</span>
+                          </div>
+                        </div>
+
+                        {/* Reset profile */}
+                        <div className="pt-2 border-t border-white/10 flex justify-end">
                           <button
                             onClick={() => {
-                              const proceed = window.confirm("⚠️【危险警告】\n您确定要抹除当前宠物的星谱档案吗？\n清除后，原2D粒子矩阵和历史日志都将彻底消逝，需要重新举行升星仪式。");
+                              const proceed = window.confirm("你确定要重新为小宝贝举行升星仪式吗？\n当前的小宝贝会化作星辰回到天际。");
                               if (proceed) {
                                 setUser(prev => ({ ...prev, activePet: null }));
                                 playSound("success");
-                                triggerToast("星尘已解体，默影重归天际，静待您再次召唤升星仪式。");
+                                triggerToast("小宝贝化作星辰回到天际了，随时欢迎为它再次举行升星仪式。");
                               }
                             }}
-                            className="text-red-400 hover:text-red-300 text-[9px] font-mono hover:underline"
+                            className="text-red-400/70 hover:text-red-300 text-[10px] hover:underline transition-colors"
                           >
-                            × 抹除数据重新举行仪式
+                            重新举行升星仪式
                           </button>
                         </div>
                       </div>
 
-                      {/* Right: Premium RMB direct pay options */}
-                      <div className="bg-indigo-950/20 border border-purple-500/20 rounded-xl p-4 flex flex-col justify-between">
+                      {/* Right: 纪念定制 */}
+                      <div className="bg-gradient-to-b from-[#1a1140]/50 to-[#120c2e]/50 border border-purple-400/15 rounded-2xl p-5 flex flex-col justify-between">
                         <div className="space-y-2">
-                          <span className="text-[10px] uppercase tracking-widest text-[#ffd166] font-mono block font-bold flex items-center gap-1">
-                            💎 RMB 尊享特惠增资定制专区
+                          <span className="text-[11px] font-bold text-amber-300 font-sans flex items-center gap-1.5">
+                            💎 专属纪念定制
                           </span>
-                          <p className="text-[10px] text-gray-300 leading-normal">
-                            以下功能属于高级线下数媒团队与服务器集群单独运算，采用实款直付渠道（不可使用星尘币折抵抵扣）。
+                          <p className="text-[10px] text-gray-400 leading-normal">
+                            为小宝贝定制一份独一无二的纪念，把回忆永远珍藏。
                           </p>
 
                           <div className="space-y-2.5 pt-1">
-                            <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 flex gap-2 items-center justify-between">
+                            <div className="bg-black/25 p-3 rounded-xl border border-white/5 flex gap-2 items-center justify-between">
                               <div>
-                                <span className="text-xs font-semibold text-white">1. AI 纪念视频大礼包</span>
-                                <p className="text-[9px] text-gray-400 leading-tight">
-                                  整理宠物生前留影照片 + 星云像素专属场景，生成15秒微缩温暖像素纪念短片
+                                <span className="text-xs font-semibold text-white">纪念短片</span>
+                                <p className="text-[9px] text-gray-400 leading-tight mt-0.5">
+                                  把它的照片做成 15 秒温暖纪念短片
                                 </p>
                               </div>
                               <button
-                                onClick={() => handleBuyPremiumService("AI 纪念视频包", 29.9)}
-                                className="bg-[#f72585] hover:bg-[#b5179e] text-white font-bold text-[9px] px-2.5 py-1.5 rounded shrink-0"
+                                onClick={() => handleBuyPremiumService("星辰织梦视频包", 29.9)}
+                                className={`${premiumServices.includes("星辰织梦视频包") ? "bg-slate-700 text-slate-300 cursor-not-allowed" : "bg-[#f72585] hover:bg-[#b5179e] text-white hover:scale-105"} font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all active:scale-95`}
                               >
-                                ￥29.9/次
+                                {premiumServices.includes("星辰织梦视频包") ? "✓ 已开通" : "￥29.9"}
                               </button>
                             </div>
 
-                            <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 flex gap-2 items-center justify-between">
+                            <div className="bg-black/25 p-3 rounded-xl border border-white/5 flex gap-2 items-center justify-between">
                               <div>
-                                <span className="text-xs font-semibold text-white">2. 高级小窝同源数字孪主</span>
-                                <p className="text-[9px] text-gray-400 leading-tight">
-                                  支持上传多达5张生前生活小窝照片，由AI高保真智能绘制还原成暖洋小窝像素地插
+                                <span className="text-xs font-semibold text-white">小窝复刻</span>
+                                <p className="text-[9px] text-gray-400 leading-tight mt-0.5">
+                                  还原它生前的小窝，让熟悉的味道回来
                                 </p>
                               </div>
                               <button
                                 onClick={() => handleBuyPremiumService("高级小窝孪生", 19.9)}
-                                className="bg-[#4cc9f0] hover:bg-[#4361ee] text-slate-900 font-bold text-[9px] px-2.5 py-1.5 rounded shrink-0"
+                                className={`${premiumServices.includes("高级小窝孪生") ? "bg-slate-700 text-slate-300 cursor-not-allowed" : "bg-[#4cc9f0] hover:bg-[#4361ee] text-slate-900 hover:scale-105"} font-bold text-[9px] px-2.5 py-1.5 rounded-lg shrink-0 transition-all active:scale-95`}
                               >
-                                ￥19.9/次
+                                {premiumServices.includes("高级小窝孪生") ? "✓ 已开通" : "￥19.9"}
                               </button>
                             </div>
                           </div>
                         </div>
-
-                        <p className="text-[8px] text-slate-500 font-mono mt-3 text-center">
-                          * 均支持微信、支付宝全真机快捷拉起支付
-                        </p>
                       </div>
                     </div>
 
-                    {/* Section 2: AI 3D high-fidelity bone/voxel mesh modeling */}
-                    {user.activePet && (
-                      <div className="bg-gradient-to-tr from-purple-500/10 to-orange-400/15 border border-purple-500/20 rounded-2xl p-5" id="profile-reconstruct-3d-panel">
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-orange-400 font-mono block mb-1">
-                          🎒 2、AI 3D高保真数字骨骼重构 (2D照片即刻还原)
-                        </span>
-                        <p className="text-[9px] text-gray-400 mb-4 font-sans max-w-xl leading-normal">
-                          采用双目重建与像素外差插值，将宠物生前2D硬照/生活照，计算还原并生成高保真3D骨架点阵与器官节点。合成成功后将即刻作为3D拟态投射上传星谱，并可在【主页】控制台开启 🤖 3D全息 投影。
-                        </p>
-                        
-                        <Pet3DReconstruction 
-                          activePet={user.activePet} 
-                          onSync3DModelToPet={(newModel) => {
-                            setUser(prev => {
-                              if (!prev.activePet) return prev;
-                              const updatedPet = {
-                                ...prev.activePet,
-                                model3d: newModel
-                              };
-                              // sync to local storage
-                              try {
-                                localStorage.setItem("starpuff_active_pet", JSON.stringify(updatedPet));
-                              } catch (e) {
-                                console.error(e);
-                              }
-                              return {
-                                ...prev,
-                                activePet: updatedPet
-                              };
-                            });
-                          }}
-                          triggerToast={triggerToast}
-                        />
-                      </div>
-                    )}
-
                     {/* Snacks interactive Feed bar */}
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                      <span className="text-[11px] font-bold text-gray-400 block mb-3 uppercase tracking-widest">
-                        🎒 3、家长随身储物能补包袋 (零食喂养区)
+                    <div className="bg-gradient-to-b from-[#1a1140]/60 to-[#120c2e]/60 border border-purple-400/15 rounded-2xl p-4">
+                      <span className="text-[11px] font-bold text-gray-300 block mb-3 tracking-wide font-sans">
+                        🎒 3、随身零食小包 · 随时喂食
                       </span>
                       
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         {SNACK_ITEMS.slice(0, 5).map(snack => {
                           const quantity = foodInventory[snack.id] || 0;
                           return (
-                            <div key={snack.id} className="bg-slate-950/40 p-3 rounded-lg border border-white/5 flex flex-col justify-between text-center">
+                            <div key={snack.id} className="bg-black/25 p-3 rounded-xl border border-white/10 flex flex-col justify-between text-center">
                               <div>
-                                <span className="text-[9px] text-slate-500 uppercase tracking-widest block font-mono">SNACK ITEM</span>
+                                <span className="text-[9px] text-slate-500 tracking-wide block font-sans">🍬 小零食</span>
                                 <span className="text-xs font-bold text-white block mt-1">{snack.name}</span>
-                                <span className="text-xs font-mono text-purple-400 font-bold block mt-1">
-                                  持有: {quantity} 个
+                                <span className="text-xs font-sans text-purple-400 font-bold block mt-1">
+                                  持有 · {quantity} 个
                                 </span>
                               </div>
                               <button
@@ -2218,27 +3556,39 @@ export default function App() {
                           triggerToast={triggerToast}
                         />
                         <NotificationSettings
+                          initialConfig={notificationConfig ?? undefined}
                           onSaveConfig={handleSaveNotificationConfig}
+                          triggerToast={triggerToast}
+                        />
+                        <MemorialZone
+                          activePet={user.activePet}
+                          stardustCoins={user.stardustCoins}
+                          onSpendCoins={(amount) => {
+                            // [BUG-FIX] 改用原子化 spendCoins，消除连点造成的超支/白嫖
+                            if (spendCoins(amount)) return true;
+                            triggerToast(`⚠️ 星辰币不足，还差 ${Math.max(0, amount - coinsRef.current)} 币。`);
+                            return false;
+                          }}
                           triggerToast={triggerToast}
                         />
 
                         {/* Reset guiding instrument box */}
                         <div className="bg-[#110c2c]/85 border border-white/10 rounded-3xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
                           <div>
-                            <h4 className="text-xs font-bold text-white font-mono flex items-center gap-1.5">
-                              ✨ 想要重新温习星轨训练引导?
+                            <h4 className="text-xs font-bold text-white font-sans flex items-center gap-1.5">
+                              ✨ 想重新看看新手引导吗？
                             </h4>
-                            <p className="text-[10px] text-gray-400 mt-1">重置完毕后退出设置, 将立即拉起星云引航仪，重新展示灵魂照料流程。</p>
+                            <p className="text-[10px] text-gray-400 mt-1">重置后，星云引航仪会重新带你熟悉照顾小宝贝的每一步。</p>
                           </div>
                            <button
                             onClick={() => {
                               setUser(prev => ({ ...prev, onboardingCompleted: false }));
-                              triggerToast("💡 星轨引航仪已重置！退出设置后将立即拉起向导！");
+                              triggerToast("💡 新手引导已重置！下次进入将重新为你引路。");
                               playSound("success");
                             }}
-                            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md font-mono shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all text-center"
+                            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md font-sans shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all text-center"
                           >
-                            ⚙️ 重置新手引航
+                            重新体验引导
                           </button>
                         </div>
                       </div>
@@ -2260,6 +3610,8 @@ export default function App() {
                         });
                       }}
                     />
+                    {/* 本地专属面板（仅开发模式渲染） */}
+                    {LocalPanelComp && <LocalPanelComp triggerToast={triggerToast} />}
                   </div>
                 )}
               </>
@@ -2275,13 +3627,13 @@ export default function App() {
                 onClick={() => { setSidebarMode("whispers"); playSound("click"); }}
                 className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold tracking-wider transition-all flex items-center justify-center gap-1.5 ${sidebarMode === "whispers" ? "bg-gradient-to-r from-orange-500/80 to-pink-600/80 text-white shadow-md border border-white/10" : "text-gray-400 hover:text-white"}`}
               >
-                📜 治愈心语信
+                📜 星辰来信
               </button>
               <button
                 onClick={() => { setSidebarMode("chat"); playSound("click"); }}
                 className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold tracking-wider transition-all flex items-center justify-center gap-1.5 relative ${sidebarMode === "chat" ? "bg-gradient-to-r from-indigo-600/80 to-purple-600/80 text-white shadow-md border border-white/10" : "text-gray-400 hover:text-white"}`}
               >
-                💬 智能AI对话
+                💬 陪伴私语
                 <span className="absolute -top-1 -right-1 flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
@@ -2296,13 +3648,25 @@ export default function App() {
                 <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400 font-mono">
-                      每日 AI 治愈心语信 📜
+                      星辰来信 · 每日陪伴私语 📜
                     </h3>
-                    <p className="text-[8px] text-slate-500 font-mono mt-0.5">DAILY AI PORT WHISPERS</p>
+                    <p className="text-[8px] text-slate-500 font-mono mt-0.5">DAILY STARDUST LETTERS</p>
                   </div>
-                  <span className="text-[9px] px-1.5 py-0.5 bg-orange-400/10 text-orange-400 border border-orange-400/20 rounded font-semibold animate-pulse">
-                    每日上午10点
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    {isLetterPremiumActive ? (
+                      <span className="text-[9px] px-1.5 py-0.5 bg-emerald-400/10 text-emerald-300 border border-emerald-400/25 rounded font-semibold">
+                        ☀️🌤🌙 星辰档 · 每日3封 ✓
+                      </span>
+                    ) : (
+                      <button
+                        onClick={handleUpgradeLetterTier}
+                        title="基础：每晚10点1封 · 777星辰币升级星辰档（30天）"
+                        className="text-[9px] px-1.5 py-0.5 bg-orange-400/10 text-orange-300 border border-orange-400/30 rounded font-semibold hover:bg-orange-400/20 transition-colors cursor-pointer"
+                      >
+                        🌙 每晚10点 · 777币升级星辰档
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* WHISPER MAIN CARD VIEW */}
@@ -2316,7 +3680,7 @@ export default function App() {
                         
                         <div className="absolute bottom-1.5 left-2 flex items-center gap-1.5 text-[10px] text-pink-300 font-mono">
                           <Calendar className="w-3 h-3" />
-                          <span>{whisper.date} · 归档回忆信</span>
+                          <span>{whisper.slotLabel ?? "星辰来信"} · {whisper.date}</span>
                         </div>
                       </div>
 
@@ -2325,22 +3689,60 @@ export default function App() {
                       </p>
 
                       {/* Shared trigger */}
-                      <div className="flex justify-between items-center pt-2 border-t border-white/5">
-                        <span className="text-[9px] text-white/40">已送往家长信箱</span>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleLikeWhisper(whisper.id)}
-                            className={`text-[9px] px-2 py-0.5 rounded border border-white/10 hover:bg-pink-500/10 ${whisper.hasLiked ? "text-pink-400" : "text-gray-400"}`}
-                          >
-                            ❤️ {whisper.likes}
-                          </button>
-                          <button
-                            onClick={() => handleShareWhisperAction(whisper)}
-                            className="text-[9px] px-2 py-0.5 rounded border border-white/10 hover:bg-slate-700 text-gray-300 flex items-center gap-1"
-                          >
-                            <Share2 className="w-2.5 h-2.5 text-indigo-400" />
-                            分享
-                          </button>
+                      <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
+                        {/* [游走重构] 集群来信：展示星友偶遇信息 + 加好友锚点 */}
+                        {whisper.type === "cluster" && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] text-pink-300 font-mono flex items-center gap-1">
+                              🐾 星友偶遇 · {whisper.relatedPetName} & {whisper.relatedOwnerName || "它的家长"}
+                            </span>
+                            {whisper.friendRequested ? (
+                              <span className="text-[9px] text-emerald-400">✓ 已申请好友</span>
+                            ) : (
+                              <button
+                                onClick={() => handleFriendRequest(whisper.id)}
+                                className="text-[9px] px-2 py-0.5 rounded border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500/20 transition-colors cursor-pointer"
+                              >
+                                👋 认识它的主人
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {/* [星友来信] type==="friend"：虚拟星友主动来信，可直接加为星友 */}
+                        {whisper.type === "friend" && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] text-indigo-300 font-mono flex items-center gap-1">
+                              ✉️ 星友 {whisper.relatedOwnerName || "家长"}（{whisper.relatedPetName}）主动来信
+                            </span>
+                            {whisper.friendRequested ? (
+                              <span className="text-[9px] text-emerald-400">✓ 已是星友</span>
+                            ) : (
+                              <button
+                                onClick={() => handleFriendRequest(whisper.id)}
+                                className="text-[9px] px-2 py-0.5 rounded border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 transition-colors cursor-pointer"
+                              >
+                                🌟 认识它的主人
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] text-white/40">已送往家长信箱</span>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleLikeWhisper(whisper.id)}
+                              className={`text-[9px] px-2 py-0.5 rounded border border-white/10 hover:bg-pink-500/10 ${whisper.hasLiked ? "text-pink-400" : "text-gray-400"}`}
+                            >
+                              ❤️ {whisper.likes}
+                            </button>
+                            <button
+                              onClick={() => handleShareWhisperAction(whisper)}
+                              className="text-[9px] px-2 py-0.5 rounded border border-white/10 hover:bg-slate-700 text-gray-300 flex items-center gap-1"
+                            >
+                              <Share2 className="w-2.5 h-2.5 text-indigo-400" />
+                              分享
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2355,10 +3757,10 @@ export default function App() {
                 <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-2 text-[10px] text-gray-400 font-mono">
                   <div className="flex items-center gap-1.5">
                     <div className={`w-1.5 h-1.5 rounded-full ${isChatTyping ? "bg-amber-400 animate-pulse" : "bg-emerald-400 animate-ping"}`} />
-                    <span>星尘通路 ({user.activePet?.name || '天乐'})</span>
+                    <span>星辰通路 ({user.activePet?.name || '天乐'})</span>
                   </div>
                   <span className="bg-white/5 px-2 py-0.5 rounded text-[8.5px] font-mono text-purple-300">
-                    {user.unlimitedTalks ? "♾️ 无限次" : `剩 ${user.dialogsRemaining}/5 轮`}
+                    {user.unlimitedTalks ? "♾️ 无限次" : `剩 ${user.dialogsRemaining}/${user.dialogsMax ?? 5} 轮`}
                   </span>
                 </div>
 
@@ -2427,7 +3829,7 @@ export default function App() {
             <div className="h-56 bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col justify-between shrink-0">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-widest text-[#7B61FF] font-mono mb-2.5 flex justify-between items-center">
-                  <span>🛠️ 星尘回忆每日任务板</span>
+                  <span>🛠️ 星辰回忆每日任务板</span>
                   <span className="text-[9px] text-gray-500">日上限63币</span>
                 </h3>
 
@@ -2445,12 +3847,7 @@ export default function App() {
                           <button
                             onClick={() => {
                               playSound("click");
-                              // trigger actions accordingly or help complete
-                              if (task.id === "task_share") {
-                                updateTaskProgress("task_share", 1);
-                              } else {
-                                updateTaskProgress(task.id, 1);
-                              }
+                              updateTaskProgress(task.id, 1);
                             }}
                             className="text-[9px] text-purple-300 hover:text-white bg-purple-500/20 border border-purple-500/30 px-1.5 py-0.5 rounded tracking-tighter"
                           >
@@ -2473,14 +3870,16 @@ export default function App() {
       {/* MEMBERSHIP CHECKOUT SELECTION MODAL */}
       {isVipModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" id="vip-checkout-modal">
-          <div className="bg-[#0f0a25] border border-purple-500/40 rounded-2xl p-6 w-full max-w-lg shadow-[0_0_50px_rgba(123,97,255,0.4)] space-y-5">
+          <div className="relative overflow-hidden bg-[#0f0a25] border border-purple-500/40 rounded-2xl p-6 w-full max-w-lg shadow-[0_0_50px_rgba(123,97,255,0.4)] space-y-5">
+            {/* 顶部装饰光带 */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-yellow-400 to-transparent" />
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-md md:text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-200 uppercase flex items-center gap-1.5">
                   <Crown className="w-5 h-5 text-yellow-400 animate-bounce" />
                   订阅《喵汪星云》星河永久守护证
                 </h3>
-                <p className="text-xs text-purple-200 mt-1">解锁AI无限伴眠、多条每日心语耳语及限定配饰礼遇</p>
+                <p className="text-xs text-purple-200 mt-1">解锁星辰无限伴眠、多封每日星辰来信及限定配饰礼遇</p>
               </div>
               <button
                 onClick={() => setIsVipModalOpen(false)}
@@ -2491,59 +3890,45 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* Option 1: Trial */}
-              <div className="bg-black/40 border border-slate-800 rounded-xl p-4 text-center space-y-1 flex flex-col justify-between">
-                <div>
-                  <span className="text-[10px] px-1.5 py-0.5 bg-[#ef476f]/20 text-[#ef476f] border border-[#ef476f]/20 rounded font-mono font-bold">限时尝鲜</span>
-                  <p className="text-xs font-semibold text-white mt-1.5">新客首月特惠</p>
-                  <div className="text-xl font-bold font-mono text-purple-300 mt-1">￥1.9/首月</div>
-                  <p className="text-[9px] text-gray-400 leading-tight mt-1 pt-1.5 border-t border-slate-900">享完整月卡权益，次月自动续费可取消</p>
-                </div>
-                <button
-                  onClick={() => handleSubscribeVip("trial")}
-                  className="mt-2.5 w-full bg-[#ef476f] text-white text-[10px] font-bold py-1.5 rounded-lg"
-                >
-                  ￥1.9 立即开通
-                </button>
-              </div>
-
-              {/* Option 2: Month Card */}
+              {/* Option 1: Month Card */}
               <div className="bg-black/40 border border-purple-500/20 rounded-xl p-4 text-center space-y-1 flex flex-col justify-between scale-105 shadow-[0_0_15px_rgba(123,97,255,0.1)]">
                 <div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 border border-yellow-500/20 rounded font-mono font-bold">主打守护</span>
                   <p className="text-xs font-semibold text-white mt-1.5">星云守护月卡</p>
-                  <div className="text-xl font-bold font-mono text-amber-300 mt-1">￥9.9/月</div>
+                  <div className="text-xl font-bold font-mono text-amber-300 mt-1">￥25/月</div>
                   <p className="text-[9px] text-gray-400 leading-tight mt-1 pt-1.5 border-t border-slate-900">
-                    每日 3条 AI耳语<br />
+                    每日 3封 星辰来信<br />
                     主页对话无限次<br />
-                    星尘商店购买 9折
+                    星辰商店购买 9折
                   </p>
                 </div>
                 <button
                   onClick={() => handleSubscribeVip("month")}
-                  className="mt-2.5 w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-[10px] font-bold py-1.5 rounded-lg"
+                  disabled={purchaseState.status === "purchasing"}
+                  className="mt-2.5 w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-[10px] font-bold py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ￥9.9 订阅订阅
+                  {purchaseState.status === "purchasing" ? "订阅中…" : "￥25 订阅月卡"}
                 </button>
               </div>
 
-              {/* Option 3: Year Card */}
-              <div className="bg-black/40 border border-slate-800 rounded-xl p-4 text-center space-y-1 flex flex-col justify-between">
+              {/* Option 2: Year Card */}
+              <div className="bg-black/40 border border-cyan-500/20 rounded-xl p-4 text-center space-y-1 flex flex-col justify-between">
                 <div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded font-mono font-bold">至臻感恩</span>
                   <p className="text-xs font-semibold text-white mt-1.5">星云至尊年卡</p>
-                  <div className="text-xl font-bold font-mono text-cyan-200 mt-1">￥79/年</div>
+                  <div className="text-xl font-bold font-mono text-cyan-200 mt-1">￥128/年</div>
                   <p className="text-[9px] text-gray-400 leading-tight mt-1 pt-1.5 border-t border-slate-900">
                     月卡全部权益<br />
-                    星尘商店 8折<br />
+                    星辰商店 8折<br />
                     <b>专属限定星迹披风</b>
                   </p>
                 </div>
                 <button
                   onClick={() => handleSubscribeVip("year")}
-                  className="mt-2.5 w-full bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] font-bold py-1.5 rounded-lg"
+                  disabled={purchaseState.status === "purchasing"}
+                  className="mt-2.5 w-full bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] font-bold py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ￥79 订购年卡
+                  {purchaseState.status === "purchasing" ? "订购中…" : "￥128 订购年卡"}
                 </button>
               </div>
             </div>
@@ -2555,32 +3940,150 @@ export default function App() {
         </div>
       )}
 
+      {/* --- 沉睡弹窗（女性向版）--- */}
+      {isSleepModalOpen && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
+          <div className="relative overflow-hidden bg-[#0a0718] border border-slate-700/60 rounded-2xl p-8 w-full max-w-md shadow-[0_0_60px_rgba(0,0,0,0.8)] text-center space-y-5">
+            {/* 顶部装饰光带 */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
+            <div className="text-5xl animate-pulse">💫</div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-300">星辰散尽，它陷入了沉睡</h3>
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                {user.activePet?.name} 缓缓闭上了眼睛，身体逐渐变得透明，星辰从身上慢慢飘散...最后一颗星辰飘起，它的轮廓越来越模糊了 🥺
+              </p>
+              <p className="text-[11px] text-[#ff8fa3] mt-3">用「星辰唤醒剂」，可以重新唤醒你们的羁绊哦 ✨</p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setIsSleepModalOpen(false);
+                  setActiveTab("store");
+                }}
+                className="w-full bg-gradient-to-r from-[#ef476f] to-[#b5179e] text-white font-bold text-sm py-2.5 rounded-lg hover:opacity-90 transition-opacity"
+              >
+                ✨ 唤醒它
+              </button>
+              <button
+                onClick={() => setIsSleepModalOpen(false)}
+                className="w-full bg-white/5 hover:bg-white/10 text-gray-400 text-xs py-2 rounded-lg transition-colors"
+              >
+                再等等
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- 低能量提醒弹窗（能量<20，女性向版）--- */}
+      {isLowEnergyModalOpen && companionState.state === "farewell" && (
+        <div className="fixed inset-0 bg-black/60 z-[55] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+          <div className="relative overflow-hidden bg-[#0f0a25] border border-[#ef476f]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(239,71,111,0.3)] text-center space-y-4">
+            {/* 顶部装饰光带 */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#ef476f] to-transparent" />
+            <div className="text-4xl">😿</div>
+            <div>
+              <h3 className="text-base font-bold text-white">你的星宠...快要没有能量了</h3>
+              <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                它好虚弱好虚弱，连尾巴都摇不动了呢...它说...好想再多陪你一会儿...可是...
+              </p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setIsLowEnergyModalOpen(false);
+                  setActiveTab("store");
+                }}
+                className="w-full bg-gradient-to-r from-[#ef476f] to-[#ff8fa3] text-white font-bold text-sm py-2.5 rounded-lg hover:opacity-90 transition-opacity"
+              >
+                🥹 立刻喂它
+              </button>
+              <button
+                onClick={() => setIsLowEnergyModalOpen(false)}
+                className="w-full bg-white/5 hover:bg-white/10 text-gray-500 text-xs py-2 rounded-lg transition-colors"
+              >
+                再等等
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- 委屈提醒弹窗（能量<50，女性向版）--- */}
+      {isHurtModalOpen && companionState.state === "distant" && (
+        <div className="fixed inset-0 bg-black/50 z-[54] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+          <div className="relative overflow-hidden bg-[#0f0a25] border border-[#fca3cc]/40 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(252,163,204,0.25)] text-center space-y-4">
+            {/* 顶部装饰光带 */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#fca3cc] to-transparent" />
+            <div className="text-4xl">🥺</div>
+            <div>
+              <h3 className="text-base font-bold text-white">你的星宠有点委屈了</h3>
+              <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                它已经好久没有吃东西了呢...肚子咕噜咕噜叫，可是又不敢说...要不要喂它点什么呀？
+              </p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setIsHurtModalOpen(false);
+                  setActiveTab("store");
+                }}
+                className="w-full bg-gradient-to-r from-[#fca3cc] to-[#ff8fa3] text-white font-bold text-sm py-2.5 rounded-lg hover:opacity-90 transition-opacity"
+              >
+                ✨ 去喂食
+              </button>
+              <button
+                onClick={() => setIsHurtModalOpen(false)}
+                className="w-full bg-white/5 hover:bg-white/10 text-gray-500 text-xs py-2 rounded-lg transition-colors"
+              >
+                再等等
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- PET MEMORY FLASHBACK OVERLAY MODAL --- */}
       {activeMemoryFlashbackId && user.activePet && (
         <MemoryFlashbackModal
           petConfig={user.activePet}
           onClose={() => setActiveMemoryFlashbackId(null)}
           onCollectReward={(coinsAwarded, memoryId) => {
+            // [BUG-FIX] 在 updater 外判重：原逻辑加币是无条件的，判重只写在
+            // setUnlockedMemoryIds 的 updater 里（挡得住 toast 挡不住加币），
+            // 导致同一段记忆可反复点开无限刷币（经济系统崩坏）
+            if (unlockedMemoryIds.includes(memoryId)) {
+              triggerToast("⚠️ 这段星辰记忆已经收集过啦，不能重复领取哦。");
+              return;
+            }
             // Reward coins
             setUser(prev => ({
               ...prev,
               stardustCoins: prev.stardustCoins + coinsAwarded
             }));
             // Save to unlocked memories list
-            setUnlockedMemoryIds(prev => {
-              if (prev.includes(memoryId)) return prev;
-              const next = [...prev, memoryId];
-              triggerToast(`🏅 【星尘记忆】已存入回忆相册并转化为星尘币 +${coinsAwarded}！`);
-              return next;
-            });
+            setUnlockedMemoryIds(prev => (prev.includes(memoryId) ? prev : [...prev, memoryId]));
+            triggerToast(`🏅 【星辰记忆】已存入回忆相册并转化为星辰币 +${coinsAwarded}！`);
           }}
           triggeredMemoryId={activeMemoryFlashbackId}
         />
       )}
 
+      {/* --- AR 相机模拟 --- */}
+      {isArCameraOpen && user.activePet && (
+        <ArCameraSimulation
+          isOpen={isArCameraOpen}
+          onClose={() => setIsArCameraOpen(false)}
+          pet={user.activePet}
+          triggerToast={triggerToast}
+          isGodMode={isGodMode}
+        />
+      )}
+
       {/* --- ONBOARDING GUIDE OVERLAY DIALOGUE (P0-1) --- */}
+      {/* [BUG-FIX] 升星仪式（activePet 为空）期间不渲染引导遮罩，避免 z-[9999] 全屏层拦截仪式输入框 */}
       <OnboardingGuide
-        isOpen={!user.onboardingCompleted}
+        isOpen={!user.onboardingCompleted && !!user.activePet}
         onComplete={handleOnboardingComplete}
         onNavigateTab={(tab) => {
           setActiveTab(tab);

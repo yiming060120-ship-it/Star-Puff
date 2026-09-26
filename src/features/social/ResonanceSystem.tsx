@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { Sparkles, Heart, RefreshCw, Compass, Users, CheckCircle2, UserCheck, Flame } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+// [CLEANUP] 已移除 2 个未使用的图标导入：CheckCircle2 / UserCheck
+import { Sparkles, Heart, RefreshCw, Compass, Users, Flame } from "lucide-react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
 
@@ -28,32 +29,79 @@ const MATCHES: ResonanceMate[] = [
   { name: "闪电青鸟", breed: "玄凤鹦鹉", type: "鸟", primaryColor: "#560bad", personalityTags: ["社交恐怖", "歌声嘹亮", "爱蹭额头"], resonanceScore: 89.8, parentName: "小羽同学", greetings: "啾啾啾！我们在银河图书馆一起听歌吧，新来的《星光海》伴奏特别好听，我会给你伴舞唱高音喔！🎵", icon: "🐤" }
 ];
 
+// [BUG-FIX] 贴贴奖励的领取记录持久化到 localStorage。
+// 原实现只靠内存 ref 防重入，且每次「重新匹配」都把它复位成 false，
+// 切 Tab 重建组件后同样失效 → 同一位同伴可反复贴贴无限刷 +15 币。
+const CUDDLE_KEY = "starpuff_resonance_cuddled";
+
+const loadCuddledNames = (): string[] => {
+  try {
+    const raw = localStorage.getItem(CUDDLE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+};
+
 export default function ResonanceSystem({ activePet, onUpdateCoins, triggerToast }: ResonanceSystemProps) {
   const [activeMatch, setActiveMatch] = useState<ResonanceMate | null>(null);
   const [isMatching, setIsMatching] = useState(false);
   const [cuddleSuccess, setCuddleSuccess] = useState(false);
+  // [BUG-FIX] 匹配定时器句柄
+  const matchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // [BUG-FIX] 已领过贴贴奖励的同伴记录（持久化，初值从 localStorage 恢复）
+  const [cuddledNames, setCuddledNames] = useState<string[]>(loadCuddledNames);
+  const cuddledRef = useRef<Set<string>>(new Set(loadCuddledNames()));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CUDDLE_KEY, JSON.stringify(cuddledNames));
+    } catch (e) {}
+  }, [cuddledNames]);
+
+  // [BUG-FIX] 组件卸载时清理匹配定时器
+  useEffect(() => {
+    return () => {
+      if (matchTimerRef.current) clearTimeout(matchTimerRef.current);
+    };
+  }, []);
 
   const handleMatchCompanion = () => {
+    if (isMatching) return; // 防重复点击
     playSound("click");
     setIsMatching(true);
     setCuddleSuccess(false);
+    // 注意：不再复位贴贴领取记录 —— 奖励按「同伴」判重，换同伴自然可再次领取
 
-    setTimeout(() => {
+    // [BUG-FIX] 清除上一次未完成的定时器
+    if (matchTimerRef.current) clearTimeout(matchTimerRef.current);
+    matchTimerRef.current = setTimeout(() => {
       // Pick random mate from array
       const chosen = MATCHES[Math.floor(Math.random() * MATCHES.length)];
       setActiveMatch(chosen);
       setIsMatching(false);
       playSound("success");
       triggerToast(`🌠 【魂魄共鸣】星空连系完成！您的宝贝与【${chosen.name}】共鸣度高达 ${chosen.resonanceScore}%！`);
+      matchTimerRef.current = null;
     }, 1500);
   };
 
   const handleCuddleAction = () => {
     if (!activeMatch) return;
+    // [BUG-FIX] 按「同伴」判重 + 持久化：同一位星伴的贴贴奖励只能领一次。
+    // 原先只用一个全局布尔 ref，换同伴/切 Tab 后即失效，可无限刷 +15 币。
+    if (cuddledRef.current.has(activeMatch.name)) {
+      triggerToast(`🌙 你和【${activeMatch.name}】已经贴贴过啦，再去星海找新的星伴吧～`);
+      return;
+    }
+    cuddledRef.current.add(activeMatch.name);
     playSound("chime");
     setCuddleSuccess(true);
-    onUpdateCoins(15);
-    triggerToast(`🫂 【星光贴贴】大成功！${activePet?.name || "小宠物"} 与它的灵魂星伴 ${activeMatch.name} 亲热贴面滚在了一起，获得星尘币 +15 ✨`);
+    setCuddledNames(prev => (prev.includes(activeMatch.name) ? prev : [...prev, activeMatch.name]));
+    // [数值平衡] 贴贴奖励 +15 → +5，避免无成本社交刷币（4 个同伴全贴一遍就从 60 降到 20）
+    onUpdateCoins(5);
+    triggerToast(`🫂 【星光贴贴】大成功！${activePet?.name || "小宠物"} 与它的灵魂星伴 ${activeMatch.name} 亲热贴面滚在了一起，获得星辰币 +5 ✨`);
   };
 
   return (
@@ -137,7 +185,7 @@ export default function ResonanceSystem({ activePet, onUpdateCoins, triggerToast
                   }`}
                 >
                   <Heart className="w-3.5 h-3.5 fill-pink-400" />
-                  {cuddleSuccess ? "已心灵贴贴联谊 (币+15)" : "模拟双宠大世界贴贴贴 (星尘币+15)"}
+                  {cuddleSuccess ? "已心灵贴贴联谊 (币+5)" : "模拟双宠大世界贴贴贴 (星辰币+5)"}
                 </button>
               </div>
             </div>
@@ -182,7 +230,7 @@ export default function ResonanceSystem({ activePet, onUpdateCoins, triggerToast
 
               <div className="text-[7.5px] font-mono text-gray-500 text-center z-10 leading-normal max-w-xs uppercase">
                 {cuddleSuccess 
-                  ? "🌈 契约星能激荡！两只宝物散发粉色星尘粒子，友谊契约等级升华。"
+                  ? "🌈 契约星能激荡！两只宝物散发粉色星辰粒子，友谊契约等级升华。"
                   : "💡 点击左侧【大世界贴贴】按钮。让两只小宠靠近撒娇翻滚，共同吸收散逸星塵能量！"
                 }
               </div>

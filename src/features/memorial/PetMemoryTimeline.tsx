@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
-import { Star, Smile, Upload, Plus, Trash2, Heart, Award, ArrowRight, BookOpen } from "lucide-react";
+// [CLEANUP] 已移除 5 个未使用的图标导入：Star / Upload / Heart / Award / ArrowRight
+import { Smile, Plus, Trash2, BookOpen } from "lucide-react";
 
 interface TimelineLog {
   id: string;
@@ -33,30 +34,35 @@ const PERSONALITY_TAGS_POOL = [
 ];
 
 const PRESET_MEM_IMAGES = [
-  "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=200",
-  "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=200",
-  "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&q=80&w=200",
-  "https://images.unsplash.com/photo-1522850959516-58f958dde2c1?auto=format&fit=crop&q=80&w=200"
+  "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
+  "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
+  "/assets/images/unsplash/1585110396000-c9ffd4e4b308.jpg",
+  "/assets/images/unsplash/1522850959516-58f958dde2c1.jpg"
 ];
 
 export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdateTags, triggerToast }: PetMemoryTimelineProps) {
   const currentTags = petConfig.personalityTags || ["傲娇小主子", "温柔精灵", "贴心小棉袄"];
-  const timelineList = petConfig.memoryTimelineList || [
+  const DEFAULT_TIMELINE = [
     {
       id: "seed_1",
       date: "2025-05-12",
       title: "第一次正式回到家 🏠",
       content: "那时候还是那么小小一只，在纸箱里瑟瑟发抖。但只要用手指蹭两下你湿漉漉的小鼻子，你就急切地开始舔我的掌心。那一瞬间，我们建立了契约。",
-      image: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=200"
+      image: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg"
     },
     {
       id: "seed_2",
       date: "2025-11-20",
       title: "打翻了我的红茶杯 ☕",
       content: "明明是你干的坏事，却理直气壮在茶杯旁边滚来滚去。看着地毯上蔓延的茶渍，和满脚红茶印还大摇大摆叫唤的你，真是让人又爱又气。",
-      image: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=200"
+      image: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg"
     }
   ];
+  // [BUG-FIX] 用内部 state 维护时间线，useEffect 同步 props，增删用函数式更新避免过期快照丢失数据
+  const [timelineList, setTimelineList] = useState(petConfig.memoryTimelineList || DEFAULT_TIMELINE);
+  useEffect(() => {
+    setTimelineList(petConfig.memoryTimelineList || DEFAULT_TIMELINE);
+  }, [petConfig.memoryTimelineList]);
 
   const [selTags, setSelTags] = useState<string[]>(currentTags);
   const [logTitle, setLogTitle] = useState("");
@@ -65,22 +71,30 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
   const [logImage, setLogImage] = useState("");
   const [showAddLog, setShowAddLog] = useState(false);
 
+  // [BUG-FIX] 外部 petConfig.personalityTags 变化时同步内部 selTags（切换宠物后标签刷新）
+  useEffect(() => {
+    setSelTags(petConfig.personalityTags || ["傲娇小主子", "温柔精灵", "贴心小棉袄"]);
+  }, [petConfig.personalityTags]);
+
   // Toggle tag in 3-Max array
+  // [BUG-FIX] onUpdateTags / triggerToast 原本写在 setSelTags 的 updater 内部，
+  // StrictMode 下 updater 双调用 → 持久化调用两次、同一操作弹两个 toast。
+  // 改为在 updater 外基于当前 selTags 计算，updater 只做纯赋值。
   const handleToggleTag = (tagCode: string) => {
     playSound("click");
     if (selTags.includes(tagCode)) {
       const filtered = selTags.filter(t => t !== tagCode);
       setSelTags(filtered);
       onUpdateTags(filtered);
-    } else {
-      if (selTags.length >= 3) {
-        triggerToast("⚠️ 宝贝性格最多可以选 3 个最为匹配的核心标签哦");
-        return;
-      }
-      const updated = [...selTags, tagCode];
-      setSelTags(updated);
-      onUpdateTags(updated);
+      return;
     }
+    if (selTags.length >= 3) {
+      triggerToast("⚠️ 宝贝性格最多可以选 3 个最为匹配的核心标签哦");
+      return;
+    }
+    const updated = [...selTags, tagCode];
+    setSelTags(updated);
+    onUpdateTags(updated);
   };
 
   const handleCreateLog = () => {
@@ -97,7 +111,10 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
       image: logImage || PRESET_MEM_IMAGES[Math.floor(Math.random() * PRESET_MEM_IMAGES.length)]
     };
 
-    const nextList = [newLog, ...timelineList].sort((a,b) => b.date.localeCompare(a.date));
+    // [BUG-FIX] onUpdateTimeline 原本写在 setTimelineList 的 updater 内，
+    // StrictMode 下双调用 → 持久化两次。改为在 updater 外计算。
+    const nextList = [newLog, ...timelineList].sort((a, b) => b.date.localeCompare(a.date));
+    setTimelineList(nextList);
     onUpdateTimeline(nextList);
 
     setLogTitle("");
@@ -105,14 +122,18 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
     setLogContent("");
     setLogImage("");
     setShowAddLog(false);
-    triggerToast(`📖 【${logTitle}】这篇闪光记忆已被成功篆刻进它的星尘回线中！`);
+    triggerToast(`📖 【${logTitle}】这篇闪光记忆已被成功篆刻进它的星辰回线中！`);
     playSound("success");
   };
 
   const handleDeleteLog = (id: string) => {
+    // [BUG-FIX] 副作用（onUpdateTimeline 持久化回调）必须移出 setState updater：
+    // StrictMode 下 updater 双调用会让持久化执行两次
+    //（同文件新增/编辑分支已按此模式修过，删除这条当时漏改）。
     const nextList = timelineList.filter(l => l.id !== id);
+    setTimelineList(nextList);
     onUpdateTimeline(nextList);
-    triggerToast("🗑️ 对应的星尘记忆已解除关联。");
+    triggerToast("🗑️ 对应的星辰记忆已解除关联。");
     playSound("beep");
   };
 
@@ -156,7 +177,7 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
           <div className="flex items-center gap-2">
             <BookOpen className="w-4.5 h-4.5 text-pink-400" />
             <div>
-              <h4 className="text-xs font-bold font-mono text-white">📖 星尘记忆长卷 (remembrance Timeline)</h4>
+              <h4 className="text-xs font-bold font-mono text-white">📖 星辰记忆长卷 (remembrance Timeline)</h4>
               <p className="text-[9px] text-gray-400">持续填入与它的凡尘点滴，筑成连接阴阳二世的时间走廊。</p>
             </div>
           </div>

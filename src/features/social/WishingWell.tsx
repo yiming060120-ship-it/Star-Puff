@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { Sparkles, Send, Coins, Compass, Heart, HeartOff, User, MessageCircle, HelpCircle } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+// [CLEANUP] 已移除 3 个未使用的图标导入：HeartOff / MessageCircle / HelpCircle
+import { Sparkles, Send, Coins, Compass, Heart, User } from "lucide-react";
 import { playSound } from "../../audio/AudioSynth";
 
 interface WishingWellProps {
@@ -28,13 +29,65 @@ const INITIAL_BOTTLES: WishBottle[] = [
   { id: "wb_5", senderName: "七七爸", petName: "糯米", petType: "兔", message: "糯米糯米！爸爸在双子座沙滩给你洒了大把大把甜苜蓿草！快去吃，别被别的小猫抢走啦。", blessingsCount: 37, date: "半天前" }
 ];
 
+// [BUG-FIX] 许愿池数据持久化：原本 blessedIds / mySentWishes 全靠组件内存态，
+// 切 Tab 或刷新页面后组件重建即失效 —— 花 200 币投的漂流瓶凭空消失，
+// 且同一批瓶子可反复祝福无限刷币（经济系统崩坏）。改为落 localStorage。
+const BLESSED_KEY = "starpuff_wish_blessed";
+const SENT_KEY = "starpuff_wish_sent";
+
+const loadBlessedIds = (): string[] => {
+  try {
+    const raw = localStorage.getItem(BLESSED_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+const loadSentWishes = (): WishBottle[] => {
+  try {
+    const raw = localStorage.getItem(SENT_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+};
+
 export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast, isGodMode }: WishingWellProps) {
   const [myWishText, setMyWishText] = useState("");
   const [bottles, setBottles] = useState<WishBottle[]>(INITIAL_BOTTLES);
   const [currentRetrieved, setCurrentRetrieved] = useState<WishBottle | null>(null);
-  const [mySentWishes, setMySentWishes] = useState<WishBottle[]>([]);
-  const [blessedIds, setBlessedIds] = useState<string[]>([]);
+  const [mySentWishes, setMySentWishes] = useState<WishBottle[]>(loadSentWishes);
+  const [blessedIds, setBlessedIds] = useState<string[]>(loadBlessedIds);
   const [isSpinningWell, setIsSpinningWell] = useState(false);
+  // [BUG-FIX] 定时器句柄，卸载时统一清理
+  const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retrieveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // [BUG-FIX] 祝福防重入原子锁（Set），避免闭包快照 blessedIds 被双击绕过导致重复 +10 币。
+  // 初值从持久化数据恢复，否则切 Tab 重建组件后锁失效，可反复刷同一批瓶子。
+  const blessedIdsRef = useRef<Set<string>>(new Set(loadBlessedIds()));
+
+  // 持久化：祝福记录与已投递的漂流瓶
+  useEffect(() => {
+    try {
+      localStorage.setItem(BLESSED_KEY, JSON.stringify(blessedIds));
+    } catch (e) {}
+  }, [blessedIds]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(SENT_KEY, JSON.stringify(mySentWishes));
+    } catch (e) {}
+  }, [mySentWishes]);
+
+  // [BUG-FIX] 组件卸载时清理所有定时器
+  useEffect(() => {
+    return () => {
+      if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+      if (retrieveTimerRef.current) clearTimeout(retrieveTimerRef.current);
+    };
+  }, []);
 
   const handleThrowWish = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +96,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
     const cost = 200;
     if (stardustCoins < cost && !isGodMode) {
       playSound("beep");
-      triggerToast("❌ 您的星尘币不足 200 点，无法兑换【星尘许愿币】来扔漂流瓶。可在上帝模式下一键充值！");
+      triggerToast("❌ 您的星辰币不足 200 点，无法兑换【星辰许愿币】来扔漂流瓶。可在上帝模式下一键充值！");
       return;
     }
 
@@ -64,20 +117,24 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
 
     setMySentWishes(prev => [newBottle, ...prev]);
     setMyWishText("");
-    triggerToast("🌌 【温情流浪】您的思念之瓶已汇入星尘漩涡，在全银河星云漫游中...");
+    triggerToast("🌌 【温情流浪】您的思念之瓶已汇入星辰漩涡，在全银河星云漫游中...");
     
     // Simulating particle effect spin
     setIsSpinningWell(true);
-    setTimeout(() => {
+    if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+    spinTimerRef.current = setTimeout(() => {
       setIsSpinningWell(false);
+      spinTimerRef.current = null;
     }, 1800);
   };
 
   const handleRetrieveBottle = () => {
+    if (isSpinningWell) return; // 防重复点击
     playSound("bubble");
     setIsSpinningWell(true);
     
-    setTimeout(() => {
+    if (retrieveTimerRef.current) clearTimeout(retrieveTimerRef.current);
+    retrieveTimerRef.current = setTimeout(() => {
       setIsSpinningWell(false);
       // Pick a random bottle ensuring we don't repeat the current one immediately if possible
       const filtered = bottles.filter(b => b.id !== currentRetrieved?.id);
@@ -88,17 +145,21 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
       setCurrentRetrieved(chosen);
       playSound("success");
       triggerToast(`🎣 成功捞起一枚来自【${chosen.senderName}】写给小宠【${chosen.petName}】的思念之瓶！`);
+      retrieveTimerRef.current = null;
     }, 1200);
   };
 
   const handleBlessBottle = (bottleId: string) => {
+    // [BUG-FIX] 用 Set ref 做原子防重入，双击也不会重复发币
+    if (blessedIdsRef.current.has(bottleId)) return;
+    blessedIdsRef.current.add(bottleId);
     if (blessedIds.includes(bottleId)) return;
 
     playSound("success");
     setBlessedIds(p => [...p, bottleId]);
     
-    // Feed reward loop (+10 coins) for empathy
-    onUpdateCoins(10);
+    // [数值平衡] 祝福奖励 +10 → +2，避免无成本社交刷币（对比任务点赞才 +1）
+    onUpdateCoins(2);
     
     // Increment count locally
     setBottles(prev => prev.map(b => b.id === bottleId ? { ...b, blessingsCount: b.blessingsCount + 1 } : b));
@@ -106,7 +167,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
       setCurrentRetrieved(prev => prev ? { ...prev, blessingsCount: prev.blessingsCount + 1 } : null);
     }
     
-    triggerToast("💖 发出了一份【宇宙温柔拥抱】祝福！因传递爱意，获得星尘币 +10 ✨");
+    triggerToast("💖 发出了一份【宇宙温柔拥抱】祝福！因传递爱意，获得星辰币 +2 ✨");
   };
 
   return (
@@ -121,7 +182,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
           </div>
           <div>
             <h4 className="text-sm font-bold text-white tracking-widest font-sans flex items-center gap-1.5">
-              星尘许愿池 <span className="text-[10px] text-pink-300 font-mono font-normal">Wishing Well</span>
+              星辰许愿池 <span className="text-[10px] text-pink-300 font-mono font-normal">Wishing Well</span>
             </h4>
             <p className="text-[9px] text-gray-400 font-mono">星系各端的眷恋在此回响共鸣</p>
           </div>
@@ -129,7 +190,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-mono text-pink-400 bg-pink-500/10 border border-pink-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
             <Coins className="w-3 h-3 text-orange-400" />
-            思念瓶费用: {isGodMode ? "免费/上帝特权" : "200 星尘币/次"}
+            思念瓶费用: {isGodMode ? "免费/上帝特权" : "200 星辰币/次"}
           </span>
         </div>
       </div>
@@ -169,8 +230,10 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
             <div className="space-y-2">
               <div className="text-[10px] font-mono text-purple-300">📬 我的流浪星瓶 ({mySentWishes.length}) :</div>
               <div className="max-h-24 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-                {mySentWishes.map((w, idx) => (
-                  <div key={idx} className="bg-white/[0.02] border border-white/5 rounded-lg p-2 text-[10px] text-gray-400 hover:border-pink-500/10 transition-colors">
+                {/* [BUG-FIX] 新瓶子是 unshift 到列表开头的，用 index 作 key 会让所有元素的 key
+                    整体后移一位，导致每项都被销毁重建（状态/动画错乱）。改用瓶子自带 id。 */}
+                {mySentWishes.map((w) => (
+                  <div key={w.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-2 text-[10px] text-gray-400 hover:border-pink-500/10 transition-colors">
                     <div className="flex items-center justify-between font-mono text-[8px] text-gray-500 mb-0.5">
                       <span>🐾 飘往仙女座之桥</span>
                       <span>{w.date}</span>
@@ -220,7 +283,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
                   }`}
                 >
                   <Heart className={`w-3.5 h-3.5 ${blessedIds.includes(currentRetrieved.id) ? "fill-emerald-400" : "fill-pink-400"}`} />
-                  {blessedIds.includes(currentRetrieved.id) ? "已传递温暖" : "投喂思念拥抱 (+10⭐)"}
+                  {blessedIds.includes(currentRetrieved.id) ? "已传递温暖" : "投喂思念拥抱 (+2⭐)"}
                 </button>
 
                 <div className="text-[9px] font-mono text-gray-500">
@@ -249,7 +312,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
               {isSpinningWell ? (
                 <>
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping mr-1" />
-                  星尘捕捞网降射中...
+                  星辰捕捞网降射中...
                 </>
               ) : (
                 <>

@@ -1,10 +1,15 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, Suspense } from "react";
 import { PetConfig, PetType } from "../../types";
-import { Sparkles, Upload, Flame, Paintbrush, Heart, Music, Check } from "lucide-react";
-import { motion } from "motion/react";
+// [CLEANUP] 已移除 3 个未使用的图标：Music / Check；以及未使用的 motion 导入
+import { Sparkles, Upload, Flame, Paintbrush, Heart } from "lucide-react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, useGLTF } from "@react-three/drei";
+import { SPECIES_MODELS, getSpeciesModelPath } from "../../data/speciesModels";
 
 interface StardustCeremonyProps {
   onComplete: (config: PetConfig) => void;
+  /** 取消/退出升星仪式（用于"重新举行"场景，返回已有宠物；首次进入时无需传入） */
+  onCancel?: () => void;
   playSparkleSound?: () => void;
 }
 
@@ -14,32 +19,38 @@ const PRESET_PETS = [
     type: "狗" as PetType,
     breed: "萨摩耶",
     colors: ["#ffffff", "#f0e6ef", "#a3b18a", "#000000"],
-    img: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&q=80&w=200",
+    img: "/assets/images/unsplash/1548199973-03cce0bbc87b.jpg",
   },
   {
     name: "星蒲",
     type: "猫" as PetType,
     breed: "英短乳白",
     colors: ["#fad0a3", "#ffffff", "#8fa4b3", "#ff8ba7"],
-    img: "https://images.unsplash.com/photo-1574158622643-69d34d72650a?auto=format&fit=crop&q=80&w=200",
+    img: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
   },
   {
     name: "跳跳",
     type: "兔" as PetType,
     breed: "侏儒兔",
     colors: ["#deb887", "#f5deb3", "#fff0f5", "#a9a9a9"],
-    img: "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&q=80&w=200",
+    img: "/assets/images/unsplash/1585110396000-c9ffd4e4b308.jpg",
   },
   {
     name: "豆豆",
     type: "鸟" as PetType,
     breed: "玄凤鹦鹉",
     colors: ["#ffea00", "#ffffff", "#ff9100", "#757575"],
-    img: "https://images.unsplash.com/photo-1452570053594-1b985d6ea890?auto=format&fit=crop&q=80&w=200",
+    img: "/assets/images/unsplash/1452570053594-1b985d6ea890.jpg",
   },
 ];
 
-export default function StardustCeremony({ onComplete, playSparkleSound }: StardustCeremonyProps) {
+/** 按需加载的 3D 模型预览 */
+function ModelPreview({ modelPath }: { modelPath: string }) {
+  const { scene } = useGLTF(modelPath);
+  return <primitive object={scene} position={[0, 0, 0]} />;
+}
+
+export default function StardustCeremony({ onComplete, onCancel, playSparkleSound }: StardustCeremonyProps) {
   const [step, setStep] = useState<"info" | "analyze" | "constellation" | "crystallize">("info");
   
   // Form fields
@@ -48,6 +59,9 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
   const [ownerName, setOwnerName] = useState("");
   const [breed, setBreed] = useState("");
   const [passingDate, setPassingDate] = useState("2025-04-12");
+  // 3D 模型选择
+  const [modelFile, setModelFile] = useState<string>("");
+  const [previewModelPath, setPreviewModelPath] = useState<string | null>(null);
   const [hobbies, setHobbies] = useState("追逐星光, 捕蝴蝶, 窗台晒太阳");
   const [favoriteThings, setFavoriteThings] = useState("小鱼干罐头, 主人的摸摸, 暖暖的枕头");
   const [selectedPhoto, setSelectedPhoto] = useState<string>(PRESET_PETS[0].img);
@@ -66,6 +80,13 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
   const crystallizationRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
 
+  // [BUG-FIX] colorsList 提前声明：原声明位于 handlePhotoSelect 之后，存在 TDZ 隐患
+  // （虽然箭头函数延迟调用暂不报错，但重构后极易触发 ReferenceError）
+  const colorsList = ["#ffccd5", "#ffb3c1", "#ff85a1", "#f9bec7", "#fbc3bc", "#e8e8e4", "#d8e2dc", "#b6e2d3", "#faedcd", "#a8dadc", "#d8f3dc", "#00b4d8"];
+
+  // [BUG-FIX] 分析定时器句柄：组件卸载/重复点击时清理，避免 setState 泄漏
+  const analysisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Auto analyzer effect
   const handlePhotoSelect = (imgUrl: string, presetColors?: string[]) => {
     setSelectedPhoto(imgUrl);
@@ -76,12 +97,12 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
     }
   };
 
-  const colorsList = ["#ffccd5", "#ffb3c1", "#ff85a1", "#f9bec7", "#fbc3bc", "#e8e8e4", "#d8e2dc", "#b6e2d3", "#faedcd", "#a8dadc", "#d8f3dc", "#00b4d8"];
-
   // Analyze Step simulation
   const startAnalysis = () => {
     setAnalyzing(true);
-    setTimeout(() => {
+    // [BUG-FIX] 清除上一次未完成的定时器，防止重复点击产生多个定时器
+    if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
+    analysisTimerRef.current = setTimeout(() => {
       // Simulate color selection based on pet choices if not preset
       if (!PRESET_PETS.some(p => p.img === selectedPhoto)) {
         const list = ["猫", "兔", "鸟", "狗"];
@@ -96,8 +117,16 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
       setAnalyzing(false);
       setStep("analyze");
       if (playSparkleSound) playSparkleSound();
+      analysisTimerRef.current = null;
     }, 1800);
   };
+
+  // [BUG-FIX] 组件卸载时清理分析定时器
+  useEffect(() => {
+    return () => {
+      if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
+    };
+  }, []);
 
   // Base upload trigger
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,11 +172,12 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
     if (step === "constellation" && constellationCanvasRef.current) {
       const ctx = constellationCanvasRef.current.getContext("2d");
       if (ctx) {
-        ctx.clearRect(0, 0, 500, 400);
+        // [BUG-FIX] clearRect/fillRect 高度与 canvas 高度保持一致（350 而非 400）
+        ctx.clearRect(0, 0, 500, 350);
         
         // Draw space backgrounds
         ctx.fillStyle = "rgba(12, 6, 26, 0.4)";
-        ctx.fillRect(0, 0, 500, 400);
+        ctx.fillRect(0, 0, 500, 350);
 
         // Draw faint guide lines matching pet shape (e.g., puppy outline)
         ctx.beginPath();
@@ -399,7 +429,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
   const handleFinishAscension = () => {
     if (playSparkleSound) playSparkleSound();
     onComplete({
-      name: name || "星尘默影",
+      name: name || "星辰默影",
       type,
       ownerName: ownerName || "守护者",
       breed: breed || "可爱宝宝",
@@ -409,13 +439,28 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
       stardustMatrixHex: matrixHex,
       hobbies: hobbies.split(/[,，]/).map(s => s.trim()).filter(Boolean),
       favoriteThings: favoriteThings.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+      // 选中的 3D 模型（空则回退默认 pet.glb）
+      modelFile: modelFile || undefined,
     });
   };
 
   return (
     <div className="w-full bg-[#0c0624] text-gray-200 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative" id="stardust-ceremony-frame">
-      <div className="absolute top-0 right-0 p-4 font-mono text-[10px] text-indigo-400 pointer-events-none select-none z-10">
-        ASTROCADE RITUAL UT v3.5
+      <div className="absolute top-0 right-0 p-3 z-20 flex items-center gap-2">
+        <span className="font-sans text-[10px] text-indigo-400/70 pointer-events-none select-none">
+          ✨ 星辰升星仪式
+        </span>
+        {/* [BUG-FIX] 退出按钮：仅"重新举行"场景（onCancel 存在）显示，避免首次进入被强制走完仪式 */}
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-[10px] text-gray-500 hover:text-white border border-white/10 hover:border-white/30 rounded px-2 py-0.5 transition-colors"
+            title="退出升星仪式，返回已有宠物"
+          >
+            ✕ 退出
+          </button>
+        )}
       </div>
       
       {/* Step Indicators */}
@@ -424,7 +469,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
           1. 登记灵册
         </div>
         <div className={`flex-1 text-center py-1 transition-all ${step === "analyze" ? "text-indigo-400 border-b-2 border-indigo-400 font-bold" : "text-gray-500"}`}>
-          2. 星尘提取
+          2. 星辰提取
         </div>
         <div className={`flex-1 text-center py-1 transition-all ${step === "constellation" ? "text-cyan-400 border-b-2 border-cyan-400 font-bold" : "text-gray-500"}`}>
           3. 绘绘星轨
@@ -441,10 +486,10 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
             <div className="text-center max-w-sm mx-auto mb-6">
               <h3 className="text-lg font-bold text-pink-300 flex items-center justify-center gap-2">
                 <Sparkles className="w-5 h-5 text-pink-400" />
-                开启星尘升星仪式
+                开启星辰升星仪式
               </h3>
               <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                在这里，我们能引导逝去挚爱作别旧疾重获新生，将它们化作天空中一缕彩色像素发光星尘，常驻永远温暖的默影家宿。
+                在这里，我们能引导逝去挚爱作别旧疾重获新生，将它们化作天空中一缕彩色像素发光星辰，常驻永远温暖的默影家宿。
               </p>
             </div>
 
@@ -490,6 +535,56 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
                       className="w-full bg-[#120b2d] border border-slate-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-pink-500"
                     />
                   </div>
+                </div>
+
+                {/* 3D 高精模型选择 */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">
+                    ✨ 3D 高精模型（选择星辰宠物的立体形态）
+                  </label>
+                  {/* 预览区（按需加载） */}
+                  {previewModelPath && (
+                    <div className="h-40 bg-black/40 border border-purple-500/20 rounded-xl overflow-hidden relative">
+                      <Canvas camera={{ position: [0, 0, 4], fov: 45 }} className="w-full h-full" dpr={[1, 2]}>
+                        <ambientLight intensity={1.5} />
+                        <directionalLight position={[5, 5, 5]} intensity={1.5} />
+                        <Suspense fallback={null}>
+                          <ModelPreview modelPath={previewModelPath} />
+                        </Suspense>
+                        <OrbitControls enablePan={false} minDistance={1.5} maxDistance={8} />
+                      </Canvas>
+                    </div>
+                  )}
+                  {/* 模型卡片 */}
+                  <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
+                    {SPECIES_MODELS.map((m) => (
+                      <button
+                        key={m.file}
+                        type="button"
+                        onClick={() => {
+                          setModelFile(m.file);
+                          setPreviewModelPath(getSpeciesModelPath(m.file));
+                        }}
+                        title={`${m.label}（${m.file}）`}
+                        className={`p-1 rounded-lg border text-center transition-all overflow-hidden ${
+                          modelFile === m.file
+                            ? "border-pink-400 bg-pink-500/20 text-white ring-1 ring-pink-400"
+                            : "border-slate-700 bg-[#120b2d]/60 text-gray-400 hover:border-pink-400/50"
+                        }`}
+                      >
+                        <img
+                          src={m.thumbnail}
+                          alt={m.label}
+                          className="w-full aspect-square object-cover rounded mb-1 bg-[#1a1133]"
+                          loading="lazy"
+                        />
+                        <div className="text-[9px] font-bold leading-tight truncate">{m.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                  {modelFile && (
+                    <p className="text-[9px] text-pink-300">已选模型：{modelFile}（将在主页 3D 模式展示）</p>
+                  )}
                 </div>
 
                 <div>
@@ -573,7 +668,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
                   {analyzing && (
                     <div className="absolute inset-0 bg-[#0c061a]/90 flex flex-col items-center justify-center">
                       <div className="w-8 h-8 rounded-full border-4 border-t-pink-500 border-indigo-900 animate-spin mb-2"></div>
-                      <span className="text-xs text-pink-300 font-mono animate-pulse">Astrocade 像素色彩剥离...</span>
+                      <span className="text-xs text-pink-300 font-sans animate-pulse">正在温柔地提取它的星辰色系...</span>
                     </div>
                   )}
                 </div>
@@ -587,7 +682,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
                 onClick={startAnalysis}
                 className="bg-gradient-to-r from-pink-500 to-indigo-600 hover:from-pink-600 hover:to-indigo-700 disabled:from-slate-700 disabled:to-slate-800 text-white font-semibold py-2 px-6 rounded-lg text-sm shadow-lg flex items-center gap-2 transition-all disabled:cursor-not-allowed select-none"
               >
-                确定登记，提取星尘色系
+                确定登记，提取星辰色系
                 <Sparkles className="w-4 h-4" />
               </button>
             </div>
@@ -598,9 +693,9 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
         {step === "analyze" && (
           <div className="space-y-5 text-center" id="step-analyze-palette">
             <div className="max-w-sm mx-auto">
-              <h3 className="text-lg font-bold text-indigo-300">★ 提取结果：离散色彩光谱</h3>
+              <h3 className="text-lg font-bold text-indigo-300">★ 它的星辰色系</h3>
               <p className="text-xs text-gray-400 mt-1">
-                Astrocade 引擎已读取上传照片，并降低其饱和度生成了柔和的发光像素底色，避免高频刺眼配色伤害眼球。
+                从照片里，我们温柔地捕捉到了属于它的颜色，化作柔和的星辰底色。
               </p>
             </div>
 
@@ -669,7 +764,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
             <div className="text-center max-w-sm mx-auto">
               <h3 className="text-lg font-bold text-cyan-300">★ 绘制灵宿星座轨</h3>
               <p className="text-xs text-gray-400 mt-1">
-                按顺序依次点击夜空中的星尘微粒，连接发光灵线，在夜幕绘出【{name}】的微粒轮廓。
+                按顺序依次点击夜空中的星辰微粒，连接发光灵线，在夜幕绘出【{name}】的微粒轮廓。
               </p>
             </div>
 
@@ -678,7 +773,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
                 ref={constellationCanvasRef}
                 width={500}
                 height={350}
-                className="rounded-xl border border-[#1a123f] cursor-pointer bg-[#000]"
+                className="rounded-xl border border-[#1a123f] cursor-pointer bg-[#000] w-full max-w-[500px] h-auto"
                 id="constellation-puzzle-canvas"
               />
 
@@ -706,7 +801,7 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
             </div>
 
             <p className="text-center font-mono text-[10px] text-gray-400">
-              💡 提示：连接星光。全部连结完毕后即可启动“升星仪式”，让星粒子完成结晶汇聚！
+              💡 提示：连接星光。连结 5 个及以上星点即可启动“升星仪式”，让星粒子完成结晶汇聚！
             </p>
 
             <div className="pt-4 border-t border-slate-850 flex justify-between">
@@ -736,9 +831,9 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
         {step === "crystallize" && (
           <div className="space-y-4 text-center animate-fade-in" id="step-ascend-crystallize">
             <div className="max-w-sm mx-auto">
-              <h3 className="text-lg font-bold text-emerald-300">🌟 宇宙默影升星融合中...</h3>
+              <h3 className="text-lg font-bold text-emerald-300">🌟 星辰正在汇聚...</h3>
               <p className="text-xs text-gray-400 mt-1">
-                2D Canvas正在渲染。像素星尘粒子慢慢汇集，形成【{name}】在星河彼端的星尘体。
+                漫天的星辰正慢慢聚拢，化作【{name}】的模样，它要从星河的彼岸回到你身边了...
               </p>
             </div>
 
@@ -752,8 +847,8 @@ export default function StardustCeremony({ onComplete, playSparkleSound }: Stard
               />
               
               <div className="absolute bottom-5 inset-x-0 flex justify-center pointer-events-none">
-                <div className="bg-[#070316] border border-slate-800 text-[10px] font-mono px-3 py-1 rounded text-pink-400 scale-95 border-b-2">
-                  [ASTROCADE 2D CANVAS粒子重组 - 零硬件成本超流畅]
+                <div className="bg-[#070316]/80 border border-slate-800 text-[10px] font-sans px-3 py-1 rounded-full text-pink-300">
+                  ✨ 每一粒星辰，都是它想你的证明
                 </div>
               </div>
             </div>

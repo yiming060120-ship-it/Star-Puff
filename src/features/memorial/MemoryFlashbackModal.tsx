@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
-import { Camera, Sparkles, Heart, Gift, BookOpen, Download } from "lucide-react";
+// [CLEANUP] 已移除 3 个未使用的图标导入：Camera / Sparkles / Download
+import { Heart, Gift, BookOpen } from "lucide-react";
 
 export interface MemorySegment {
   id: string;
@@ -22,7 +23,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_sofa_sun",
     title: "沙发阳光下的呼噜午后",
-    image: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
     icon: "🌸",
     category: "猫",
     descriptionTemplate: (petName, ownerName) => 
@@ -31,7 +32,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_rainy_paw",
     title: "雨天归途与泥巴印章",
-    image: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
     icon: "🌧️",
     category: "狗",
     descriptionTemplate: (petName, ownerName) => 
@@ -40,16 +41,16 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_lettuce_snack",
     title: "厨房菜叶的一场小窃",
-    image: "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1585110396000-c9ffd4e4b308.jpg",
     icon: "🥬",
     category: "兔",
     descriptionTemplate: (petName, ownerName) => 
-      `每当你在厨房里忙活，发出洗菜煮饭的水声时，我便会飞快地踩着无声的碎步跑进门，扒拉着你的裤脚仰起头、探长小鼻子使劲呼哧。你总是会细心挑一瓣最嫩、洗得最干净的青菜叶子，弯下腰递进我嘴边的三瓣嘴里。接着，安静的厨房里就会响起节奏飞快、无比治愈的「沙沙沙」声。在这个星之海里，虽然有很多吃不完的发光星尘糖，可是它们谁也比不上当年你轻轻递过来、还带着清凉水珠的那口菜叶香甜。`
+      `每当你在厨房里忙活，发出洗菜煮饭的水声时，我便会飞快地踩着无声的碎步跑进门，扒拉着你的裤脚仰起头、探长小鼻子使劲呼哧。你总是会细心挑一瓣最嫩、洗得最干净的青菜叶子，弯下腰递进我嘴边的三瓣嘴里。接着，安静的厨房里就会响起节奏飞快、无比治愈的「沙沙沙」声。在这个星之海里，虽然有很多吃不完的发光星辰糖，可是它们谁也比不上当年你轻轻递过来、还带着清凉水珠的那口菜叶香甜。`
   },
   {
     id: "mem_shoulder_clock",
     title: "肩膀上的拂晓闹铃",
-    image: "https://images.unsplash.com/photo-1522850959516-58f958dde2c1?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1522850959516-58f958dde2c1.jpg",
     icon: "🌅",
     category: "鸟",
     descriptionTemplate: (petName, ownerName) => 
@@ -58,16 +59,16 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_palm_sunflower",
     title: "掌心毛毛球的葵心温存",
-    image: "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1425082661705-1834bfd09dca.jpg",
     icon: "🌻",
     category: "仓鼠",
     descriptionTemplate: (petName, ownerName) => 
-      `我一生中最中意的事，就是被你用两手掌交叠呵护起来，在暖洋洋的摩擦温存下，把自己缩成一只安宁无防备的小毛球。你总喜欢挑一颗长得顶饱饱的葵花籽喂给我。我急吼吼地两颊鼓胀，像个塞满坚果的大皮箱，滑稽的样子总能逗得你开心大笑。虽然在这个星尘银河，我的寿命和时间比起你们是如此短暂，但在${ownerName}掌心暖意里的数个春秋里，每一天我得到的那份欢愉和充实，都重重地填满了${petName}微小却最明亮的一生。`
+      `我一生中最中意的事，就是被你用两手掌交叠呵护起来，在暖洋洋的摩擦温存下，把自己缩成一只安宁无防备的小毛球。你总喜欢挑一颗长得顶饱饱的葵花籽喂给我。我急吼吼地两颊鼓胀，像个塞满坚果的大皮箱，滑稽的样子总能逗得你开心大笑。虽然在这个星辰银河，我的寿命和时间比起你们是如此短暂，但在${ownerName}掌心暖意里的数个春秋里，每一天我得到的那份欢愉和充实，都重重地填满了${petName}微小却最明亮的一生。`
   },
   {
     id: "mem_deskside_watcher",
     title: "熬夜书桌旁的黑夜伙伴",
-    image: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1518791841217-8f162f1e1131.jpg",
     icon: "💻",
     category: "通用",
     descriptionTemplate: (petName, ownerName) => 
@@ -76,7 +77,7 @@ export const PET_MEMORIES: MemorySegment[] = [
   {
     id: "mem_first_meet",
     title: "初次相见的悸动礼赞",
-    image: "https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&q=80&w=500",
+    image: "/assets/images/unsplash/1517849845537-4d257902454a.jpg",
     icon: "🤝",
     category: "通用",
     descriptionTemplate: (petName, ownerName) => 
@@ -95,6 +96,15 @@ export default function MemoryFlashbackModal({ petConfig, onClose, onCollectRewa
   const [activeMemory, setActiveMemory] = useState<MemorySegment | null>(null);
   const [stardustGlowVal, setStardustGlowVal] = useState(0);
   const [hasCollected, setHasCollected] = useState(false);
+
+  // [BUG-FIX] 粒子位置用 useMemo 缓存，避免每次重渲染（stardustGlowVal 变化）都重新 Math.random 导致闪烁
+  const sparkParticles = useMemo(() => {
+    return Array.from({ length: 12 }, () => ({
+      top: Math.random() * 85 + 5,
+      left: Math.random() * 90 + 5,
+      scale: 0.5 + Math.random(),
+    }));
+  }, []);
 
   useEffect(() => {
     playSound("chime");
@@ -148,14 +158,14 @@ export default function MemoryFlashbackModal({ petConfig, onClose, onCollectRewa
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-1/4 left-1/5 w-60 h-60 rounded-full bg-pink-500/10 blur-3xl animate-pulse" />
         <div className="absolute bottom-1/4 right-1/5 w-72 h-72 rounded-full bg-purple-500/10 blur-3xl animate-pulse" />
-        {[...Array(12)].map((_, i) => (
+        {sparkParticles.map((spark, i) => (
           <span
             key={i}
             className="absolute text-[8px] opacity-20 animate-bounce"
             style={{
-              top: `${Math.random() * 85 + 5}%`,
-              left: `${Math.random() * 90 + 5}%`,
-              transform: `scale(${0.5 + Math.random()}) rotate(${stardustGlowVal}deg)`,
+              top: `${spark.top}%`,
+              left: `${spark.left}%`,
+              transform: `scale(${spark.scale}) rotate(${stardustGlowVal}deg)`,
               color: petConfig.primaryColor,
               animationDelay: `${i * 0.3}s`
             }}
@@ -217,7 +227,7 @@ export default function MemoryFlashbackModal({ petConfig, onClose, onCollectRewa
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#130722]/80 border border-white/5 p-3 rounded-2xl">
             <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-mono">
               <ChipElement color={petConfig.secondaryColor} text={activeMemory.category + "系萌物记忆"} />
-              <span>星屑尘埃重聚 +25 星尘币</span>
+              <span>星屑尘埃重聚 +25 星辰币</span>
             </div>
             
             {/* Memory Rewards Trigger Button */}

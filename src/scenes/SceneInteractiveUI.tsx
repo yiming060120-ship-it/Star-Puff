@@ -1,20 +1,94 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Sprout, Droplets, Store, BookOpen, Shell, Map as MapIcon, Crown, Clock, Zap, Coffee, Flame, Moon, Sun, Book, ArrowRight, Compass, Shield, Scissors } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+// [CLEANUP] 已移除 10 个未使用的图标：Sprout / Shell / Crown / Clock / Coffee /
+// Moon / Sun / ArrowRight / Shield / Scissors
+import { Sparkles, Droplets, Store, BookOpen, Map as MapIcon, Zap, Flame, Book, Compass } from 'lucide-react';
 import { playSound } from '../audio/AudioSynth';
 
 interface SceneInteractiveUIProps {
   sceneId: string;
   addLog: (msg: string) => void;
   onGrantCoins: (amount: number) => void;
+  onSpendCoins?: (amount: number) => boolean; // 返回是否扣款成功（余额不足返回 false）
+  initialCoins?: number;
 }
 
-export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId, addLog, onGrantCoins }) => {
-  const [coins, setCoins] = useState(100);
+export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId, addLog, onGrantCoins, onSpendCoins, initialCoins }) => {
+  const [coins, setCoins] = useState(initialCoins ?? 100);
+  // [BUG-FIX] 探索次数按「日期」持久化，防止切 Tab 卸载组件后 exploreCount 归零 → 无限"四处探索 +10 币"
+  const EXPLORE_LIMIT = 3;
+  const [exploreCount, setExploreCount] = useState(0);
+  const exploreDateRef = useRef("");
+  useEffect(() => {
+    // 读取今日已探索次数
+    const today = new Date().toDateString();
+    exploreDateRef.current = today;
+    try {
+      const saved = localStorage.getItem("starpuff_explore_count");
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed && parsed.date === today) {
+        setExploreCount(parsed.count || 0);
+      } else {
+        setExploreCount(0);
+      }
+    } catch {
+      setExploreCount(0);
+    }
+  }, []);
+
+  // [BUG-FIX] 本地 coins 仅作"显示镜像"，单向跟随全局 stardustCoins（initialCoins），
+  // 消除双账本不同步问题。所有交易只通过 onGrantCoins/onSpendCoins 操作全局唯一权威。
+  useEffect(() => {
+    setCoins(initialCoins ?? 100);
+  }, [initialCoins]);
   
   // === ROSE PARK (Farming & Harvesting) ===
-  const [bed, setBed] = useState<{type: string, state: number, time: number}[]>(Array(6).fill({type: 'none', state: 0, time: 0}));
-  const [inventory, setInventory] = useState({ roseSeed: 5, starSeed: 2, magicWater: 3, flowers: 0 });
-  const [activeSeed, setActiveSeed] = useState<'roseSeed'|'starSeed'|null>('roseSeed');
+  // [BUG-FIX] 花圃土地与背包此前是纯内存态，刷新页面即重置回初始（5 玫瑰 + 2 星光种子 + 3 泉水），
+  // 玩家可「种星光种子 → 收获 +30 币 → 刷新重来」无限刷币。改为落 localStorage 持久化，
+  // 用完后只能靠每日免费物资补充。
+  const GARDEN_BED_KEY = "starpuff_garden_bed";
+  const GARDEN_INV_KEY = "starpuff_garden_inventory";
+
+  const loadGardenBed = (): { type: string; state: number; time: number }[] => {
+    try {
+      const raw = localStorage.getItem(GARDEN_BED_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length === 6) return parsed;
+      }
+    } catch { /* 忽略损坏数据 */ }
+    return Array(6).fill({ type: "none", state: 0, time: 0 });
+  };
+
+  const loadGardenInventory = () => {
+    const defaults = { roseSeed: 5, starSeed: 2, magicWater: 3, flowers: 0 };
+    try {
+      const raw = localStorage.getItem(GARDEN_INV_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          return {
+            roseSeed: typeof parsed.roseSeed === "number" ? parsed.roseSeed : defaults.roseSeed,
+            starSeed: typeof parsed.starSeed === "number" ? parsed.starSeed : defaults.starSeed,
+            magicWater: typeof parsed.magicWater === "number" ? parsed.magicWater : defaults.magicWater,
+            flowers: typeof parsed.flowers === "number" ? parsed.flowers : defaults.flowers,
+          };
+        }
+      }
+    } catch { /* 忽略损坏数据 */ }
+    return defaults;
+  };
+
+  const [bed, setBed] = useState<{ type: string; state: number; time: number }[]>(loadGardenBed);
+  const [inventory, setInventory] = useState(loadGardenInventory);
+  const [activeSeed, setActiveSeed] = useState<"roseSeed" | "starSeed" | null>("roseSeed");
+
+  // [BUG-FIX] 花圃数据持久化写回（土地 + 背包）
+  useEffect(() => {
+    try { localStorage.setItem(GARDEN_BED_KEY, JSON.stringify(bed)); } catch { /* 忽略存储失败 */ }
+  }, [bed]);
+  useEffect(() => {
+    try { localStorage.setItem(GARDEN_INV_KEY, JSON.stringify(inventory)); } catch { /* 忽略存储失败 */ }
+  }, [inventory]);
 
   const plantSeed = (idx: number) => {
     if (bed[idx].state === 0 && activeSeed && inventory[activeSeed] > 0) {
@@ -32,10 +106,9 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
       setBed(newBed);
       
       const reward = type === 'roseSeed' ? 10 : 30;
-      setCoins(c => c + reward);
       onGrantCoins(reward);
       setInventory(prev => ({ ...prev, flowers: prev.flowers + 1 }));
-      addLog(`✨ 收获了盛开的花朵！获得 ${reward} 星尘币`);
+      addLog(`✨ 收获了盛开的花朵！获得 ${reward} 星辰币`);
       playSound("chime");
     }
   };
@@ -58,30 +131,74 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   // === VEGA TOWN (Baking & Shop Management) ===
   const [shopLevel, setShopLevel] = useState(1);
   const [breads, setBreads] = useState({ croissant: 0, starCake: 0 });
-  const [bakingTask, setBakingTask] = useState<{type: string, timeLeft: number} | null>(null);
+  const [bakingTask, setBakingTask] = useState<{type: string, timeLeft: number, total: number} | null>(null);
 
+  // [BUG-FIX] 烘焙此前零成本、无次数限制，5s/10s 出糕即可无限卖钱刷币。
+  // 改为：烘焙需消耗材料费（牛角包 8 币 / 蛋糕 25 币）+ 每日限产 6 次（localStorage 持久化）。
+  const BAKE_LIMIT = 6;
+  const BAKE_COST = { croissant: 8, starCake: 25 } as const;
+  const [bakeCount, setBakeCount] = useState(0);
+  const bakeDateRef = useRef("");
   useEffect(() => {
-    if (!bakingTask) return;
+    const today = new Date().toDateString();
+    bakeDateRef.current = today;
+    try {
+      const saved = localStorage.getItem("starpuff_bake_count");
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed && parsed.date === today) setBakeCount(parsed.count || 0);
+      else setBakeCount(0);
+    } catch { setBakeCount(0); }
+  }, []);
+
+  // [BUG-FIX] 倒计时只做纯计数，依赖改为「是否在烘焙中」而非整个 bakingTask。
+  // 原实现依赖整个 bakingTask，导致每秒变化都重建 interval（计时漂移）。
+  const isBaking = bakingTask !== null;
+  useEffect(() => {
+    if (!isBaking) return;
     const interval = setInterval(() => {
-      setBakingTask(prev => {
-        if (!prev) return null;
-        if (prev.timeLeft <= 1) {
-          setBreads(b => ({ ...b, [prev.type]: b[prev.type as keyof typeof b] + 1 }));
-          addLog(`🍞 ${prev.type === 'croissant' ? '星空牛角包' : '星云蛋糕'} 烘焙完成！`);
-          playSound("chime");
-          return null;
-        }
-        return { ...prev, timeLeft: prev.timeLeft - 1 };
-      });
+      setBakingTask(prev => (!prev ? null : { ...prev, timeLeft: prev.timeLeft - 1 }));
     }, 1000);
     return () => clearInterval(interval);
+  }, [isBaking]);
+
+  // [BUG-FIX] 产出/日志/音效原本写在 setBakingTask 的 updater 内部，
+  // StrictMode 下 updater 会被双调用 → 烤 1 个面包实际产出 2 个、音效叠放。
+  // 改为在 updater 外由独立 effect 负责，并用 ref 防重入。
+  const bakedRef = useRef(false);
+  useEffect(() => {
+    if (!bakingTask) {
+      bakedRef.current = false;
+      return;
+    }
+    if (bakingTask.timeLeft > 0 || bakedRef.current) return;
+    bakedRef.current = true;
+    setBreads(b => ({ ...b, [bakingTask.type]: (b[bakingTask.type as keyof typeof b] ?? 0) + 1 }));
+    addLog(`🍞 ${bakingTask.type === 'croissant' ? '星空牛角包' : '星云蛋糕'} 烘焙完成！`);
+    playSound("chime");
+    setBakingTask(null);
   }, [bakingTask, addLog]);
 
   const startBaking = (type: 'croissant' | 'starCake') => {
     if (bakingTask) return addLog("⚠️ 烤箱正在使用中！");
     if (type === 'starCake' && shopLevel < 2) return addLog("⚠️ 商店需要达到2级才能制作蛋糕！");
-    setBakingTask({ type, timeLeft: type === 'croissant' ? 5 : 10 });
-    addLog(`🔥 开始烘焙 ${type === 'croissant' ? '牛角包' : '蛋糕'}...`);
+    if (bakeCount >= BAKE_LIMIT) {
+      addLog("🛑 今日烘焙次数已用完，明天再来吧～");
+      playSound("beep");
+      return;
+    }
+    const cost = BAKE_COST[type];
+    // 扣除材料费（余额不足则中止）
+    if (onSpendCoins && !onSpendCoins(cost)) {
+      addLog(`⚠️ 星辰币不足，烘焙需要 ${cost} 币材料费。`);
+      playSound("beep");
+      return;
+    }
+    const total = type === 'croissant' ? 5 : 10;
+    const next = bakeCount + 1;
+    setBakeCount(next);
+    try { localStorage.setItem("starpuff_bake_count", JSON.stringify({ date: bakeDateRef.current, count: next })); } catch {}
+    setBakingTask({ type, timeLeft: total, total });
+    addLog(`🔥 花费 ${cost} 币材料费，开始烘焙 ${type === 'croissant' ? '牛角包' : '蛋糕'}...`);
     playSound("click");
   };
 
@@ -91,10 +208,9 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
     if (breads.starCake > 0) total += breads.starCake * 40;
     
     if (total > 0) {
-      setCoins(c => c + total);
       onGrantCoins(total);
       setBreads({ croissant: 0, starCake: 0 });
-      addLog(`💰 卖出了所有糕点，获得 ${total} 星尘币！`);
+      addLog(`💰 卖出了所有糕点，获得 ${total} 星辰币！`);
       playSound("sparkle");
     } else {
       addLog("ℹ️ 货架上没有糕点可卖，快去烘焙吧！");
@@ -103,49 +219,107 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
 
   const upgradeShop = () => {
     if (shopLevel >= 2) return addLog("ℹ️ 商店已满级！");
-    if (coins >= 200) {
-      setCoins(c => c - 200);
-      setShopLevel(2);
-      addLog("🎊 花费 200 星尘币，商店升级成功！解锁新食谱！");
-      playSound("chime");
-    } else {
-      addLog("⚠️ 星尘币不足，需要 200 星尘币升级。");
+    if (coins < 200) {
+      addLog("⚠️ 星辰币不足，需要 200 星辰币升级。");
+      playSound("beep");
+      return;
     }
+    // 同步扣全局星辰币
+    if (onSpendCoins && !onSpendCoins(200)) {
+      addLog("⚠️ 星辰币不足，需要 200 星辰币升级。");
+      playSound("beep");
+      return;
+    }
+    setShopLevel(2);
+    addLog("🎊 花费 200 星辰币，商店升级成功！解锁新食谱！");
+    playSound("chime");
   };
 
   // === COMET TRACK (Pet Training & Racing) ===
   const [petStats, setPetStats] = useState({ speed: 10, stamina: 10 });
   const [raceActive, setRaceActive] = useState(false);
 
+  // [BUG-FIX] 竞速此前无报名费、无次数限制，初始属性永远稳拿亚军 +30 币，可每 5 秒无限刷。
+  // 改为：报名费 20 币 + 每日限 3 次（localStorage 持久化）。
+  const RACE_LIMIT = 3;
+  const RACE_ENTRY_FEE = 20;
+  const [raceCount, setRaceCount] = useState(0);
+  const raceDateRef = useRef("");
+  useEffect(() => {
+    const today = new Date().toDateString();
+    raceDateRef.current = today;
+    try {
+      const saved = localStorage.getItem("starpuff_race_count");
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed && parsed.date === today) setRaceCount(parsed.count || 0);
+      else setRaceCount(0);
+    } catch { setRaceCount(0); }
+  }, []);
+
   const trainPet = (stat: 'speed' | 'stamina') => {
-    if (coins >= 20) {
-      setCoins(c => c - 20);
-      setPetStats(prev => ({ ...prev, [stat]: prev[stat] + Math.floor(Math.random() * 3) + 1 }));
-      addLog(`🏃 训练结束！宠物消耗 20 币，${stat === 'speed' ? '速度' : '耐力'}提升了！`);
-      playSound("click");
-    } else {
-      addLog("⚠️ 星尘币不足 20，无法进行训练。");
+    if (coins < 20) {
+      addLog("⚠️ 星辰币不足 20，无法进行训练。");
+      playSound("beep");
+      return;
     }
+    // 同步扣全局星辰币
+    if (onSpendCoins && !onSpendCoins(20)) {
+      addLog("⚠️ 星辰币不足，无法进行训练。");
+      playSound("beep");
+      return;
+    }
+    setPetStats(prev => ({ ...prev, [stat]: prev[stat] + Math.floor(Math.random() * 3) + 1 }));
+    addLog(`🏃 训练结束！宠物消耗 20 币，${stat === 'speed' ? '速度' : '耐力'}提升了！`);
+    playSound("click");
   };
+
+  // [BUG-FIX] 定时器句柄 + petStats 最新值 ref（避免卸载后 setState 泄漏 + 闭包旧值）
+  const raceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const petStatsRef = useRef(petStats);
+  petStatsRef.current = petStats;
+
+  // [BUG-FIX] 组件卸载时清理所有定时器
+  useEffect(() => {
+    return () => {
+      if (raceTimerRef.current) clearTimeout(raceTimerRef.current);
+      if (bookTimerRef.current) clearTimeout(bookTimerRef.current);
+    };
+  }, []);
 
   const enterRace = () => {
     if (raceActive) return;
+    if (raceCount >= RACE_LIMIT) {
+      addLog("🏁 今日参赛次数已用完，明天再来吧～");
+      playSound("beep");
+      return;
+    }
+    if (onSpendCoins && !onSpendCoins(RACE_ENTRY_FEE)) {
+      addLog(`⚠️ 报名费不足，参赛需要 ${RACE_ENTRY_FEE} 星辰币。`);
+      playSound("beep");
+      return;
+    }
+    const next = raceCount + 1;
+    setRaceCount(next);
+    try { localStorage.setItem("starpuff_race_count", JSON.stringify({ date: raceDateRef.current, count: next })); } catch {}
     setRaceActive(true);
-    addLog("🏁 彗星杯竞速赛正式开始！");
+    addLog(`🏁 支付 ${RACE_ENTRY_FEE} 币报名费，彗星杯竞速赛正式开始！`);
     playSound("click");
     
-    setTimeout(() => {
+    // 用 ref 读取最新 petStats，避免闭包捕获旧值
+    raceTimerRef.current = setTimeout(() => {
       setRaceActive(false);
-      const score = (petStats.speed * 1.5) + petStats.stamina + (Math.random() * 10);
-      if (score > 40) {
-        setCoins(c => c + 100);
+      const latest = petStatsRef.current;
+      const score = (latest.speed * 1.5) + latest.stamina + (Math.random() * 10);
+      // [数值平衡] 初始 speed 10 + stamina 10 → 基础分 25，随机 0-10 → 25~35。
+      // 原冠军阈值 >40 初始永远达不到（伪目标），调整为 >35（训练 2-3 次即可冲击冠军）。
+      if (score > 35) {
         onGrantCoins(100);
-        addLog("🏆 你的宠物获得了冠军！奖励 100 星尘币！");
+        addLog("🏆 你的宠物获得了冠军！奖励 100 星辰币！");
         playSound("chime");
-      } else if (score > 25) {
-        setCoins(c => c + 30);
+      } else if (score > 22) {
         onGrantCoins(30);
-        addLog("🥈 你的宠物获得了亚军！奖励 30 星尘币。");
+        addLog("🥈 你的宠物获得了亚军！奖励 30 星辰币。");
       } else {
         addLog("💨 你的宠物未能进入前三，继续训练吧！");
       }
@@ -158,7 +332,7 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
 
   const readBook = () => {
     addLog("📖 正在翻阅古老的星际文献...");
-    setTimeout(() => {
+    bookTimerRef.current = setTimeout(() => {
       const points = Math.floor(Math.random() * 5) + 2;
       setResearchPoints(rp => rp + points);
       addLog(`💡 获得了 ${points} 点研究点数！`);
@@ -167,31 +341,36 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
   };
 
   const unlockLore = () => {
-    if (researchPoints >= 20) {
-      setResearchPoints(rp => rp - 20);
-      const lorePieces = ["星尘的起源是远古超新星的叹息。", "双子座沙滩的沙子其实是碎裂的时空结晶。", "森林深处沉睡着第一代星际漫游者。"];
-      const newLore = lorePieces[unlockedLore.length % lorePieces.length];
-      if (!unlockedLore.includes(newLore)) {
-        setUnlockedLore([...unlockedLore, newLore]);
-        addLog(`📜 解锁了新的世界秘闻：${newLore}`);
-        playSound("chime");
-      } else {
-        addLog("📚 当前暂无更多秘闻可解锁。");
-      }
-    } else {
+    if (researchPoints < 20) {
       addLog("⚠️ 需要 20 点研究点数才能解锁秘闻。");
+      return;
     }
+    const lorePieces = ["星辰的起源是远古超新星的叹息。", "双子座沙滩的沙子其实是碎裂的时空结晶。", "森林深处沉睡着第一代星际漫游者。"];
+    // 先找出尚未解锁的秘闻，避免「扣点但无产出」
+    const lockedLore = lorePieces.filter(l => !unlockedLore.includes(l));
+    if (lockedLore.length === 0) {
+      addLog("📚 所有秘闻都已解锁完毕啦！");
+      playSound("click");
+      return;
+    }
+    const newLore = lockedLore[0];
+    setResearchPoints(rp => rp - 20);
+    setUnlockedLore([...unlockedLore, newLore]);
+    addLog(`📜 解锁了新的世界秘闻：${newLore}`);
+    playSound("chime");
   };
 
   return (
-    <div className="w-full bg-slate-900/60 border border-indigo-500/30 rounded-xl p-4 backdrop-blur-md mt-4 shadow-xl">
+    <div className="w-full bg-[#140e30]/85 border border-indigo-400/25 rounded-2xl p-4 backdrop-blur-md mt-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
       {/* Universal Header */}
-      <div className="flex items-center justify-between border-b border-indigo-500/30 pb-3 mb-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-indigo-400" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            {sceneId === 'rose' && "星云花圃管理"}
-            {sceneId === 'vega' && "星尘面包店"}
+      <div className="flex items-center justify-between border-b border-indigo-400/20 pb-3 mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-400/30 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-indigo-300" />
+          </div>
+          <h3 className="text-sm font-bold text-white tracking-wide font-sans">
+            {sceneId === 'rose' && "星云花圃"}
+            {sceneId === 'vega' && "星辰面包店"}
             {sceneId === 'comet' && "彗星竞速中心"}
             {sceneId === 'library' && "银河图书馆"}
             {sceneId === 'gemini' && "双子座海滨浴场"}
@@ -199,11 +378,10 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
             {sceneId === 'orion' && "猎户座秘境探险"}
           </h3>
         </div>
-        <div className="flex items-center gap-4">
-           <div className="flex flex-col items-end">
-             <span className="text-[10px] text-white/50">资产</span>
-             <span className="text-sm font-bold text-amber-400 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5"/> {coins}</span>
-           </div>
+        <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-full px-3 py-1.5">
+           <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+           <span className="text-sm font-bold text-amber-300 font-sans">{coins}</span>
+           <span className="text-[10px] text-white/40">星辰币</span>
         </div>
       </div>
 
@@ -245,8 +423,24 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
                   <span>x{inventory.magicWater}</span>
                 </div>
              </div>
-             <button className="py-2 bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/40 hover:to-purple-500/40 border border-pink-500/50 rounded-lg text-xs font-bold text-pink-200 transition-colors">
-               去商店购买物资
+             <button
+               onClick={() => {
+                 // [BUG-FIX] 免费物资每日限领 1 次，否则「星光种子种出 +30 币」可无限刷币
+                 const today = new Date().toDateString();
+                 const lastFree = localStorage.getItem("starpuff_free_supply_date");
+                 if (lastFree === today) {
+                   addLog("🛒 今日免费物资已领取过啦，明天再来吧～");
+                   playSound("beep");
+                   return;
+                 }
+                 localStorage.setItem("starpuff_free_supply_date", today);
+                 setInventory(prev => ({ ...prev, roseSeed: prev.roseSeed + 5, starSeed: prev.starSeed + 2, magicWater: prev.magicWater + 3 }));
+                 addLog("🛒 补充了玫瑰种子 x5、星光种子 x2、魔法泉水 x3！");
+                 playSound("sparkle");
+               }}
+               className="py-2 bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/40 hover:to-purple-500/40 border border-pink-500/50 rounded-lg text-xs font-bold text-pink-200 transition-all hover:scale-105 active:scale-95"
+             >
+               领取免费物资
              </button>
           </div>
         </div>
@@ -257,25 +451,30 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
         <div className="flex gap-6">
            <div className="flex-1 bg-black/40 rounded-lg p-4 border border-white/5">
               <div className="flex justify-between items-center mb-4">
-                 <div className="text-sm font-bold text-orange-400 flex items-center gap-2"><Store className="w-4 h-4"/> 烘焙坊 Lv.{shopLevel}</div>
-                 {shopLevel < 2 && <button onClick={upgradeShop} className="text-xs bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 px-2 py-1 rounded border border-yellow-500/50 transition-colors">200币 升级商店</button>}
+                 <div className="text-sm font-bold text-orange-400 flex items-center gap-2 font-sans"><Store className="w-4 h-4"/> 烘焙坊 · {shopLevel} 级 <span className="text-[10px] font-mono text-orange-300/60 font-normal">(今日剩 {Math.max(0, BAKE_LIMIT - bakeCount)} 次)</span></div>
+                 {shopLevel < 2 && <button onClick={upgradeShop} className="text-xs bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 px-2.5 py-1 rounded-full border border-yellow-500/50 transition-colors">200 币升级</button>}
               </div>
               <div className="flex gap-4">
-                 <button onClick={() => startBaking('croissant')} disabled={!!bakingTask} className="flex-1 py-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-colors">
+                 <button onClick={() => startBaking('croissant')} disabled={!!bakingTask} className="flex-1 py-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-all hover:scale-[1.03] active:scale-95">
                     <span className="text-2xl">🥐</span>
                     <span className="text-xs text-orange-200">制作牛角包 (5s)</span>
+                    <span className="text-[10px] text-orange-300/70 font-mono">-8 币材料费</span>
                  </button>
-                 <button onClick={() => startBaking('starCake')} disabled={!!bakingTask || shopLevel < 2} className="flex-1 py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-colors relative">
-                    {shopLevel < 2 && <div className="absolute top-1 right-2 text-[10px] text-red-400">需Lv.2</div>}
+                 <button onClick={() => startBaking('starCake')} disabled={!!bakingTask || shopLevel < 2} className="flex-1 py-4 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl flex flex-col items-center justify-center gap-2 disabled:opacity-50 transition-all hover:scale-[1.03] active:scale-95 relative">
+                    {shopLevel < 2 && <div className="absolute top-1 right-2 text-[10px] text-red-400">需 2 级</div>}
                     <span className="text-2xl">🍰</span>
                     <span className="text-xs text-fuchsia-200">制作星云蛋糕 (10s)</span>
+                    <span className="text-[10px] text-fuchsia-300/70 font-mono">-25 币材料费</span>
                  </button>
               </div>
               {bakingTask && (
                  <div className="mt-4 bg-white/5 rounded-lg p-2 flex items-center gap-3">
                     <Flame className="w-4 h-4 text-orange-500 animate-pulse" />
                     <div className="flex-1 h-2 bg-black rounded-full overflow-hidden">
-                       <div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${((bakingTask.timeLeft === 10 ? 10 : 5 - bakingTask.timeLeft) / (bakingTask.type === 'croissant' ? 5 : 10)) * 100}%` }} />
+                       {/* [BUG-FIX] 原公式分子写死 5 秒且对 timeLeft===10 特判成满格，
+                           导致星云蛋糕(10s) 一开始就是 100% 随后变负数、牛角包(5s) 最多只到 80%。
+                           改为与时长无关的通用公式。 */}
+                       <div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${((bakingTask.total - bakingTask.timeLeft) / bakingTask.total) * 100}%` }} />
                     </div>
                     <span className="text-xs text-white/50">{bakingTask.timeLeft}s</span>
                  </div>
@@ -301,16 +500,16 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
               <div className="bg-black/40 rounded-lg p-4 border border-white/5">
                  <div className="text-xs text-cyan-400 mb-3 font-bold flex items-center gap-2"><Zap className="w-4 h-4"/> 宠物特训</div>
                  <div className="flex gap-4">
-                    <button onClick={() => trainPet('speed')} className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg flex flex-col items-center gap-1 transition-colors">
+                    <button onClick={() => trainPet('speed')} className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg flex flex-col items-center gap-1 transition-all hover:scale-[1.03] active:scale-95">
                        <span className="text-xs text-blue-200">🏃 速度特训 (-20币)</span>
                     </button>
-                    <button onClick={() => trainPet('stamina')} className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg flex flex-col items-center gap-1 transition-colors">
+                    <button onClick={() => trainPet('stamina')} className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg flex flex-col items-center gap-1 transition-all hover:scale-[1.03] active:scale-95">
                        <span className="text-xs text-emerald-200">🛡️ 耐力特训 (-20币)</span>
                     </button>
                  </div>
               </div>
               <button onClick={enterRace} disabled={raceActive} className="w-full py-3 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/40 hover:to-blue-500/40 border border-cyan-500/50 rounded-lg text-sm font-bold text-cyan-200 transition-colors disabled:opacity-50">
-                 {raceActive ? "🚀 比赛进行中..." : "🏁 报名参加彗星杯竞速赛"}
+                 {raceActive ? "🚀 比赛进行中..." : `🏁 报名参赛 (-${RACE_ENTRY_FEE}币 · 今日剩 ${Math.max(0, RACE_LIMIT - raceCount)} 次)`}
               </button>
            </div>
            <div className="w-48 bg-black/40 rounded-lg p-4 border border-white/5">
@@ -341,11 +540,11 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
            <div className="flex-1 bg-black/40 rounded-lg p-4 border border-white/5">
               <div className="text-sm font-bold text-purple-400 flex items-center gap-2 mb-4"><BookOpen className="w-4 h-4"/> 档案馆研究室</div>
               <div className="flex gap-4">
-                 <button onClick={readBook} className="flex-1 py-6 bg-purple-500/10 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl flex flex-col items-center justify-center gap-2 transition-colors">
+                 <button onClick={readBook} className="flex-1 py-6 bg-purple-500/10 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-95">
                     <Book className="w-6 h-6 text-purple-300"/>
                     <span className="text-xs text-purple-200">翻阅古籍 (获得研究点数)</span>
                  </button>
-                 <button onClick={unlockLore} className="flex-1 py-6 bg-indigo-500/10 hover:bg-indigo-500/30 border border-indigo-500/30 rounded-xl flex flex-col items-center justify-center gap-2 transition-colors relative">
+                 <button onClick={unlockLore} className="flex-1 py-6 bg-indigo-500/10 hover:bg-indigo-500/30 border border-indigo-500/30 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-95 relative">
                     <div className="absolute top-2 right-2 text-[10px] text-indigo-300 bg-indigo-500/20 px-1.5 py-0.5 rounded">消耗 20 点</div>
                     <Compass className="w-6 h-6 text-indigo-300"/>
                     <span className="text-xs text-indigo-200">解读秘闻</span>
@@ -374,17 +573,35 @@ export const SceneInteractiveUI: React.FC<SceneInteractiveUIProps> = ({ sceneId,
 
       {/* FALLBACK FOR OTHER SCENES (Just as examples, can expand later) */}
       {['gemini', 'andromeda', 'orion'].includes(sceneId) && (
-        <div className="flex items-center justify-center p-8 border border-dashed border-white/10 rounded-lg bg-black/20">
-           <div className="text-center">
-              <MapIcon className="w-8 h-8 text-white/20 mx-auto mb-2" />
-              <div className="text-sm text-white/50">区域建设中...</div>
-              <button onClick={() => {
-                setCoins(c => c + 10);
-                onGrantCoins(10);
-                addLog("✨ 在未探索区域发现了一些星尘币！");
-                playSound("sparkle");
-              }} className="mt-4 px-4 py-2 bg-white/5 hover:bg-white/10 rounded text-xs text-white/70 transition-colors">
-                探索周边 (+10 币)
+        <div className="flex items-center justify-center p-10 rounded-xl bg-gradient-to-b from-[#1a1140]/60 to-[#0d0826]/60 border border-indigo-400/15">
+           <div className="text-center space-y-3">
+              <div className="w-14 h-14 mx-auto rounded-full bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center">
+                <MapIcon className="w-6 h-6 text-indigo-300/60" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-indigo-200">这片星域正在苏醒中 ✨</div>
+                <p className="text-[11px] text-indigo-300/50 mt-1">更多奇妙玩法即将抵达，先四处走走看看吧</p>
+              </div>
+              <button
+                onClick={() => {
+                  if (exploreCount >= EXPLORE_LIMIT) {
+                    addLog("🌌 这片星域已经探索完啦，明天再来看看吧～");
+                    return;
+                  }
+                  const next = exploreCount + 1;
+                  setExploreCount(next);
+                  // 持久化今日探索次数
+                  try {
+                    localStorage.setItem("starpuff_explore_count", JSON.stringify({ date: exploreDateRef.current, count: next }));
+                  } catch {}
+                  onGrantCoins(10);
+                  addLog("✨ 在未探索区域发现了一些星辰币！");
+                  playSound("sparkle");
+                }}
+                disabled={exploreCount >= EXPLORE_LIMIT}
+                className="px-5 py-2 bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-full text-xs text-indigo-200 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                🌌 四处探索 ({Math.max(0, EXPLORE_LIMIT - exploreCount)} 次)
               </button>
            </div>
         </div>

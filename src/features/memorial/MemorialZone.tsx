@@ -1,11 +1,15 @@
-import React, { useState } from "react";
-import { Sparkles, Flower, Star, Heart, Edit3, Calendar, PlusCircle, CheckCircle2, Eye, Award } from "lucide-react";
+import React, { useState, useEffect } from "react";
+// [CLEANUP] 已移除 5 个未使用的图标导入：Sparkles / Heart / Calendar / CheckCircle2 / Award
+import { Flower, Star, Edit3, PlusCircle, Eye } from "lucide-react";
 import { PetConfig } from "../../types";
 import { playSound } from "../../audio/AudioSynth";
 
 interface MemorialZoneProps {
   activePet: PetConfig | null;
-  onGrantCoins: (amount: number) => void;
+  /** 当前星辰币余额（用于扣费校验） */
+  stardustCoins: number;
+  /** 扣星辰币（余额不足返回 false） */
+  onSpendCoins: (amount: number) => boolean;
   triggerToast: (msg: string) => void;
 }
 
@@ -28,13 +32,49 @@ const SAMPLE_SHRINES: MemorialStone[] = [
   { id: "ms_4", petName: "皮皮", breed: "金毛犬", passingDate: "2025-04-15", parentName: "皮皮大队长", eulogy: "皮皮，你是世界上最棒的狗狗。最后一次闭眼的时候你还冲我摇了尾巴，谢谢你留给我的全部治愈。爸想你。", tributesCount: 112, flamePulse: true, fruitsFed: 19 }
 ];
 
-export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: MemorialZoneProps) {
-  const [shrines, setShrines] = useState<MemorialStone[]>(SAMPLE_SHRINES);
-  const [activeStoneId, setActiveStoneId] = useState<string | null>(SAMPLE_SHRINES[0].id);
+// [BUG-FIX] 星碑数据持久化：原本 shrines 全靠组件内存态，切 Tab 或刷新后即丢失。
+// 而献花(-5 币) / 供奉仙果(-15 币) 是真扣星辰币的 —— 玩家花了币，纪念却凭空消失。
+// 改为落 localStorage，确保「花出去的星辰币」与「留下的纪念」都对得上。
+const SHRINES_KEY = "starpuff_memorial_shrines";
+
+const loadShrines = (): MemorialStone[] => {
+  try {
+    const raw = localStorage.getItem(SHRINES_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : SAMPLE_SHRINES;
+  } catch (e) {
+    return SAMPLE_SHRINES;
+  }
+};
+
+export default function MemorialZone({ activePet, stardustCoins, onSpendCoins, triggerToast }: MemorialZoneProps) {
+  const [shrines, setShrines] = useState<MemorialStone[]>(loadShrines);
+  const [activeStoneId, setActiveStoneId] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [customEulogy, setCustomEulogy] = useState("");
 
+  // 初始化选中第一块星碑（等 shrines 就绪后再设，避免读到空数组）
+  useEffect(() => {
+    if (!activeStoneId && shrines.length > 0) {
+      setActiveStoneId(shrines[0].id);
+    }
+  }, [shrines, activeStoneId]);
+
+  // 持久化：星碑列表（含用户自建星碑与献花/供果累计）
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHRINES_KEY, JSON.stringify(shrines));
+    } catch (e) {}
+  }, [shrines]);
+
   const handleTributeFlower = (id: string) => {
+    // [BUG-FIX] 献花改为扣费（原为发币 +10，经济不对称）
+    if (stardustCoins < 5) {
+      triggerToast("⚠️ 星辰币不足，献花需要 5 星辰币。");
+      playSound("beep");
+      return;
+    }
+    if (!onSpendCoins(5)) return;
     playSound("sparkle");
     setShrines(prev => prev.map(s => {
       if (s.id === id) {
@@ -42,11 +82,17 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
       }
       return s;
     }));
-    onGrantCoins(10);
-    triggerToast("🌼 您献上了一束【星尘白菊】以致敬缅怀！赠予您星尘币 +10 ✨");
+    triggerToast("🌼 您献上了一束【星辰白菊】以致敬缅怀（-5 星辰币）✨");
   };
 
   const handleTributeStarFruit = (id: string) => {
+    // [BUG-FIX] 供奉仙果改为扣费（原为发币 +20）
+    if (stardustCoins < 15) {
+      triggerToast("⚠️ 星辰币不足，供奉仙果需要 15 星辰币。");
+      playSound("beep");
+      return;
+    }
+    if (!onSpendCoins(15)) return;
     playSound("success");
     setShrines(prev => prev.map(s => {
       if (s.id === id) {
@@ -54,8 +100,7 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
       }
       return s;
     }));
-    onGrantCoins(20);
-    triggerToast("🍒 您供奉了一枚【星河仙果】传递温暖！赠予您星尘币 +20 🍒");
+    triggerToast("🍒 您供奉了一枚【星河仙果】传递温暖（-15 星辰币）🍒");
   };
 
   const handleRegisterActivePet = (e: React.FormEvent) => {
@@ -75,7 +120,7 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
       breed: activePet.breed,
       passingDate: activePet.passingDate || "踏彩虹桥之日",
       parentName: "星之守护者 (您)",
-      eulogy: customEulogy || `“${activePet.name}在遥远的喵汪星轨里继续快乐奔跑，你是爸爸妈妈永恒的星尘骄傲。”`,
+      eulogy: customEulogy || `“${activePet.name}在遥远的喵汪星轨里继续快乐奔跑，你是爸爸妈妈永恒的星辰骄傲。”`,
       tributesCount: 1,
       flamePulse: true,
       fruitsFed: 0
@@ -149,7 +194,11 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
                 <div className="flex-1 overflow-hidden">
                   <div className="flex items-center justify-between text-[11px] font-bold text-white leading-none">
                     <span className="truncate">{stone.petName}</span>
-                    <span className="text-[8px] font-mono font-normal text-slate-500">{stone.passingDate.slice(0, 7)}桥</span>
+                    {/* [BUG-FIX] 未填忌日时 passingDate 是占位文本「踏彩虹桥之日」，
+                        原实现无条件在其后拼「桥」，会显示成「踏彩虹桥之日桥」 */}
+                    <span className="text-[8px] font-mono font-normal text-slate-500">
+                      {stone.passingDate === "踏彩虹桥之日" ? stone.passingDate : `${stone.passingDate.slice(0, 7)}桥`}
+                    </span>
                   </div>
                   <p className="text-[9px] text-indigo-300 font-mono mt-1 leading-none">{stone.breed}</p>
                   <p className="text-[8px] text-gray-500 truncate mt-1 leading-none">家长: {stone.parentName}</p>
@@ -215,7 +264,7 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
                   className="flex-1 bg-yellow-500/10 hover:bg-yellow-500/25 border border-yellow-500/30 text-yellow-300 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
                 >
                   <Flower className="w-4 h-4" />
-                  献上星光白菊纪念 (星尘币 +10)
+                  献上星光白菊纪念 (-5 星辰币)
                 </button>
 
                 <button
@@ -223,7 +272,7 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
                   className="flex-1 bg-pink-500/15 hover:bg-pink-500/35 border border-pink-500/30 text-pink-300 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all animate-pulse"
                 >
                   <Star className="w-4 h-4 fill-pink-300" />
-                  供奉仙星果实追忆 (星尘币 +20)
+                  供奉仙星果实追忆 (-15 星辰币)
                 </button>
               </div>
             </div>
@@ -256,7 +305,6 @@ export default function MemorialZone({ activePet, onGrantCoins, triggerToast }: 
                   value={customEulogy}
                   onChange={(e) => setCustomEulogy(e.target.value)}
                   maxLength={110}
-                  required
                   placeholder="例如：毛球，谢谢你陪过我的那段阴郁冬天。你在彩虹桥那边好好的，多长草，少贪凉，要听银河图书馆张馆长的话哦。下辈子我们还要做最好的家人..."
                   className="w-full h-24 bg-black/50 border border-white/10 rounded-xl p-3 text-[11px] text-indigo-100 placeholder:text-gray-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 leading-relaxed resize-none custom-scrollbar"
                 />

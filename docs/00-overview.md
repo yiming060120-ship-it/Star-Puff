@@ -57,7 +57,8 @@ Gemini API              ← AI 引擎
 |-------|------|------|
 | Phase 0 | 目录分层重构（ADR-0001） | ✅ 完成 |
 | Phase 1 | 数据完整性修复（ADR-0002） | ✅ 完成 |
-| Phase 2 | 文档体系标准化 + core/ 抽象层 | ⏳ 进行中（ADR-0003） |
+| Phase 2 | 文档体系标准化 + core/ 抽象层 | ✅ 完成（ADR-0003） |
+| Phase 2.5 | 安全加固与竞态修复（原子钱包 / 发放鉴权 / 持久化去重） | ✅ 完成（ADR-0004） |
 | Phase 3 | API 层分离 + ErrorBoundary + 代码拆分 | 待开始 |
 | Phase 4 | 状态管理重构（App/HomeCanvas 上帝组件拆分） | 待开始 |
 
@@ -115,6 +116,7 @@ Gemini API              ← AI 引擎
 │   ├── data/sceneDesigns.ts   ← 场景静态数据
 │   └── utils/date.ts          ← 本地日期工具
 ├── docs/
+│   ├── README.md               ← 文档索引（新增）
 │   ├── 00-overview.md          ← 本文件
 │   ├── 01-architecture.md      ← 架构设计详解
 │   ├── 02-types-and-contracts.md ← 类型契约与数据模型
@@ -127,9 +129,12 @@ Gemini API              ← AI 引擎
 │   ├── decisions/              ← ADR 架构决策记录
 │   │   ├── ADR-0001-layered-directory-structure.md
 │   │   ├── ADR-0002-data-integrity-fixes.md
-│   │   └── ADR-0003-documentation-and-core-abstraction.md
+│   │   ├── ADR-0003-documentation-and-core-abstraction.md
+│   │   └── ADR-0004-security-hardening-and-race-fixes.md
 │   ├── archive/                ← 历史文档（归档而非删除）
-│   └── AI_HANDOFF.md           ← AI/新成员交接协议
+│   │   └── logs/               ← 开发期构建/运行/下载日志归档
+│   ├── AI_HANDOFF.md           ← AI/新成员交接协议
+│   └── HANDOVER_MICROTRANSACTIONS.md ← 微交易模块运维手册
 └── scripts/archive/            ← 一次性脚本归档
 ```
 
@@ -141,13 +146,14 @@ Gemini API              ← AI 引擎
 |------|------|
 | 目录分层重构 | ✅ ADR-0001 |
 | 数据完整性修复 | ✅ ADR-0002 |
-| 文档体系标准化 | ⏳ 进行中（ADR-0003） |
-| core/ 抽象层 | ⏳ 进行中 |
-| api/ 请求封装层 | 待开始 |
-| ErrorBoundary + 代码拆分 | 待开始 |
+| 安全加固与竞态修复 | ✅ ADR-0004 |
+| 文档体系标准化 | ✅ ADR-0003 |
+| core/ 抽象层 | ✅ `src/core/errors.ts` + `validators.ts` |
+| api/ 请求封装层 | ✅ 底层 `request()` 统一错误契约 |
+| ErrorBoundary + 代码拆分 | 🟡 ErrorBoundary 已建，错误体系待接入消费 |
 | App/HomeCanvas 上帝组件拆分 | 待开始 |
 | 自动化测试 | 未开始 |
 
 ---
 
-*文档版本：v1.0 | 最后更新：2026-08-10 | 下次应更新：core/ api/ 层建立后*
+*文档版本：v1.1 | 最后更新：2026-09-26 | 下次应更新：上帝组件拆分（Phase 4）或微交易服务端权威化落地后*

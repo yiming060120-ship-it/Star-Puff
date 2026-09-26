@@ -6,3 +6,41 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# dev 模式 Steam AppID（勿提交）
+steam_appid.txt
+
+# electron-builder 打包产物（安装包 / 解包临时目录，勿提交）
+release/
+
+# ---- 3D 模型大文件（本地存放，不提交到 git，避免仓库体积爆炸）----
+# 宠物 3D 模型（每个 25MB+，共 300MB+）
+public/models/*.glb
+public/models/*.GLB
+public/models/*.gltf
+public/models/species/*.glb
+public/models/species/*.GLB
+public/models/species/*.gltf
+
+# 用户本地 AI 建模素材（D 盘等外部目录，不应进入项目）
+*.blend
+*.fbx
+*.obj
+*.mtl
+
+# ---- 本地专属模块（仅本机存在，不进 git，也不打包进发布产物）----
+src/features/memorial/MemoryWhispers.tsx
+
+# ---- 开发期临时日志（原先散落在仓库根目录被误提交；留档请放 docs/archive/logs/）----
+# 必须用前导 "/" 锚定到仓库根，否则会连 docs/archive/logs/ 下的归档副本一起忽略。
+/dev-log.txt
+/build-log.txt
+/fetch-log.txt
+/fetch-err.txt
+/fetch2-log.txt
+/fetch2-err.txt
+
+# ---- 微交易运行时数据（SQLite + 发放账本，含用户发放记录，不应提交）----
+# 同样锚定到仓库根，避免误伤其他位置的同名目录。
+/microtransaction-data/
+/microtransaction-api/data/

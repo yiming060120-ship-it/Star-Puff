@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>12 Species Models Preview</title>
+<style>
+  body { margin: 0; background: #0a0718; color: #fff; font-family: sans-serif; }
+  #info { position: fixed; top: 8px; left: 8px; background: rgba(0,0,0,.7); padding: 8px 12px; border-radius: 6px; font-size: 14px; z-index: 10; }
+  #grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px; }
+  .cell { background: #1a1133; border: 1px solid #333; border-radius: 8px; overflow: hidden; }
+  .cell canvas { width: 100%; height: 200px; display: block; }
+  .label { padding: 6px 10px; font-size: 12px; color: #ff8fa3; text-align: center; }
+</style>
+</head>
+<body>
+<div id="info">正在加载 12 个物种模型…</div>
+<div id="grid"></div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const N = 12;
+const grid = document.getElementById("grid");
+const info = document.getElementById("info");
+
+async function renderOne(i) {
+  const cell = document.createElement("div");
+  cell.className = "cell";
+  const canvas = document.createElement("canvas");
+  cell.appendChild(canvas);
+  const label = document.createElement("div");
+  label.className = "label";
+  label.textContent = `模型 ${String(i).padStart(2,"0")}`;
+  cell.appendChild(label);
+  grid.appendChild(cell);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(1);
+  renderer.setSize(300, 200, false);
+  renderer.setClearColor(0x0a0718, 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 300/200, 0.1, 100);
+  camera.position.set(0, 0, 4);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+  const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+  dir.position.set(5, 5, 5);
+  scene.add(dir);
+
+  const loader = new GLTFLoader();
+  await new Promise((resolve) => {
+    loader.load(
+      `models/species/species_${String(i).padStart(2,"0")}.glb`,
+      (gltf) => {
+        scene.add(gltf.scene);
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const size = box.getSize(new THREE.Vector3()).length();
+        const center = box.getCenter(new THREE.Vector3());
+        gltf.scene.position.sub(center);
+        gltf.scene.scale.setScalar(3 / size);
+        gltf.scene.position.set(0, 0, 0);
+        info.textContent = `已加载 ${i}/${N} 个`;
+        resolve();
+      },
+      undefined,
+      (err) => { console.error(err); resolve(); }
+    );
+  });
+
+  function frame() {
+    if (!document.body.contains(canvas)) return;
+    requestAnimationFrame(frame);
+    renderer.render(scene, camera);
+  }
+  frame();
+
+  // 全局注册供截图脚本访问
+  window.__renders = window.__renders || {};
+  window.__renders[i] = { renderer, scene, camera, canvas };
+}
+
+(async () => {
+  // 并行加载所有模型（不等前一个完成就开始下一个），加载完成立即显示
+  await Promise.all(Array.from({ length: N }, (_, k) => renderOne(k + 1)));
+  info.textContent = `✓ 全部 12 个模型加载完毕`;
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>

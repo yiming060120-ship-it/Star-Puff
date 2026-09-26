@@ -10,6 +10,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { PetConfig, Pet3DModelConfig, PetType } from "../types";
 import { playSound } from "../audio/AudioSynth";
+import { ACHIEVEMENTS, unlock } from "../steam/achievements";
 import { 
   Upload, Camera, HelpCircle, AlertCircle, Cpu, Zap, Rotate3d, 
   Compass, RefreshCw, ZoomIn, Eye, Heart, Check, Download, Layers, ShieldCheck
@@ -25,25 +26,25 @@ const PRESET_SAMPLES = [
   {
     name: "星蒲 (Puff Cream Cat)",
     type: "猫" as PetType,
-    url: "https://images.unsplash.com/photo-1574158622643-69d34d72650a?auto=format&fit=crop&q=80&w=500",
+    url: "/assets/images/unsplash/1514888286974-6c03e2ca1dba.jpg",
     color: "#fad0a3"
   },
   {
     name: "治愈金毛犬 (Golden Retriever)",
     type: "狗" as PetType,
-    url: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=500",
+    url: "/assets/images/unsplash/1543466835-00a7907e9de1.jpg",
     color: "#e6b02a"
   },
   {
     name: "害羞小萌兔 (Lop-Ear Rabbit)",
     type: "兔" as PetType,
-    url: "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&q=80&w=500",
+    url: "/assets/images/unsplash/1585110396000-c9ffd4e4b308.jpg",
     color: "#b099fc"
   },
   {
     name: "机智小玄凤 (Cute Cockatiel)",
     type: "鸟" as PetType,
-    url: "https://images.unsplash.com/photo-1522850959516-58f958dde2c1?auto=format&fit=crop&q=80&w=500",
+    url: "/assets/images/unsplash/1522850959516-58f958dde2c1.jpg",
     color: "#2edcc8"
   }
 ];
@@ -73,7 +74,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
   // Animations & Rigging States
   const [activeAnimation, setActiveAnimation] = useState<"stand" | "walk" | "wag_tail" | "sit" | "pet">("stand");
   const [showBoneSkeleton, setShowBoneSkeleton] = useState<boolean>(true);
-  const [isHoveringPetInteraction, setIsHoveringPetInteraction] = useState<boolean>(false);
+  // [CLEANUP] 已删除完全死亡的 `isHoveringPetInteraction`（变量从未被读取、setter 从未调用）
 
 
 
@@ -86,6 +87,13 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
   const isDragging = useRef<boolean>(false);
   const startMousePos = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
   const [shockwaveFactor, setShockwaveFactor] = useState<number>(0); // click splash ripple
+  // [BUG-FIX] 冲击波衰减值改用 ref 承载：原实现把衰减写在渲染循环里每帧 setState，
+  // 而 shockwaveFactor 又在 effect 依赖数组中 → 每帧重建渲染循环、localTime 归零，
+  // 约 27 帧衰减期内所有时间驱动动画（行走/摇尾/呼吸）反复冻结重启。
+  const shockwaveRef = useRef<number>(0);
+  useEffect(() => {
+    shockwaveRef.current = shockwaveFactor;
+  }, [shockwaveFactor]);
   const [rotationSpeed, setRotationSpeed] = useState<number>(0.5);
 
   // WebGL ThreeJS Real-time engine states & loaders
@@ -114,6 +122,12 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
 
   // Extract foreground background removal logic via Canvas
   const processBackgroundRemoval = async () => {
+    const srcUrl = getCurrentImageUrl();
+    if (!srcUrl) {
+      triggerToast("⚠️ 请先上传爱宠照片或选择一张示例图，再进行背景抠除哦。");
+      playSound("beep");
+      return;
+    }
     setIsBgRemoving(true);
     setShowSegmentProgress(true);
     setExtractLogs([]);
@@ -244,6 +258,11 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
 
   // Run the API based or fallbacked reconstructed 3D simulation
   const handleReconstruct = async () => {
+    if (!getCurrentImageUrl()) {
+      triggerToast("⚠️ 请先上传爱宠照片或选择一张示例图，再进行 3D 重构哦。");
+      playSound("beep");
+      return;
+    }
     setIsProcessing(true);
     setProcessStep(0);
     setStatusLogs([]);
@@ -269,7 +288,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     // If background removal was not run yet, trigger it implicitly
     let imageSource = transparentImgUrl || getCurrentImageUrl();
     if (!isBgRemoved) {
-      await addLog("💡 检测未进行前置背景剔除，自动在星尘通道里分离图像...", 200);
+      await addLog("💡 检测未进行前置背景剔除，自动在星辰通道里分离图像...", 200);
       try {
         const transparentResult = await computeTransparentImage(getCurrentImageUrl(), bgTolerance);
         imageSource = transparentResult;
@@ -532,7 +551,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     const gltfJSON = {
       asset: {
         version: "2.0",
-        generator: "StarPuff AI 3D Exporter v2.1"
+        generator: "StarPuff 3D Exporter v2.1"
       },
       scene: 0,
       scenes: [
@@ -543,7 +562,10 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       nodes: [
         {
           name: "StarPuff_Rig_Root",
-          children: [1], // links child joints
+          // [BUG-FIX] 必须把骨骼根节点也挂进场景图：原实现只挂了 mesh（节点 1），
+          // 关节节点 2~8 成为不可达的孤立节点（skin.joints 必须可达），
+          // 违反 glTF 规范，严格加载器会直接报错导致导出的模型打不开。
+          children: [1, 2], // mesh + skeleton root
           translation: [0, 0, 0]
         },
         {
@@ -599,7 +621,10 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       ],
       skins: [
         {
-          inverseBindMatrices: 5, // Accessor index for inverse matrix (normally identity mapping)
+          // [BUG-FIX] 删除 inverseBindMatrices: 5 —— accessors 只定义了 0~4 共 5 个，
+          // 引用第 6 个不存在的 accessor 属于越界，glTF 校验会失败、加载器直接抛错。
+          // 该字段在 glTF 规范中是可选的，省略时按单位矩阵处理。
+          skeleton: 2, // 骨骼根节点
           joints: [2, 3, 4, 5, 6, 7, 8] // Indices mapped bone joints list
         }
       ],
@@ -647,7 +672,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     dlLink.click();
     document.body.removeChild(dlLink);
 
-    triggerToast(`🎉 成功下载 ${targetName} 治愈星尘骨骼模型 GLTF！文件大小约 55KB，可在微信小游戏或 3D 编辑器载入！`);
+    triggerToast(`🎉 成功下载 ${targetName} 治愈星辰骨骼模型 GLTF！文件大小约 55KB，可在微信小游戏或 3D 编辑器载入！`);
     playSound("success");
   };
 
@@ -661,6 +686,9 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
 
     let animId: number;
     let localTime = 0;
+    // [BUG-FIX] 自转角度必须跨帧累积：原实现每帧都从 yaw 重新计算并只加一个固定偏移，
+    // 模型实际静止不动，「暂停/开启自转」按钮形同虚设。
+    let autoYaw = yaw;
 
     const render = () => {
       localTime += 0.055;
@@ -707,10 +735,13 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       ctx.fillRect(width / 2 - 160 * zoom, laserY - 15, 320 * zoom, 30);
 
       // Slow orbit drift if not dragging (orbit camera)
-      let currentYaw = yaw;
-      if (!isDragging.current) {
-        currentYaw += 0.006 * rotationSpeed;
+      // [BUG-FIX] 用跨帧累积的 autoYaw；拖拽时以用户角度 yaw 为准
+      if (isDragging.current) {
+        autoYaw = yaw;
+      } else {
+        autoYaw += 0.006 * rotationSpeed;
       }
+      const currentYaw = autoYaw;
 
       // Read model configurations
       const count = reconstructedModel.verticesCount;
@@ -794,9 +825,10 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
           vy += boneOffsets.spineY * 85;
         }
 
-        if (shockwaveFactor > 0) {
+        const shock = shockwaveRef.current;
+        if (shock > 0) {
           const dist = Math.sqrt(vx*vx + vy*vy + vz*vz);
-          const force = Math.sin(dist * 0.12 - localTime * 5.5) * 14 * shockwaveFactor * bounciness * boneOffsets.bouncinessMult;
+          const force = Math.sin(dist * 0.12 - localTime * 5.5) * 14 * shock * bounciness * boneOffsets.bouncinessMult;
           vx += (vx / dist) * force;
           vy += (vy / dist) * force;
           vz += (vz / dist) * force;
@@ -996,18 +1028,23 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       designParticles.current = designParticles.current.filter(p => p.life < p.maxLife);
 
       // Handle displaying hovering node tooltip card
+      // [BUG-FIX] 函数式更新 + 值未变时返回原引用，避免每帧 setState 触发无谓重渲染
       if (closestNode) {
-        setHoveredNode(closestNode);
+        setHoveredNode((prev) =>
+          prev && prev.x === closestNode.x && prev.y === closestNode.y && prev.label === closestNode.label
+            ? prev
+            : closestNode
+        );
         ctx.strokeStyle = "#ff407a";
         ctx.lineWidth = 1;
         ctx.strokeRect(closestNode.x - 7, closestNode.y - 7, 14, 14);
       } else {
-        setHoveredNode(null);
+        setHoveredNode((prev) => (prev === null ? prev : null));
       }
 
-      // Decay interactive shockwaves
-      if (shockwaveFactor > 0) {
-        setShockwaveFactor((prev) => Math.max(0, prev - 0.04));
+      // [BUG-FIX] 冲击波衰减只改 ref，不再每帧 setState（否则会不断重建渲染循环）
+      if (shockwaveRef.current > 0) {
+        shockwaveRef.current = Math.max(0, shockwaveRef.current - 0.04);
       }
 
       animId = requestAnimationFrame(render);
@@ -1018,7 +1055,8 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, [reconstructedModel, yaw, pitch, zoom, shockwaveFactor, rotationSpeed, activeAnimation, showBoneSkeleton, stardustParticleStrength]);
+    // [BUG-FIX] 依赖中移除 shockwaveFactor：它每帧变化会让整个渲染循环被反复拆装
+  }, [reconstructedModel, yaw, pitch, zoom, rotationSpeed, activeAnimation, showBoneSkeleton, stardustParticleStrength]);
 
   // WebGL Real-time 3D loader for Cat.gltf
   useEffect(() => {
@@ -1136,7 +1174,8 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     setGltfLoadProgress(0);
 
     const loader = new GLTFLoader();
-    const catModelUrl = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Cat/glTF/Cat.gltf';
+    // 原 Khronos Cat.gltf 外链已失效（raw.githubusercontent 不可达），改用本地主宠物模型
+    const catModelUrl = '/models/pet.glb';
 
     let catModel: THREE.Group | null = null;
     let mixer: THREE.AnimationMixer | null = null;
@@ -1176,7 +1215,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
         catModel = cat;
         catGroup.add(cat);
         setIsGltfLoading(false);
-        console.log('✅ 写实猫咪模型加载成功！');
+        // [CLEANUP] 已移除调试 console.log
       },
       (xhr) => {
         if (xhr.total > 0) {
@@ -1327,6 +1366,23 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       pmremGenerator.dispose();
       if (particleGeometry) particleGeometry.dispose();
       if (particleMaterial) particleMaterial.dispose();
+      // [BUG-FIX] 递归释放场景内所有几何体/材质/纹理，避免高精模型内存泄漏
+      const disposeObject = (obj: THREE.Object3D) => {
+        obj.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (mesh.isMesh) {
+            mesh.geometry?.dispose();
+            const mat = mesh.material;
+            if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+            else (mat as THREE.Material | undefined)?.dispose();
+          }
+        });
+      };
+      disposeObject(scene);
+      if (catModel) disposeObject(catModel);
+      scene.environment?.dispose();
+      floorGeometry.dispose();
+      floorMaterial.dispose();
     };
   }, [useReal3D]);
 
@@ -1383,6 +1439,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
   const handleApplyToPet = () => {
     if (!reconstructedModel) return;
     onSync3DModelToPet(reconstructedModel);
+    void unlock(ACHIEVEMENTS.first3dReconstruct);
     triggerToast(`💖 3D 全息体骨骼和动作配置已被同步给星枢家园的【${targetName}】！`);
     playSound("success");
   };
@@ -1478,7 +1535,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
                   ) : isBgRemoved ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>重新星尘祛除背景</span>
+                      <span>重新星辰祛除背景</span>
                     </>
                   ) : (
                     <>
@@ -1605,7 +1662,7 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
               ) : (
                 <>
                   <Cpu className="w-4 h-4 text-emerald-300 animate-pulse" />
-                  <span>一键启动 AI 3D 骨骼重构绑定</span>
+                  <span>一键启动星辰感应 3D 骨骼重构绑定</span>
                 </>
               )}
             </button>
@@ -1775,9 +1832,42 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
                   👁️ {useReal3D ? "已切换至物理着色器渲染网格" : "显示全息骨骼组件 (Bone Skeleton Rig)"}
                 </label>
               </div>
+              {/* [BUG-FIX] 动画指令切换栏：walk / wag_tail / sit / pet 四套骨骼动画
+                  早已在绘制循环中完整实现，但 setActiveAnimation 从未被调用，
+                  玩家完全没有入口触发这些动作。补上切换按钮。 */}
+              {!useReal3D && (
+                <div className="flex items-center gap-1 flex-wrap justify-center">
+                  {(
+                    [
+                      { key: "stand", label: "待机", emoji: "🧍" },
+                      { key: "walk", label: "行走", emoji: "🚶" },
+                      { key: "wag_tail", label: "摇尾", emoji: "🐾" },
+                      { key: "sit", label: "坐下", emoji: "🪑" },
+                      { key: "pet", label: "撒娇", emoji: "💗" },
+                    ] as const
+                  ).map(anim => (
+                    <button
+                      key={anim.key}
+                      type="button"
+                      onClick={() => {
+                        setActiveAnimation(anim.key);
+                        playSound("click");
+                      }}
+                      className={`px-1.5 py-1 rounded text-[9px] font-mono transition-colors cursor-pointer ${
+                        activeAnimation === anim.key
+                          ? "bg-pink-500/25 text-pink-200 border border-pink-500/40"
+                          : "bg-white/5 text-gray-400 hover:text-white border border-transparent"
+                      }`}
+                      title={`切换动画：${anim.label}`}
+                    >
+                      {anim.emoji} {anim.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 <span className="text-[8px] md:text-[9.5px] text-pink-300 font-mono">
-                  💡 {useReal3D ? "鼠标拖拽旋转 3D 写实模型 | 滚轮缩放" : "拖动鼠标旋转 3D | 点击产生星尘"}
+                  💡 {useReal3D ? "鼠标拖拽旋转 3D 写实模型 | 滚轮缩放" : "拖动鼠标旋转 3D | 点击产生星辰"}
                 </span>
               </div>
             </div>
@@ -1829,104 +1919,41 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
             </div>
           </div>
 
-          {/* New Section: Bone Motion Controller Panel & GLTF Export Panel */}
+          {/* New Section: GLTF Export Panel */}
           {reconstructedModel && (
             <div className="w-full bg-[#150a2f]/80 border border-purple-500/20 rounded-2xl p-4 space-y-4 shadow-xl">
               
-              {/* Dynamic bone actions trigger buttons list */}
+              {/* 导出操作按钮 */}
               <div className="space-y-2">
-                <span className="text-[10px] text-purple-300 font-mono block tracking-widest uppercase">
-                  🎬 骨骼核心动画驱动测试 (Skeletal Core Motion Playback)
+                <span className="text-[10px] text-purple-300 font-sans block tracking-wide">
+                  ✨ 让 3D 星辰形象陪伴你
                 </span>
-                <div className="grid grid-cols-5 gap-1 md:gap-2">
-                  {[
-                    { id: "stand", name: "🧍 站立", sound: "click" },
-                    { id: "walk", name: "🚶 行走", sound: "click" },
-                    { id: "wag_tail", name: "🐕 摇尾巴", sound: "bubble" },
-                    { id: "sit", name: "🧘 坐下", sound: "chime" },
-                    { id: "pet", name: "👋 抚摸", sound: "sparkle" }
-                  ].map((anim) => {
-                    const isActive = activeAnimation === anim.id;
-                    return (
-                      <button
-                        key={anim.id}
-                        onClick={() => {
-                          setActiveAnimation(anim.id as any);
-                          playSound(anim.sound as any);
-                          if (anim.id === "pet") {
-                            triggerToast("💗 抚摸触发！头部关节微微下倾，向四周迸发漫天爱恋 stardust！");
-                          }
-                        }}
-                        className={`py-2 rounded-xl text-[10px] md:text-xs font-bold text-center cursor-pointer transition-all ${
-                          isActive 
-                            ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-[0_0_12px_rgba(236,72,153,0.3)] scale-105" 
-                            : "bg-[#09031a]/60 text-gray-400 border border-white/5 hover:border-white/10 hover:text-white"
-                        }`}
-                      >
-                        {anim.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Slider for Particle Intensity edge */}
-              <div className="space-y-1.5 bg-black/30 p-3 rounded-xl border border-white/5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400 flex items-center gap-1 font-mono">
-                    🌌 星尘边界粒子浓度 (Stardust Density)
-                  </span>
-                  <span className="text-cyan-300 font-mono">{stardustParticleStrength}%</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="10" 
-                  max="150" 
-                  value={stardustParticleStrength}
-                  onChange={(e) => setStardustParticleStrength(Number(e.target.value))}
-                  className="w-full accent-cyan-400 h-1 rounded-lg bg-white/10 cursor-pointer"
-                />
-              </div>
-
-              {/* Advanced info panel about the file */}
-              <div className="bg-black/50 border border-white/5 rounded-xl p-3 space-y-2.5">
-                <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
-                  <span className="text-[10px] text-gray-400 font-mono">WeChat MiniGame Engine Match</span>
-                  <span className="text-[9px] bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 px-2 rounded">
-                    LOW POLYGON MESH
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-300 leading-relaxed text-justify">
-                  该 3D 模型专为微信小游戏轻量化定制：基于 Quad-Patch 晶體低面数（低 Polygon）渲染，融合骨架 Skin Rig 体系。完全兼容 Three.js, Cocos, Laya 等小游戏原生骨骼绑定，让上传后的 2D 照片完美转化。
-                </p>
-                
-                {/* WeChat low-poly export action buttons row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     onClick={handleExportGLTF}
-                    className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-300/10 rounded-xl text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
-                    title="导出标准的 rigged.gltf 文件，内置骨骼、顶点权重和小游戏行走等全套键帧动画"
+                    className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-300/10 rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-95"
+                    title="导出 3D 模型文件"
                   >
-                    <Download className="w-3.8 h-3.8 animate-bounce" />
-                    <span>💾 导出小游戏 GLTF 骨骼模型</span>
+                    <Download className="w-4 h-4" />
+                    <span>导出 3D 模型</span>
                   </button>
 
                   <button
                     onClick={handleApplyToPet}
-                    className="w-full py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white border border-pink-300/10 rounded-xl text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
-                    title="直接同步让主页、世界大门里的小家伙立刻获得这套 3D 全息外观和呼吸摇尾功能"
+                    className="w-full py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white border border-pink-300/10 rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-95"
+                    title="让主页的小家伙拥有这套 3D 形象"
                   >
-                    <Heart className="w-3.8 h-3.8 fill-white text-white animate-soft-breath" />
-                    <span>⚡ 同步至家园 3D 灵魂核</span>
+                    <Heart className="w-4 h-4 fill-white text-white" />
+                    <span>同步到家园</span>
                   </button>
                 </div>
               </div>
 
-              {/* Show the personalized narrative text block */}
+              {/* 星辰档案签印 */}
               <div className="p-3.5 bg-[#09031a] rounded-xl border border-pink-500/15">
                 <div className="flex items-center gap-1.5 border-b border-white/5 pb-1.5 mb-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[10px] text-emerald-300 font-mono tracking-wider">星尘档案重建签印 (Holographic Lore Certification)</span>
+                  <span className="text-[10px] text-emerald-300 font-sans tracking-wide">星辰档案签印</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-indigo-100 text-justify font-sans">
                   {reconstructedModel.loreParagraph}

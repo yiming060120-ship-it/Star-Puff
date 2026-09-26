@@ -44,7 +44,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
             <span className="text-2xl">🌌</span>
           </div>
           <h3 className="text-lg font-semibold text-purple-300 mb-2">
-            星尘连接中断
+            星辰连接中断
           </h3>
           <p className="text-sm text-gray-400 max-w-md leading-relaxed mb-4">
             像素宇宙的粒子似乎遇到了一点波动。可能是你的设备图形驱动不兼容，请尝试刷新页面或使用更现代的浏览器。
@@ -59,7 +59,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
             }}
             className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg transition-colors"
           >
-            重新连接星尘
+            重新连接星辰
           </button>
         </div>
       );

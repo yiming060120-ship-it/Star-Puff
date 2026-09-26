@@ -47,6 +47,24 @@ export interface PetConfig {
   statusEnergy?: number; // 0-100
   level?: number;
   exp?: number;
+
+  // V3 陪伴能量系统（心寒话术）
+  /** 陪伴能量值 0-100 */
+  companionEnergy?: number;
+  /** 上次能量更新时间戳（毫秒），用于计算衰减 */
+  companionEnergyUpdatedAt?: number;
+  /** 能量免疫截止时间戳（毫秒），时光结晶效果：此时间前不衰减 */
+  companionEnergyImmuneUntil?: number;
+  /** 是否已陷入沉睡 */
+  isSleeping?: boolean;
+  /** 是否已领取每日登录能量 */
+  lastEnergyLoginBonusDate?: string;
+  /** 是否已领取月卡每日自动恢复 */
+  lastVipRecoveryDate?: string;
+
+  // V4 宠物种类/模型选择
+  /** 选中的 3D 模型文件名（相对 public/models/species/），如 species_01.glb */
+  modelFile?: string;
 }
 
 export interface StarPuffUser {
@@ -110,6 +128,15 @@ export interface PetWhisper {
   coverImage: string; // pixel art cover style
   likes: number;
   hasLiked: boolean;
+  slotLabel?: string; // 来信时段标签（如 ☀️ 晨光来信 / 🌙 暮色来信）
+  // [集群来信] 社交交集锚点：宠物与另一只宠物在同一场景同点停留较久时触发
+  // [星友来信] type==="friend"：虚拟 AI 好友主动来信（单机版离线模拟）
+  type?: "daily" | "cluster" | "friend";
+  relatedPetName?: string; // 集群来信关联的另一只宠物名
+  relatedOwnerName?: string; // 关联宠物的家长名
+  friendId?: string; // 星友来信：发信好友 id（virtualFriends）
+  scene?: string; // 触发集群来信的场景名
+  friendRequested?: boolean; // 是否已向对方家长发出好友申请
   comments: Array<{
     id: string;
     authorName: string;
