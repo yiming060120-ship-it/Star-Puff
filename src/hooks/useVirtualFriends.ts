@@ -5,7 +5,7 @@
  * 全部持久化到 localStorage（starpuff_ 前缀自动纳入存档快照）。
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { VIRTUAL_FRIENDS } from "../data/virtualFriends";
 
 export interface FriendRuntime {
@@ -64,11 +64,17 @@ export function useVirtualFriends() {
   /**
    * 打招呼。冷却期内返回 null（UI 应显示"已打招呼"）；成功返回该好友的回应文案。
    */
+  // [BUG-FIX] 冷却时间加 ref 同步镜像：原实现读取渲染闭包里的 runtimes 快照，
+  // 同一事件循环内双击打招呼时第二次仍读到旧的 lastGreetAt，1 小时冷却被穿透（友好度/回应双发）。
+  const lastGreetRef = useRef<Record<string, number>>({});
+
   const greetFriend = useCallback(
     (id: string): string | null => {
       const cur = getFriend(id);
       const now = Date.now();
-      if (cur.lastGreetAt && now - cur.lastGreetAt < GREET_COOLDOWN_MS) return null;
+      const lastGreet = lastGreetRef.current[id] ?? cur.lastGreetAt ?? 0;
+      if (lastGreet && now - lastGreet < GREET_COOLDOWN_MS) return null;
+      lastGreetRef.current[id] = now;
       const friend = VIRTUAL_FRIENDS.find(f => f.id === id);
       const reply = friend
         ? friend.greetingPool[Math.floor(Math.random() * friend.greetingPool.length)]

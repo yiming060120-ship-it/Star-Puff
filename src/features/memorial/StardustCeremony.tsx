@@ -801,7 +801,7 @@ export default function StardustCeremony({ onComplete, onCancel, playSparkleSoun
             </div>
 
             <p className="text-center font-mono text-[10px] text-gray-400">
-              💡 提示：连接星光。全部连结完毕后即可启动“升星仪式”，让星粒子完成结晶汇聚！
+              💡 提示：连接星光。连结 5 个及以上星点即可启动“升星仪式”，让星粒子完成结晶汇聚！
             </p>
 
             <div className="pt-4 border-t border-slate-850 flex justify-between">

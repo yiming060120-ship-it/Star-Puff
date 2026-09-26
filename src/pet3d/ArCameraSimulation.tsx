@@ -155,7 +155,8 @@ export default function ArCameraSimulation({ isOpen, onClose, pet, triggerToast,
           {isRecording && (
             <div className="absolute top-4 left-4 bg-red-600/90 border border-red-500 text-white px-3 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1.5 z-20 animate-pulse">
               <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-              <span>REC 00:0{recordSeconds}s</span>
+              {/* [BUG-FIX] 原实现硬编码 "00:0" 前缀，第 10 秒会显示为 "00:010s" */}
+              <span>REC 00:{String(recordSeconds).padStart(2, "0")}s</span>
             </div>
           )}
 

@@ -13,6 +13,7 @@
 
 import type { Product, ApiResponse } from "./types";
 import { findProduct } from "./service";
+import { getOrder } from "./orders";
 import fs from "fs";
 import path from "path";
 import * as db from "./db";
@@ -118,7 +119,10 @@ function persistGrants(): void {
 loadPersistedGrants();
 // 将现有文件内的数据迁移到 SQLite（若尚未迁移）
 try {
-  const existing = listGrantedOrders();
+  // [BUG-FIX] 原实现调用 listGrantedOrders()，而该函数优先返回 SQLite 数据，
+  // 全新数据库返回空数组 → 迁移循环永不执行，旧 JSON 账本永远进不了 SQLite。
+  // 这里应遍历刚从 grants.json 载入内存的 grantedOrders。
+  const existing = Array.from(grantedOrders.values());
   for (const g of existing) {
     const found = db.getGrant(g.orderId);
     if (!found) {
@@ -132,7 +136,14 @@ try {
     if (fs.existsSync(usersFile)) {
       const raw = fs.readFileSync(usersFile, "utf8");
       const arr = JSON.parse(raw) as any[];
-      for (const u of arr) db.upsertUser(u.steamId, u.coins || 0, u.membershipExpires ?? null);
+      // [BUG-FIX] 只在 SQLite 中「尚无该用户」时迁移，绝不覆盖已有余额/会员到期时间。
+      // 原实现无条件 upsert，每次启动都会用陈旧的 users.json 覆盖 SQLite 最新数据，
+      // 导致已发放的币消失、已回收的会员复活（确定性资产回滚）。
+      for (const u of arr) {
+        if (!u?.steamId) continue;
+        if (db.getUser(u.steamId)) continue;
+        db.upsertUser(u.steamId, Number(u.coins) || 0, u.membershipExpires ?? null);
+      }
     }
   } catch (e) {
     console.warn("[migration] users.json -> sqlite migration failed:", e?.message ?? e);
@@ -274,7 +285,7 @@ export interface GrantRequest {
 export async function grantItems(
   req: GrantRequest
 ): Promise<ApiResponse<GrantResult>> {
-  const { orderId, steamId, itemId, quantity = 1 } = req;
+  const { orderId, steamId, itemId } = req;
 
   if (!orderId || !steamId || !itemId) {
     return { success: false, error: "缺少 orderId / steamId / itemId" };
@@ -289,15 +300,38 @@ export async function grantItems(
     };
   }
 
-  const payload = mapProductToGrant(itemId, quantity);
+  // [BUG-FIX] 校验订单真实性：必须是本服务 InitTxn 创建、且已完成 FinalizeTxn 的订单，
+  // 归属用户与商品也必须完全一致。
+  // 原实现完全不校验订单来源，任何人 POST 一个伪造 orderId 即可凭空领取星尘币/会员（资损）。
+  const order = getOrder(String(orderId));
+  if (!order) {
+    console.warn(`[GRANT] 拒绝发放：订单 ${orderId} 不存在或未经服务端初始化`);
+    return { success: false, error: "订单不存在或未经服务端初始化，拒绝发放" };
+  }
+  if (order.status !== "Finalized") {
+    console.warn(`[GRANT] 拒绝发放：订单 ${orderId} 尚未完成支付（status=${order.status}）`);
+    return { success: false, error: "订单尚未完成支付，拒绝发放" };
+  }
+  if (order.steamId !== String(steamId)) {
+    console.warn(`[GRANT] 拒绝发放：订单 ${orderId} 归属用户不匹配`);
+    return { success: false, error: "订单归属用户不匹配，拒绝发放" };
+  }
+  if (Number(itemId) !== order.itemId) {
+    console.warn(`[GRANT] 拒绝发放：订单 ${orderId} 商品不匹配`);
+    return { success: false, error: "订单商品不匹配，拒绝发放" };
+  }
+
+  // [BUG-FIX] 一律以服务端记录的订单数量为准，忽略客户端传入的 quantity，
+  // 防止 quantity 传负数 / NaN / 超大值污染余额。
+  const payload = mapProductToGrant(order.itemId, order.quantity);
   if (!payload) {
-    return { success: false, error: `商品 ${itemId} 无法映射为可发放权益` };
+    return { success: false, error: `商品 ${order.itemId} 无法映射为可发放权益` };
   }
 
   const result: GrantResult = {
-    orderId,
-    steamId,
-    itemId,
+    orderId: String(orderId),
+    steamId: order.steamId,
+    itemId: order.itemId,
     payload,
     grantedAt: new Date().toISOString(),
   };
@@ -336,6 +370,9 @@ export function revokeGrant(orderId: string): ApiResponse<RefundAction | null> {
     console.warn("[fulfillment] revertGrantTransaction failed:", e?.message ?? e);
   }
   grantedOrders.delete(orderId);
+  // [BUG-FIX] 回收后必须把账本落盘：原实现只删内存，grants.json 仍保留该订单，
+  // 服务重启后会被重新载入并插回 SQLite，下一次对账再次命中退款状态 → 用户被重复扣币。
+  persistGrants();
   console.log(`[REVOKE] 订单 ${orderId} 已回收权益:`, granted.payload);
   return {
     success: true,

@@ -14,7 +14,7 @@
  *   POST /api/mtx/check-ownership      - 检查应用所有权
  */
 
-import { Router, type Request, type Response } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import {
   initPurchase,
   finalizePurchase,
@@ -34,17 +34,38 @@ import {
 
 const router = Router();
 
+// [BUG-FIX] Express 4 不捕获 async 处理器抛出的异常：异常会变成 unhandledRejection 让进程退出（远程 DoS）。
+// 这里统一包装 handler，把错误交给 Express 错误中间件返回 500 而不是打崩服务。
+type RouteFn = (req: Request, res: Response, next: NextFunction) => unknown | Promise<unknown>;
+const handle =
+  (fn: RouteFn) =>
+  (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+// 用 route.* 替代 router.*，注册时自动套上错误捕获。
+// 注意：此处用 router["post"] 下标写法，避免被全局替换成 route.post 造成自递归。
+const route = {
+  post: (path: string, fn: RouteFn) => router["post"](path, handle(fn)),
+  get: (path: string, fn: RouteFn) => router["get"](path, handle(fn)),
+};
+
+/** [BUG-FIX] 把不可信输入收敛为字符串 */
+function asString(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
 // ---- 商品列表 ----
 
-router.get("/products", (_req: Request, res: Response) => {
+route.get("/products", (_req: Request, res: Response) => {
   const products = getProducts();
   res.json({ success: true, data: products });
 });
 
 // ---- 用户验证 ----
 
-router.post("/verify-user", async (req: Request, res: Response) => {
-  const { steamId } = req.body;
+route.post("/verify-user", async (req: Request, res: Response) => {
+  // [BUG-FIX] 入参类型校验：steamId 非字符串时原实现会原样透传
+  const steamId = asString((req.body ?? {}).steamId);
   if (!steamId) {
     return res.status(400).json({ success: false, error: "缺少 steamId" });
   }
@@ -54,8 +75,8 @@ router.post("/verify-user", async (req: Request, res: Response) => {
 
 // ---- 应用所有权 ----
 
-router.post("/check-ownership", async (req: Request, res: Response) => {
-  const { steamId } = req.body;
+route.post("/check-ownership", async (req: Request, res: Response) => {
+  const steamId = asString((req.body ?? {}).steamId);
   if (!steamId) {
     return res.status(400).json({ success: false, error: "缺少 steamId" });
   }
@@ -65,11 +86,14 @@ router.post("/check-ownership", async (req: Request, res: Response) => {
 
 // ---- 初始化购买 ----
 
-router.post("/init-purchase", async (req: Request, res: Response) => {
-  const { steamId, itemId, quantity, description, language, currency } = req.body;
+route.post("/init-purchase", async (req: Request, res: Response) => {
+  const body = req.body ?? {};
+  const steamId = asString(body.steamId);
+  const itemId = Number(body.itemId);
 
-  if (!steamId || !itemId) {
-    return res.status(400).json({ success: false, error: "缺少 steamId 或 itemId" });
+  // [BUG-FIX] itemId 必须是正整数：原实现只判真假，itemId="abc" 会得到 NaN 一路传到 Steam
+  if (!steamId || !Number.isInteger(itemId) || itemId <= 0) {
+    return res.status(400).json({ success: false, error: "缺少或非法的 steamId / itemId" });
   }
 
   const config = getConfig();
@@ -77,11 +101,11 @@ router.post("/init-purchase", async (req: Request, res: Response) => {
   const result = await initPurchase({
     steamId,
     appId: config.appId,
-    itemId: Number(itemId),
-    quantity: Number(quantity) || 1,
-    description,
-    language: language || "zh-CN",
-    currency: currency || "CNY",
+    itemId,
+    quantity: Number(body.quantity) || 1,
+    description: typeof body.description === "string" ? body.description : undefined,
+    language: asString(body.language) || "zh-CN",
+    currency: asString(body.currency) || "CNY",
   });
 
   res.json(result);
@@ -89,8 +113,10 @@ router.post("/init-purchase", async (req: Request, res: Response) => {
 
 // ---- 完成购买 ----
 
-router.post("/finalize-purchase", async (req: Request, res: Response) => {
-  const { steamId, orderId } = req.body;
+route.post("/finalize-purchase", async (req: Request, res: Response) => {
+  const body = req.body ?? {};
+  const steamId = asString(body.steamId);
+  const orderId = asString(body.orderId);
 
   if (!steamId || !orderId) {
     return res.status(400).json({ success: false, error: "缺少 steamId 或 orderId" });
@@ -103,8 +129,10 @@ router.post("/finalize-purchase", async (req: Request, res: Response) => {
 
 // ---- 查询购买状态 ----
 
-router.post("/check-purchase", async (req: Request, res: Response) => {
-  const { steamId, orderId } = req.body;
+route.post("/check-purchase", async (req: Request, res: Response) => {
+  const body = req.body ?? {};
+  const steamId = asString(body.steamId);
+  const orderId = asString(body.orderId) || undefined;
 
   if (!steamId) {
     return res.status(400).json({ success: false, error: "缺少 steamId" });
@@ -117,16 +145,26 @@ router.post("/check-purchase", async (req: Request, res: Response) => {
 
 // ---- 发放权益（Finalize 成功后调用）----
 
-router.post("/grant", async (req: Request, res: Response) => {
-  const { orderId, steamId, itemId, quantity } = req.body;
-  const result = await grantItems({ orderId, steamId, itemId, quantity });
+route.post("/grant", async (req: Request, res: Response) => {
+  // [BUG-FIX] 入参类型校验：原实现把 req.body 原样透传，且不校验订单真实性。
+  // 现在 grantItems 会校验「本服务初始化且已完成支付」的订单，数量以服务端记录为准。
+  const body = req.body ?? {};
+  const orderId = asString(body.orderId);
+  const steamId = asString(body.steamId);
+  const itemId = Number(body.itemId);
+
+  if (!orderId || !steamId || !Number.isInteger(itemId)) {
+    return res.status(400).json({ success: false, error: "缺少或非法的 orderId / steamId / itemId" });
+  }
+
+  const result = await grantItems({ orderId, steamId, itemId });
   res.json(result);
 });
 
 // ---- 回收权益（退款/拒付时调用）----
 
-router.post("/revoke", (req: Request, res: Response) => {
-  const { orderId } = req.body;
+route.post("/revoke", (req: Request, res: Response) => {
+  const orderId = asString((req.body ?? {}).orderId);
   if (!orderId) {
     return res.status(400).json({ success: false, error: "缺少 orderId" });
   }
@@ -136,13 +174,13 @@ router.post("/revoke", (req: Request, res: Response) => {
 
 // ---- 已发放订单列表（对账/调试用）----
 
-router.get("/granted-orders", (_req: Request, res: Response) => {
+route.get("/granted-orders", (_req: Request, res: Response) => {
   res.json({ success: true, data: listGrantedOrders() });
 });
 
 // ---- 交易对账报告（GetReport）----
 
-router.get("/report", async (req: Request, res: Response) => {
+route.get("/report", async (req: Request, res: Response) => {
   const { type, time, maxResults } = req.query;
   const result = await getReport({
     type: typeof type === "string" ? type : undefined,
@@ -154,7 +192,7 @@ router.get("/report", async (req: Request, res: Response) => {
 
 // ---- 配置状态（调试用） ----
 
-router.get("/config-status", (_req: Request, res: Response) => {
+route.get("/config-status", (_req: Request, res: Response) => {
   const config = getConfig();
   res.json({
     success: true,

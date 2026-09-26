@@ -606,6 +606,37 @@ export default function App() {
 
   const companionState = getCompanionState(currentCompanionEnergy);
 
+  // ---- 原子化钱包与实时状态 ref（防快速连点竞态）----
+  // [BUG-FIX] 原实现各处扣款都是「先用渲染闭包里的旧余额做前置校验，updater 内既无二次校验也无夹取」，
+  // 快速连点同一按钮时多次校验都读到同一旧值 → 余额被扣成负数，或返回 true 但实际未扣款（白嫖）。
+  // 这里用 ref 同步记录最新余额：扣款/发币时立即更新 ref，同一事件循环内的连续调用也能拿到最新值。
+  const coinsRef = useRef<number>(user.stardustCoins ?? 0);
+  useEffect(() => { coinsRef.current = user.stardustCoins ?? 0; }, [user.stardustCoins]);
+
+  /** 同步扣币：余额充足则立即扣款并返回 true；否则返回 false 且不改动任何状态 */
+  const spendCoins = (amount: number): boolean => {
+    if (!Number.isFinite(amount) || amount <= 0) return true; // 非法金额视为无需扣款
+    if (coinsRef.current < amount) return false;
+    coinsRef.current = Math.max(0, coinsRef.current - amount);
+    setUser(prev => ({ ...prev, stardustCoins: Math.max(0, (prev.stardustCoins ?? 0) - amount) }));
+    return true;
+  };
+
+  /** 同步发放星辰币（clamp 到非负数，防止异常入参污染余额） */
+  const grantCoins = (amount: number) => {
+    if (!Number.isFinite(amount) || amount === 0) return;
+    coinsRef.current = Math.max(0, coinsRef.current + amount);
+    setUser(prev => ({ ...prev, stardustCoins: Math.max(0, (prev.stardustCoins ?? 0) + amount) }));
+  };
+
+  // 实时能量 / 喂食次数 / 免费唤醒标记的 ref 镜像，供高频事件处理器做同步守卫
+  const energyRef = useRef<number>(currentCompanionEnergy);
+  useEffect(() => { energyRef.current = currentCompanionEnergy; }, [currentCompanionEnergy]);
+  const feedCountRef = useRef<number>(feedCount);
+  useEffect(() => { feedCountRef.current = feedCount; }, [feedCount]);
+  const freeReviveUsedRef = useRef<boolean>(freeReviveUsed);
+  useEffect(() => { freeReviveUsedRef.current = freeReviveUsed; }, [freeReviveUsed]);
+
   /** 更新活跃宠物的陪伴能量（写回 user 状态并刷新时间戳） */
   const updateCompanionEnergy = (nextEnergy: number, opts?: { immuneUntil?: number }) => {
     setUser(prev => {
@@ -649,23 +680,26 @@ export default function App() {
     }
 
     // 首睡免费唤醒：首次沉睡的宠物可免费使用一次唤醒剂
-    const isFreeRevive = food.id === "energy_revive" && !freeReviveUsed;
-    if (!isFreeRevive && user.stardustCoins < food.price) {
-      triggerToast(`⚠️【星辰币不足】${food.name} 需要 ${food.price} 星辰币，您当前只有 ${user.stardustCoins} 币。`);
+    // [BUG-FIX] 用 ref 读取实时标记，避免连点时闭包读到旧值导致「免费唤醒」被重复触发
+    const isFreeRevive = food.id === "energy_revive" && !freeReviveUsedRef.current;
+    // [BUG-FIX] 扣币改为原子化 spendCoins：前置校验与扣款在同一处完成，
+    // 同一事件循环内连点第二次会读到已扣减后的余额而失败，不会再扣成负数。
+    if (!isFreeRevive && !spendCoins(food.price)) {
+      triggerToast(`⚠️【星辰币不足】${food.name} 需要 ${food.price} 星辰币，您当前只有 ${coinsRef.current} 币。`);
       playSound("beep");
       return;
     }
-
-    // 扣币（免费唤醒不扣币）
-    if (!isFreeRevive) {
-      setUser(prev => ({ ...prev, stardustCoins: prev.stardustCoins - food.price }));
-    } else {
+    if (isFreeRevive) {
+      freeReviveUsedRef.current = true;
       setFreeReviveUsed(true);
       try { localStorage.setItem(`starpuff_free_revive_${activePetId}`, "1"); } catch (e) {}
     }
 
     // 恢复能量
-    const nextEnergy = Math.min(100, currentCompanionEnergy + food.energyRestore);
+    // [BUG-FIX] 用 energyRef 累加：原实现两次连点都基于同一个闭包能量计算，
+    // 第二次恢复的数值会把第一次覆盖掉（能量白白丢失）。
+    const nextEnergy = Math.min(100, energyRef.current + food.energyRestore);
+    energyRef.current = nextEnergy;
     // [BUG-FIX] 只有带免衰减天数的道具才传 immuneUntil。
     // 原实现无条件传 0，而 `0 ?? x` 结果恒为 0，会把「时光结晶」买来的 3 天免疫期清成 0，
     // 玩家花 50 币买的免衰减会被随后任意一次普通喂食清零。
@@ -677,7 +711,9 @@ export default function App() {
     );
 
     // 累计喂食次数并持久化（按宠物 id 分 key）
-    const nextFeedCount = feedCount + 1;
+    // [BUG-FIX] 用 feedCountRef 递增，避免连点两次时第二次基于同一旧值覆盖计数
+    const nextFeedCount = feedCountRef.current + 1;
+    feedCountRef.current = nextFeedCount;
     setFeedCount(nextFeedCount);
     try {
       localStorage.setItem(`starpuff_feed_count_${activePetId}`, String(nextFeedCount));
@@ -956,6 +992,9 @@ export default function App() {
       snack_biscuit: 2,
     };
   });
+  // [BUG-FIX] 库存的 ref 镜像：喂食/购买时同步读写，避免连点两次都读到同一份闭包快照
+  const foodInventoryRef = useRef<Record<string, number>>(foodInventory);
+  useEffect(() => { foodInventoryRef.current = foodInventory; }, [foodInventory]);
 
   // VIP Dialog Modal
   const [isVipModalOpen, setIsVipModalOpen] = useState(false);
@@ -1207,82 +1246,117 @@ export default function App() {
 
   const [activeMemoryFlashbackId, setActiveMemoryFlashbackId] = useState<string | null>(null);
 
+  // [BUG-FIX] localStorage 写入统一兜底：隐私模式 / 配额超限时 setItem 会抛异常，
+  // 在 effect 中抛出会直接冒泡到 React 错误边界导致整页崩溃。starpuff_user 体积最大最易触顶。
+  const safeSetItem = (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn(`[storage] 写入 ${key} 失败（可能配额超限或处于隐私模式）`, e);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem("starpuff_unlocked_memories", JSON.stringify(unlockedMemoryIds));
+    safeSetItem("starpuff_unlocked_memories", JSON.stringify(unlockedMemoryIds));
   }, [unlockedMemoryIds]);
 
   useEffect(() => {
-    localStorage.setItem("starpuff_bonding_charge", bondingCharge.toString());
+    safeSetItem("starpuff_bonding_charge", bondingCharge.toString());
+  }, [bondingCharge]);
+
+  // [BUG-FIX] 蓄力值加 ref 镜像：避免连续调用（喂食+互动）时都读到同一份闭包旧值而互相覆盖
+  const bondingChargeRef = useRef<number>(bondingCharge);
+  useEffect(() => {
+    bondingChargeRef.current = bondingCharge;
   }, [bondingCharge]);
 
   const incrementBondingCharge = (amount: number) => {
     if (!user.activePet) return;
-    setBondingCharge(prev => {
-      const next = prev + amount;
-      if (next >= 100) {
-        // Find matching memory templates for the pet
-        let candidates = PET_MEMORIES.filter(m => m.category === user.activePet?.type || m.category === "通用");
-        if (candidates.length === 0) {
-          candidates = PET_MEMORIES;
-        }
+    // [BUG-FIX] 副作用（Math.random / setTimeout / playSound）必须移出 setState 的 updater：
+    // updater 必须是纯函数，StrictMode 下会被双调用 → 定时器注册两次、chime 音效叠放、
+    // 随机闪回被选中并弹出两次。这里改为先用 ref 求新值，副作用全部在 updater 之外执行。
+    const next = bondingChargeRef.current + amount;
+    if (next < 100) {
+      bondingChargeRef.current = next;
+      setBondingCharge(next);
+      return;
+    }
 
-        // Prioritise unlocking currently locked matching memories if available
-        const lockedCandidates = candidates.filter(m => !unlockedMemoryIds.includes(m.id));
-        const finalSelectionList = lockedCandidates.length > 0 ? lockedCandidates : candidates;
-        const selected = finalSelectionList[Math.floor(Math.random() * finalSelectionList.length)];
+    // 蓄满 100%：触发一次记忆闪回并清零
+    let candidates = PET_MEMORIES.filter(m => m.category === user.activePet?.type || m.category === "通用");
+    if (candidates.length === 0) {
+      candidates = PET_MEMORIES;
+    }
+    // 优先解锁尚未看过的同类别记忆
+    const lockedCandidates = candidates.filter(m => !unlockedMemoryIds.includes(m.id));
+    const finalSelectionList = lockedCandidates.length > 0 ? lockedCandidates : candidates;
+    const selected = finalSelectionList[Math.floor(Math.random() * finalSelectionList.length)];
 
-        if (selected) {
-          setTimeout(() => {
-            setActiveMemoryFlashbackId(selected.id);
-            playSound("chime");
-          }, 600);
-        }
-        return 0; // reset charge meter on triggering flashback
-      }
-      return next;
-    });
+    bondingChargeRef.current = 0;
+    setBondingCharge(0);
+    if (selected) {
+      setTimeout(() => {
+        setActiveMemoryFlashbackId(selected.id);
+        playSound("chime");
+      }, 600);
+    }
   };
   // ------------------------------------------
 
-  // Sync state to localStorage
+  // Sync state to localStorage（统一走 safeSetItem，避免配额超限时崩溃）
   useEffect(() => {
-    localStorage.setItem("starpuff_user", JSON.stringify(user));
+    safeSetItem("starpuff_user", JSON.stringify(user));
   }, [user]);
 
   useEffect(() => {
-    localStorage.setItem("starpuff_whispers", JSON.stringify(whispers));
+    safeSetItem("starpuff_whispers", JSON.stringify(whispers));
   }, [whispers]);
 
   // 持久化星辰来信档位与升级时间戳
   useEffect(() => {
-    localStorage.setItem("starpuff_letter_tier", letterTier);
+    safeSetItem("starpuff_letter_tier", letterTier);
   }, [letterTier]);
   useEffect(() => {
     if (letterUpgradedAt === null) {
-      localStorage.removeItem("starpuff_letter_upgraded_at");
+      try {
+        localStorage.removeItem("starpuff_letter_upgraded_at");
+      } catch (e) {
+        console.warn("[storage] 移除 starpuff_letter_upgraded_at 失败", e);
+      }
     } else {
-      localStorage.setItem("starpuff_letter_upgraded_at", String(letterUpgradedAt));
+      safeSetItem("starpuff_letter_upgraded_at", String(letterUpgradedAt));
     }
   }, [letterUpgradedAt]);
 
   useEffect(() => {
-    localStorage.setItem("starpuff_comp_posts", JSON.stringify(communityPosts));
+    safeSetItem("starpuff_comp_posts", JSON.stringify(communityPosts));
   }, [communityPosts]);
 
   useEffect(() => {
-    localStorage.setItem("starpuff_tasks", JSON.stringify(tasks));
-    localStorage.setItem("starpuff_tasks_date", localDateString());
+    safeSetItem("starpuff_tasks", JSON.stringify(tasks));
+    safeSetItem("starpuff_tasks_date", localDateString());
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem("starpuff_food", JSON.stringify(foodInventory));
+    safeSetItem("starpuff_food", JSON.stringify(foodInventory));
   }, [foodInventory]);
 
   // Show a non-blocking temporary toast notice
+  // [BUG-FIX] 原实现每次调用都新开一个 3.8s 定时器且不清除上一个：
+  // 3 秒内连弹两条 toast 时，第一条的定时器到点会把正在显示的第二条提前掐灭；
+  // 组件卸载后定时器仍会 setState。这里记录句柄并在新 toast 到来时重置计时。
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
   const triggerToast = (text: string) => {
     setSystemAlert(text);
-    setTimeout(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
       setSystemAlert(null);
+      toastTimerRef.current = null;
     }, 3800);
   };
 
@@ -1343,7 +1417,7 @@ export default function App() {
         ...prev,
         activePet: updatedPet,
         allPets: nextPets,
-        dialogsRemaining: prev.membership === "free" ? 5 : 999999,
+        dialogsRemaining: prev.unlimitedTalks ? 999999 : (prev.dialogsMax ?? 5),
         // [BUG-FIX] 完成升星仪式即视为已走完新手流程，避免引导遮罩（z-[9999]）在仪式后误弹并拦截输入
         onboardingCompleted: true
       };
@@ -1454,7 +1528,12 @@ export default function App() {
         ...prev.activePet,
         anniversariesList: updatedList
       };
-      const updatedAll = (prev.allPets || []).map(p => p.name === updatedPet.name ? updatedPet : p);
+      // [BUG-FIX] 必须按 id 匹配：原实现按 name 匹配，养两只同名宠物时编辑其中一只
+      // 会把另一只整体覆盖成 activePet（含 id），造成 allPets 出现重复 id 与数据互相污染。
+      const activeKey = prev.activePet.id || prev.activePet.name;
+      const updatedAll = (prev.allPets || []).map(p =>
+        (p.id || p.name) === activeKey ? updatedPet : p
+      );
       return {
         ...prev,
         activePet: updatedPet,
@@ -1470,7 +1549,11 @@ export default function App() {
         ...prev.activePet,
         memoryTimelineList: updatedTimeline
       };
-      const updatedAll = (prev.allPets || []).map(p => p.name === updatedPet.name ? updatedPet : p);
+      // [BUG-FIX] 按 id 匹配（原因同 handleUpdateAnniversaries）
+      const activeKey = prev.activePet.id || prev.activePet.name;
+      const updatedAll = (prev.allPets || []).map(p =>
+        (p.id || p.name) === activeKey ? updatedPet : p
+      );
       return {
         ...prev,
         activePet: updatedPet,
@@ -1486,7 +1569,11 @@ export default function App() {
         ...prev.activePet,
         personalityTags: newTags
       };
-      const updatedAll = (prev.allPets || []).map(p => p.name === updatedPet.name ? updatedPet : p);
+      // [BUG-FIX] 按 id 匹配（原因同 handleUpdateAnniversaries）
+      const activeKey = prev.activePet.id || prev.activePet.name;
+      const updatedAll = (prev.allPets || []).map(p =>
+        (p.id || p.name) === activeKey ? updatedPet : p
+      );
       return {
         ...prev,
         activePet: updatedPet,
@@ -1515,14 +1602,10 @@ export default function App() {
   };
 
   const handleOnboardingComplete = () => {
-    setUser(prev => {
-      const nextUser = {
-        ...prev,
-        onboardingCompleted: true
-      };
-      localStorage.setItem("starpuff_user", JSON.stringify(nextUser));
-      return nextUser;
-    });
+    // [BUG-FIX] 移除 setState updater 内的 localStorage 写入（副作用必须移出 updater，
+    // StrictMode 下 updater 会被双调用导致重复写盘）。starpuff_user 已由上方
+    // useEffect([user]) 统一做安全持久化，此处无需重复写盘。
+    setUser(prev => ({ ...prev, onboardingCompleted: true }));
     triggerToast("🏅 恭喜！你完成了星轨引航新手训练！");
     playSound("success");
   };
@@ -1542,15 +1625,35 @@ export default function App() {
   const sentTextIndexRef = useRef<Record<string, number[]>>({});
 
   // 特殊场景来信（雨天/雪天/生日/纪念日/深夜）去重：按 类型+日期 记录，每天每种最多发一次
+  // [BUG-FIX] 去重记录必须持久化：原实现只存在内存 ref，关闭应用再打开当天会重复收到雨/雪天问候。
+  const SPECIAL_SENT_KEY = "starpuff_special_letter_sent";
   const sentSpecialRef = useRef<Record<string, string>>({});
+  const sentSpecialDayRef = useRef<string>("");
+  const loadSpecialSent = (today: string): Record<string, string> => {
+    try {
+      const raw = localStorage.getItem(SPECIAL_SENT_KEY);
+      if (!raw) return {};
+      const data = JSON.parse(raw) as { date?: string; record?: Record<string, string> };
+      return data?.date === today && data.record ? data.record : {};
+    } catch {
+      return {};
+    }
+  };
   // 用 ref 稳定转发，保证定时检测与天气回调都能拿到最新 user.activePet 闭包
   const sendSpecialLetterRef = useRef<(kind: keyof typeof SPECIAL_LETTER_TEXTS, label: string) => void>(() => {});
   sendSpecialLetterRef.current = (kind, label) => {
     if (!user.activePet) return;
     const today = localDateString();
+    if (sentSpecialDayRef.current !== today) {
+      sentSpecialDayRef.current = today;
+      sentSpecialRef.current = loadSpecialSent(today);
+    }
     const key = `${today}-${kind}`;
     if (sentSpecialRef.current[key]) return; // 今天已发过该类型
     sentSpecialRef.current[key] = today;
+    try {
+      localStorage.setItem(SPECIAL_SENT_KEY, JSON.stringify({ date: today, record: sentSpecialRef.current }));
+    } catch { /* 忽略存储失败 */ }
     const whisper: PetWhisper = {
       id: `w_special_${kind}_${Date.now()}`,
       date: today,
@@ -1589,6 +1692,25 @@ export default function App() {
   };
 
   // 定时自动发送星辰来信：每分钟检查一次，到点（8/12/22 点）自动推送，无需手动触发
+  // [BUG-FIX] 已发送档位必须持久化：原实现只存在内存 Set，关闭应用再打开当天会重复收到
+  // 同一封来信（可反复重启无限叠加 whispers，写入 localStorage 造成膨胀）。
+  const LETTER_SENT_KEY = "starpuff_letter_sent_slots";
+  const loadSentSlots = (today: string): Set<string> => {
+    try {
+      const raw = localStorage.getItem(LETTER_SENT_KEY);
+      if (!raw) return new Set();
+      const data = JSON.parse(raw) as { date?: string; slots?: string[] };
+      if (data?.date !== today || !Array.isArray(data.slots)) return new Set();
+      return new Set(data.slots);
+    } catch {
+      return new Set();
+    }
+  };
+  const saveSentSlots = (today: string, slots: Set<string>) => {
+    try {
+      localStorage.setItem(LETTER_SENT_KEY, JSON.stringify({ date: today, slots: Array.from(slots) }));
+    } catch { /* 忽略存储失败 */ }
+  };
   const sentLetterSlotsRef = useRef<Set<string>>(new Set());
   const sentLetterDayRef = useRef<string>("");
   useEffect(() => {
@@ -1622,10 +1744,10 @@ export default function App() {
     const checkAndSend = () => {
       const now = new Date();
       const today = localDateString();
-      // 跨天重置已发送记录
+      // 跨天重置已发送记录（从 localStorage 恢复当天已发档位）
       if (sentLetterDayRef.current !== today) {
         sentLetterDayRef.current = today;
-        sentLetterSlotsRef.current.clear();
+        sentLetterSlotsRef.current = loadSentSlots(today);
       }
       const tier = effectiveLetterTier;
       for (const slot of LETTER_SEND_TIMES[tier]) {
@@ -1635,6 +1757,7 @@ export default function App() {
         const nowMin = now.getHours() * 60 + now.getMinutes();
         if (nowMin >= slotMin) {
           sentLetterSlotsRef.current.add(key);
+          saveSentSlots(today, sentLetterSlotsRef.current);
           sendTimedLetter(slot.slotLabel, slot.period);
         }
       }
@@ -1844,14 +1967,16 @@ export default function App() {
     }
 
     // Check dialog availability
-    if (user.membership === "free" && user.dialogsRemaining <= 0) {
+    // [BUG-FIX] 统一以 unlimitedTalks 作为唯一判据（原来本处用 membership、聊天处用 unlimitedTalks，
+    // 两个字段一旦不同步就会出现「聊天免费但点宠物扣次数」或反之）
+    if (!user.unlimitedTalks && user.dialogsRemaining <= 0) {
       triggerToast("🐾【额度用尽】小宝贝精神有点疲惫在睡觉瞌睡。请到【储物包】喂食它零食补充精神能！");
       playSound("beep");
       return;
     }
 
     // Spend dialogue tick (or infinite if VIP)
-    if (user.membership === "free") {
+    if (!user.unlimitedTalks) {
       setUser(prev => ({
         ...prev,
         dialogsRemaining: Math.max(0, prev.dialogsRemaining - 1)
@@ -1874,7 +1999,9 @@ export default function App() {
 
   // Feeding action
   const handleFeedSnack = (snack: StoreItem) => {
-    const qty = foodInventory[snack.id] || 0;
+    // [BUG-FIX] 从 ref 读取并同步写回库存：原实现用闭包快照计算 qty-1，
+    // 库存仅剩 1 个时快速双击会让「恢复对话次数 / 羁绊蓄能」等效果生效两次。
+    const qty = foodInventoryRef.current[snack.id] || 0;
     if (qty <= 0) {
       triggerToast(`🍩【库存短缺】没有【${snack.name}】了！请到星辰商店购买。`);
       playSound("beep");
@@ -1882,10 +2009,9 @@ export default function App() {
     }
 
     // Decrement inventory
-    setFoodInventory(prev => ({
-      ...prev,
-      [snack.id]: qty - 1
-    }));
+    const nextInventory = { ...foodInventoryRef.current, [snack.id]: qty - 1 };
+    foodInventoryRef.current = nextInventory;
+    setFoodInventory(nextInventory);
 
     // [数值平衡] 贵的零食恢复更多对话次数，避免「120 币与 12 币零食效果完全相同」的经济陷阱。
     // 12-30 币 → +1 轮；40-70 币 → +2 轮；85+ 币 → +3 轮。
@@ -1893,7 +2019,7 @@ export default function App() {
 
     // Increment dialog ticks
     setUser(prev => {
-      const updatedRemaining = prev.membership === "free"
+      const updatedRemaining = !prev.unlimitedTalks
         ? Math.min(prev.dialogsMax, prev.dialogsRemaining + dialogGain)
         : prev.dialogsRemaining; // VIP is already infinite
         
@@ -1928,8 +2054,10 @@ export default function App() {
       setUser(prev => {
         // [BUG-FIX] 用最新余额二次校验并夹取，避免快速连点时余额被扣成负数
         if (prev.stardustCoins < finalPrice) return prev;
-        const alreadyHas = prev.outfitsUnlocked.includes(item.id);
-        const nextUnlocked = alreadyHas ? prev.outfitsUnlocked : [...prev.outfitsUnlocked, item.id];
+        // [BUG-FIX] 防御损坏存档：outfitsUnlocked 缺失时原实现 .includes 会抛 TypeError
+        const ownedOutfits = Array.isArray(prev.outfitsUnlocked) ? prev.outfitsUnlocked : [];
+        const alreadyHas = ownedOutfits.includes(item.id);
+        const nextUnlocked = alreadyHas ? ownedOutfits : [...ownedOutfits, item.id];
         
         // Auto equip purchased item
         const nextEquipped = { ...prev.outfitsEquipped };
@@ -1958,17 +2086,16 @@ export default function App() {
       playSound("success");
       setConfettiTrigger(prev => prev + 1);
     } else if (item.type === "snack" || item.type === "gift") {
-      // Snack replenishment
-      setFoodInventory(prev => ({
-        ...prev,
-        [item.id]: (prev[item.id] || 0) + 1
-      }));
-      setUser(prev =>
-        // [BUG-FIX] 二次校验 + 夹取，避免快速连点导致余额变负
-        prev.stardustCoins < finalPrice
-          ? prev
-          : { ...prev, stardustCoins: Math.max(0, prev.stardustCoins - finalPrice) }
-      );
+      // [BUG-FIX] 原实现「先无条件加库存，再尝试扣款」：扣款失败时商品仍会入库，
+      // 快速连点可白嫖零食。改为先原子扣款、成功后再入库。
+      if (!spendCoins(finalPrice)) {
+        triggerToast(`⚠️【余额不足】购买【${item.name}】需要 ${finalPrice} 星辰币，您当前只有 ${coinsRef.current} 币。`);
+        playSound("beep");
+        return;
+      }
+      const nextInventory = { ...foodInventoryRef.current, [item.id]: (foodInventoryRef.current[item.id] || 0) + 1 };
+      foodInventoryRef.current = nextInventory;
+      setFoodInventory(nextInventory);
       triggerToast(`🛍️ 成功换购零食：【${item.name}】x 1已存入包囊！`);
       playSound("success");
     }
@@ -2101,17 +2228,13 @@ export default function App() {
 
   // Simulated gifts to other community posts
   const handleSendGiftToPost = (post: CommunityPost, gift: StoreItem) => {
-    if (user.stardustCoins < gift.price) {
+    // [BUG-FIX] 原子扣款：原实现用闭包旧余额校验且 updater 内无二次校验/夹取，
+    // 快速连点可把余额扣成负数。
+    if (!spendCoins(gift.price)) {
       triggerToast("⚠️ 换购礼物预算不够了，可以做做每日任务哦！");
       playSound("beep");
       return;
     }
-
-    // Deduct coins
-    setUser(prev => ({
-      ...prev,
-      stardustCoins: prev.stardustCoins - gift.price
-    }));
 
     // Inject receive gift string
     // [BUG-FIX] 原实现每次送礼都往 message 尾部追加一段文本，同一帖子反复送礼
@@ -2596,13 +2719,11 @@ export default function App() {
                         stardustSparkleTrigger={confettiTrigger}
                         stardustCoins={user.stardustCoins}
                         onSpendCoins={(amount) => {
-                          // 扣星辰币：余额不足返回 false
-                          if (user.stardustCoins < amount) {
-                            triggerToast(`⚠️ 星辰币不足，还差 ${amount - user.stardustCoins} 币。`);
-                            return false;
-                          }
-                          setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins - amount) }));
-                          return true;
+                          // [BUG-FIX] 改用原子化 spendCoins：原实现用闭包旧余额校验，
+                          // 连点时可超支（返回 true 但实际未扣款，等于白嫖）。
+                          if (spendCoins(amount)) return true;
+                          triggerToast(`⚠️ 星辰币不足，还差 ${Math.max(0, amount - coinsRef.current)} 币。`);
+                          return false;
                         }}
                         feedMenuTrigger={feedMenuTrigger}
                         onWeatherLetter={(kind) => {
@@ -2623,7 +2744,7 @@ export default function App() {
                         <div className="flex items-center justify-center gap-2 mt-1.5 text-xs text-indigo-300 font-sans">
                           <span>🎂 {user.activePet.passingDate} 踏彩虹桥</span>
                           <span>·</span>
-                          <span>羁绊活跃 · {user.unlimitedTalks ? "无限次" : `${user.dialogsRemaining}/5 轮`}</span>
+                          <span>羁绊活跃 · {user.unlimitedTalks ? "无限次" : `${user.dialogsRemaining}/${user.dialogsMax ?? 5} 轮`}</span>
                         </div>
                       </div>
                     </div>
@@ -2814,13 +2935,12 @@ export default function App() {
                         }));
                       }}
                       onGrantCoins={(amt) => {
-                        setUser(prev => ({ ...prev, stardustCoins: prev.stardustCoins + amt }));
+                        grantCoins(amt);
                       }}
                       onSpendCoins={(amt) => {
-                        // 直接读取当前星辰币判断余额，避免 setState 异步副作用
-                        if (user.stardustCoins < amt) return false;
-                        setUser(prev => ({ ...prev, stardustCoins: prev.stardustCoins - amt }));
-                        return true;
+                        // [BUG-FIX] 改用原子化 spendCoins：原实现用闭包旧余额校验且 updater 无夹取，
+                        // 场景内快速连点（烘焙 / 训练 / 竞速报名）会把余额扣成负数。
+                        return spendCoins(amt);
                       }}
                       stardustCoins={user.stardustCoins}
                       isTaskAlreadyCompleted={tasks.find(t => t.id === "task_explore")?.completedTimes === 1}
@@ -3444,12 +3564,10 @@ export default function App() {
                           activePet={user.activePet}
                           stardustCoins={user.stardustCoins}
                           onSpendCoins={(amount) => {
-                            if (user.stardustCoins < amount) {
-                              triggerToast(`⚠️ 星辰币不足，还差 ${amount - user.stardustCoins} 币。`);
-                              return false;
-                            }
-                            setUser(prev => ({ ...prev, stardustCoins: Math.max(0, prev.stardustCoins - amount) }));
-                            return true;
+                            // [BUG-FIX] 改用原子化 spendCoins，消除连点造成的超支/白嫖
+                            if (spendCoins(amount)) return true;
+                            triggerToast(`⚠️ 星辰币不足，还差 ${Math.max(0, amount - coinsRef.current)} 币。`);
+                            return false;
                           }}
                           triggerToast={triggerToast}
                         />
@@ -3642,7 +3760,7 @@ export default function App() {
                     <span>星辰通路 ({user.activePet?.name || '天乐'})</span>
                   </div>
                   <span className="bg-white/5 px-2 py-0.5 rounded text-[8.5px] font-mono text-purple-300">
-                    {user.unlimitedTalks ? "♾️ 无限次" : `剩 ${user.dialogsRemaining}/5 轮`}
+                    {user.unlimitedTalks ? "♾️ 无限次" : `剩 ${user.dialogsRemaining}/${user.dialogsMax ?? 5} 轮`}
                   </span>
                 </div>
 

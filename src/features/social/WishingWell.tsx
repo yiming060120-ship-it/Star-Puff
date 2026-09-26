@@ -283,7 +283,7 @@ export default function WishingWell({ stardustCoins, onUpdateCoins, triggerToast
                   }`}
                 >
                   <Heart className={`w-3.5 h-3.5 ${blessedIds.includes(currentRetrieved.id) ? "fill-emerald-400" : "fill-pink-400"}`} />
-                  {blessedIds.includes(currentRetrieved.id) ? "已传递温暖" : "投喂思念拥抱 (+10⭐)"}
+                  {blessedIds.includes(currentRetrieved.id) ? "已传递温暖" : "投喂思念拥抱 (+2⭐)"}
                 </button>
 
                 <div className="text-[9px] font-mono text-gray-500">

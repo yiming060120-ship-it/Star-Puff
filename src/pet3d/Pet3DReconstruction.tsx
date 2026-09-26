@@ -87,6 +87,13 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
   const isDragging = useRef<boolean>(false);
   const startMousePos = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
   const [shockwaveFactor, setShockwaveFactor] = useState<number>(0); // click splash ripple
+  // [BUG-FIX] 冲击波衰减值改用 ref 承载：原实现把衰减写在渲染循环里每帧 setState，
+  // 而 shockwaveFactor 又在 effect 依赖数组中 → 每帧重建渲染循环、localTime 归零，
+  // 约 27 帧衰减期内所有时间驱动动画（行走/摇尾/呼吸）反复冻结重启。
+  const shockwaveRef = useRef<number>(0);
+  useEffect(() => {
+    shockwaveRef.current = shockwaveFactor;
+  }, [shockwaveFactor]);
   const [rotationSpeed, setRotationSpeed] = useState<number>(0.5);
 
   // WebGL ThreeJS Real-time engine states & loaders
@@ -555,7 +562,10 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       nodes: [
         {
           name: "StarPuff_Rig_Root",
-          children: [1], // links child joints
+          // [BUG-FIX] 必须把骨骼根节点也挂进场景图：原实现只挂了 mesh（节点 1），
+          // 关节节点 2~8 成为不可达的孤立节点（skin.joints 必须可达），
+          // 违反 glTF 规范，严格加载器会直接报错导致导出的模型打不开。
+          children: [1, 2], // mesh + skeleton root
           translation: [0, 0, 0]
         },
         {
@@ -611,7 +621,10 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       ],
       skins: [
         {
-          inverseBindMatrices: 5, // Accessor index for inverse matrix (normally identity mapping)
+          // [BUG-FIX] 删除 inverseBindMatrices: 5 —— accessors 只定义了 0~4 共 5 个，
+          // 引用第 6 个不存在的 accessor 属于越界，glTF 校验会失败、加载器直接抛错。
+          // 该字段在 glTF 规范中是可选的，省略时按单位矩阵处理。
+          skeleton: 2, // 骨骼根节点
           joints: [2, 3, 4, 5, 6, 7, 8] // Indices mapped bone joints list
         }
       ],
@@ -673,6 +686,9 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
 
     let animId: number;
     let localTime = 0;
+    // [BUG-FIX] 自转角度必须跨帧累积：原实现每帧都从 yaw 重新计算并只加一个固定偏移，
+    // 模型实际静止不动，「暂停/开启自转」按钮形同虚设。
+    let autoYaw = yaw;
 
     const render = () => {
       localTime += 0.055;
@@ -719,10 +735,13 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       ctx.fillRect(width / 2 - 160 * zoom, laserY - 15, 320 * zoom, 30);
 
       // Slow orbit drift if not dragging (orbit camera)
-      let currentYaw = yaw;
-      if (!isDragging.current) {
-        currentYaw += 0.006 * rotationSpeed;
+      // [BUG-FIX] 用跨帧累积的 autoYaw；拖拽时以用户角度 yaw 为准
+      if (isDragging.current) {
+        autoYaw = yaw;
+      } else {
+        autoYaw += 0.006 * rotationSpeed;
       }
+      const currentYaw = autoYaw;
 
       // Read model configurations
       const count = reconstructedModel.verticesCount;
@@ -806,9 +825,10 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
           vy += boneOffsets.spineY * 85;
         }
 
-        if (shockwaveFactor > 0) {
+        const shock = shockwaveRef.current;
+        if (shock > 0) {
           const dist = Math.sqrt(vx*vx + vy*vy + vz*vz);
-          const force = Math.sin(dist * 0.12 - localTime * 5.5) * 14 * shockwaveFactor * bounciness * boneOffsets.bouncinessMult;
+          const force = Math.sin(dist * 0.12 - localTime * 5.5) * 14 * shock * bounciness * boneOffsets.bouncinessMult;
           vx += (vx / dist) * force;
           vy += (vy / dist) * force;
           vz += (vz / dist) * force;
@@ -1008,18 +1028,23 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
       designParticles.current = designParticles.current.filter(p => p.life < p.maxLife);
 
       // Handle displaying hovering node tooltip card
+      // [BUG-FIX] 函数式更新 + 值未变时返回原引用，避免每帧 setState 触发无谓重渲染
       if (closestNode) {
-        setHoveredNode(closestNode);
+        setHoveredNode((prev) =>
+          prev && prev.x === closestNode.x && prev.y === closestNode.y && prev.label === closestNode.label
+            ? prev
+            : closestNode
+        );
         ctx.strokeStyle = "#ff407a";
         ctx.lineWidth = 1;
         ctx.strokeRect(closestNode.x - 7, closestNode.y - 7, 14, 14);
       } else {
-        setHoveredNode(null);
+        setHoveredNode((prev) => (prev === null ? prev : null));
       }
 
-      // Decay interactive shockwaves
-      if (shockwaveFactor > 0) {
-        setShockwaveFactor((prev) => Math.max(0, prev - 0.04));
+      // [BUG-FIX] 冲击波衰减只改 ref，不再每帧 setState（否则会不断重建渲染循环）
+      if (shockwaveRef.current > 0) {
+        shockwaveRef.current = Math.max(0, shockwaveRef.current - 0.04);
       }
 
       animId = requestAnimationFrame(render);
@@ -1030,7 +1055,8 @@ export default function Pet3DReconstruction({ activePet, onSync3DModelToPet, tri
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, [reconstructedModel, yaw, pitch, zoom, shockwaveFactor, rotationSpeed, activeAnimation, showBoneSkeleton, stardustParticleStrength]);
+    // [BUG-FIX] 依赖中移除 shockwaveFactor：它每帧变化会让整个渲染循环被反复拆装
+  }, [reconstructedModel, yaw, pitch, zoom, rotationSpeed, activeAnimation, showBoneSkeleton, stardustParticleStrength]);
 
   // WebGL Real-time 3D loader for Cat.gltf
   useEffect(() => {

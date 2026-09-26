@@ -706,7 +706,10 @@ const NebulaGateCanvas: React.FC<NebulaGateCanvasProps> = ({
           <button onClick={() => setActiveSceneId(null)} className="mb-3 text-[11px] text-indigo-400 flex items-center gap-1 hover:text-white transition-colors bg-white/5 px-2 py-1.5 rounded-lg border border-white/10 shadow-md backdrop-blur">
             <ChevronLeft className="w-3 h-3" /> 返回星辰之门·七大地标
           </button>
+          {/* [BUG-FIX] 加 key：切换场景时强制重挂载，否则组件不卸载，
+              会残留上一场景的全部「奇遇记」日志，而标题栏已换成新场景名。 */}
           <SceneRenderer 
+            key={activeSceneId}
             sceneId={activeSceneId} 
             userPet={userPet} 
             onLoggedEvent={onLoggedEvent} 
@@ -761,7 +764,9 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
   const sceneMeta = SCENE_META.find(s => s.id === sceneId)!;
   const sceneDesign = SCENE_DESIGNS[sceneId];
   
-  const [internalLogs, setInternalLogs] = useState<string[]>([]);
+  // [BUG-FIX] 日志改为带唯一 id 的对象：原实现用数组下标作 React key，
+  // 而日志是头部插入，会让 React 复用错误的 DOM 节点（内容错位、过渡动画错乱）。
+  const [internalLogs, setInternalLogs] = useState<{ id: string; text: string }[]>([]);
   const petsRef = useRef<ExplorerPet[]>([]);
   const [adventureSeconds, setAdventureSeconds] = useState(0);
   const [adventureDone, setAdventureDone] = useState(isTaskAlreadyCompleted);
@@ -790,7 +795,10 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
   const addLog = useCallback((msg: string) => {
     const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
     const fullMsg = `[${time}] ${msg}`;
-    setInternalLogs(prev => [fullMsg, ...prev].slice(0, 50));
+    setInternalLogs(prev => [
+      { id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, text: fullMsg },
+      ...prev,
+    ].slice(0, 50));
     onLoggedEventRef.current(fullMsg);
   }, []);
 
@@ -1129,9 +1137,9 @@ const SceneRenderer = ({ sceneId, userPet, onLoggedEvent, onTaskCompleted, isTas
           <span className="text-[9px] text-indigo-400/50 font-sans">✦ 星宠的实时动态</span>
         </div>
         <div className="overflow-y-auto flex-1 space-y-2.5 pr-2 custom-scrollbar text-xs">
-          {internalLogs.map((log, idx) => (
-            <div key={idx} className="font-sans text-indigo-100/80 leading-relaxed border-b border-white/5 pb-2 last:border-0 pl-3 border-l-2 border-indigo-500/40">
-              {log}
+          {internalLogs.map((log) => (
+            <div key={log.id} className="font-sans text-indigo-100/80 leading-relaxed border-b border-white/5 pb-2 last:border-0 pl-3 border-l-2 border-indigo-500/40">
+              {log.text}
             </div>
           ))}
         </div>

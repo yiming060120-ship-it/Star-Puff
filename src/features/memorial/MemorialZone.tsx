@@ -194,7 +194,11 @@ export default function MemorialZone({ activePet, stardustCoins, onSpendCoins, t
                 <div className="flex-1 overflow-hidden">
                   <div className="flex items-center justify-between text-[11px] font-bold text-white leading-none">
                     <span className="truncate">{stone.petName}</span>
-                    <span className="text-[8px] font-mono font-normal text-slate-500">{stone.passingDate.slice(0, 7)}桥</span>
+                    {/* [BUG-FIX] 未填忌日时 passingDate 是占位文本「踏彩虹桥之日」，
+                        原实现无条件在其后拼「桥」，会显示成「踏彩虹桥之日桥」 */}
+                    <span className="text-[8px] font-mono font-normal text-slate-500">
+                      {stone.passingDate === "踏彩虹桥之日" ? stone.passingDate : `${stone.passingDate.slice(0, 7)}桥`}
+                    </span>
                   </div>
                   <p className="text-[9px] text-indigo-300 font-mono mt-1 leading-none">{stone.breed}</p>
                   <p className="text-[8px] text-gray-500 truncate mt-1 leading-none">家长: {stone.parentName}</p>

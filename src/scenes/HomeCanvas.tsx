@@ -437,11 +437,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
         return Math.round(next * 10) / 10;
       });
 
-      // 能量值：-8/小时 = -0.133/分钟（保留下限 10，能量归零由陪伴能量系统处理）
-      setEnergyIndex(prev => {
-        const next = Math.max(0, prev - 0.133);
-        return Math.round(next * 10) / 10;
-      });
+      // [BUG-FIX] 删除画布本地的能量衰减：陪伴能量由 App 侧每 30 秒统一衰减并写回
+      // petConfig.companionEnergy（见 App 的能量同步 effect）。此处再衰减一次会造成
+      // 双倍速率下滑，且 App 写回时又跳回较高值，能量条肉眼可见地来回跳动。
 
       // 心情值：-5/小时 = -0.083/分钟
       setMoodIndex(prev => {
@@ -812,7 +810,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
   const triggerSpeciesReaction = (
     gesture: "click" | "double-click" | "long-press" | "long-press-3s" | "slide-left" | "slide-right" | "pinch" | "spread",
-    part: "head" | "back" | "stomach" | "paws" | "tail"
+    part: "head" | "back" | "stomach" | "paws" | "tail",
+    /** [BUG-FIX] 是否计入一次「抚摸互动」；长按的第二级手势（long-press-3s）不应重复计入 */
+    countAsInteraction = true
   ) => {
     const species = (() => {
       const t = petConfig.type || "";
@@ -895,6 +895,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             
             // Also trigger standard cute jump!
             isJumping.current = true;
+            // [BUG-FIX] 同步镜像 state：原实现只改 ref 不置 state，跳跃期间底部状态栏
+            // 一直显示「呼吸漫舞」，与 triggerGesture 的处理不一致。
+            setIsJumpingState(true);
             jumpVelocity.current = -8.2;
             earSpeed.current = 1.1;
             tailSpeed.current = 1.8;
@@ -983,6 +986,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             
             // Also trigger standard cute jump!
             isJumping.current = true;
+            // [BUG-FIX] 同步镜像 state：原实现只改 ref 不置 state，跳跃期间底部状态栏
+            // 一直显示「呼吸漫舞」，与 triggerGesture 的处理不一致。
+            setIsJumpingState(true);
             jumpVelocity.current = -8.2;
             earSpeed.current = 1.1;
             tailSpeed.current = 1.8;
@@ -1059,6 +1065,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             
             // Trigger standard jump
             isJumping.current = true;
+            // [BUG-FIX] 同步镜像 state：原实现只改 ref 不置 state，跳跃期间底部状态栏
+            // 一直显示「呼吸漫舞」，与 triggerGesture 的处理不一致。
+            setIsJumpingState(true);
             jumpVelocity.current = -8.2;
             earSpeed.current = 1.1;
             tailSpeed.current = 1.8;
@@ -1098,6 +1107,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             setWhisperBubbleText("吱吱～ 挠一挠肚子就缩成了一个圆滚滚的小毛团！超可爱！🎾🐹");
             
             isJumping.current = true;
+            // [BUG-FIX] 同步镜像 state：原实现只改 ref 不置 state，跳跃期间底部状态栏
+            // 一直显示「呼吸漫舞」，与 triggerGesture 的处理不一致。
+            setIsJumpingState(true);
             jumpVelocity.current = -8.2;
             earSpeed.current = 1.1;
             tailSpeed.current = 1.8;
@@ -1134,7 +1146,9 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
     setWhisperTimer(180); // Open bubble for 3 seconds of peak expressiveness
 
-    if (onClickPet) {
+    // [BUG-FIX] 一次物理长按会依次触发 long-press(0.5s) 与 long-press-3s(3s) 两级手势，
+    // 原实现两级都调用 onClickPet → 一次长按扣 2 点对话额度、任务进度 +2、toast 弹两条。
+    if (countAsInteraction && onClickPet) {
       onClickPet();
     }
   };
@@ -1186,7 +1200,8 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
 
           // Second level 3s sleeper check
           longPressTimerRef = window.setTimeout(() => {
-            triggerSpeciesReaction("long-press-3s", part);
+            // [BUG-FIX] 第二级手势不再重复计入一次互动
+            triggerSpeciesReaction("long-press-3s", part, false);
             longPressTimerRef = null;
           }, 2500);
         }
@@ -1325,7 +1340,8 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             triggerSpeciesReaction("long-press", part);
 
             longPressTimerRef = window.setTimeout(() => {
-              triggerSpeciesReaction("long-press-3s", part);
+              // [BUG-FIX] 第二级手势不再重复计入一次互动
+              triggerSpeciesReaction("long-press-3s", part, false);
               longPressTimerRef = null;
             }, 2500);
           }
@@ -2973,9 +2989,11 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
             // Pupil adaptation diameter scaling with SkyTime
             let pupilWidth = 4.2; 
             let pupilHeight = 5.5;
-            if (skyTime === "day") {
+            // [BUG-FIX] 用 skyTimeRef 读取最新值：rAF 主循环闭包捕获的是 effect 创建时的 skyTime，
+            // 且 skyTime 不在主循环依赖数组中，导致昼夜切换后瞳孔永远保持初始的夜晚放大态。
+            if (skyTimeRef.current === "day") {
               pupilWidth = 1.3; // contracts to tiny sharp thread - extremely realistic!
-            } else if (skyTime === "night") {
+            } else if (skyTimeRef.current === "night") {
               pupilWidth = 6.2; // massive dilated starry black eye
               pupilHeight = 6.2;
             }
@@ -3259,8 +3277,10 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
           chewRemainingFrames.current--;
 
           // Periodically spit crumbs out of the chewing mouth for peak realism!
-          if (chewRemainingFrames.current % 10 === 0 && feedingItem) {
-            const foodColor = feedingItem === "snack" ? "#a8ffb2" : feedingItem === "milk" ? "#ffffff" : "#ff85a1";
+          // [BUG-FIX] 用 feedingItemRef 读取最新值：feedingItem 是 state 且不在主循环依赖中，
+          // 闭包内恒为初始 null，导致咀嚼碎屑粒子永不生成。
+          if (chewRemainingFrames.current % 10 === 0 && feedingItemRef.current) {
+            const foodColor = feedingItemRef.current === "snack" ? "#a8ffb2" : feedingItemRef.current === "milk" ? "#ffffff" : "#ff85a1";
             sparkParticles.current.push({
               x: headShiftX + noseX + (Math.random() - 0.5) * 6,
               y: headShiftY + noseY + 2.5,
@@ -3318,7 +3338,8 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
               }
             } else {
               const remainingVal = 3 - feedRecordCount.current;
-              const itemLabel = feedingItem === "snack" ? "极光银鱼" : feedingItem === "milk" ? "星辰奶瓶" : "多维烤肉";
+              // [BUG-FIX] 同上：原实现闭包内恒为 null，文案永远显示「多维烤肉」
+              const itemLabel = feedingItemRef.current === "snack" ? "极光银鱼" : feedingItemRef.current === "milk" ? "星辰奶瓶" : "多维烤肉";
               setWhisperBubbleText(`啊呜啊呜～${itemLabel}真好吃！再喂 ${remainingVal} 次就会给你眨眼放电哦～ 😉✨`);
               setWhisperTimer(150);
             }
@@ -4675,7 +4696,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
                   triggerStardustExplosion();
                 }
               }}
-              className={`py-1.5 rounded border flex flex-col items-center justify-center gap-1 transition-all ${touchEffect === "feed" ? "bg-pink-600/30 border-pink-500 text-white font-bold shadow-[0_0_8px_rgba(236,72,153,0.3)]Scale-95" : "bg-black/35 border-white/10 text-gray-300 hover:border-pink-500/50"}`}
+              className={`py-1.5 rounded border flex flex-col items-center justify-center gap-1 transition-all ${touchEffect === "feed" ? "bg-pink-600/30 border-pink-500 text-white font-bold shadow-[0_0_8px_rgba(236,72,153,0.3)] scale-95" : "bg-black/35 border-white/10 text-gray-300 hover:border-pink-500/50"}`}
               id="btn-v27-feed"
             >
               <span className="text-sm">🐟</span>
@@ -4696,7 +4717,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
                   setTouchEffect("idle");
                 }, 4000);
               }}
-              className={`py-1.5 rounded border flex flex-col items-center justify-center gap-1 transition-all ${touchEffect === "hug" ? "bg-cyan-600/30 border-cyan-500 text-white font-bold shadow-[0_0_8px_rgba(6,182,212,0.3)]Scale-95" : "bg-black/35 border-white/10 text-gray-300 hover:border-cyan-500/50"}`}
+              className={`py-1.5 rounded border flex flex-col items-center justify-center gap-1 transition-all ${touchEffect === "hug" ? "bg-cyan-600/30 border-cyan-500 text-white font-bold shadow-[0_0_8px_rgba(6,182,212,0.3)] scale-95" : "bg-black/35 border-white/10 text-gray-300 hover:border-cyan-500/50"}`}
               id="btn-v27-hug"
             >
               <span className="text-sm">🛡️</span>
@@ -4713,7 +4734,7 @@ export default function HomeCanvas({ petConfig, equipped, onClickPet, stardustSp
                   setTouchEffect("idle");
                 }, 4500);
               }}
-              className={`py-1.5 rounded border flex flex-col items-center justify-center gap-1 transition-all ${touchEffect === "farewell" ? "bg-amber-600/30 border-amber-500 text-white font-bold shadow-[0_0_8px_rgba(245,158,11,0.3)]Scale-95" : "bg-black/35 border-white/10 text-gray-300 hover:border-amber-500/50"}`}
+              className={`py-1.5 rounded border flex flex-col items-center justify-center gap-1 transition-all ${touchEffect === "farewell" ? "bg-amber-600/30 border-amber-500 text-white font-bold shadow-[0_0_8px_rgba(245,158,11,0.3)] scale-95" : "bg-black/35 border-white/10 text-gray-300 hover:border-amber-500/50"}`}
               id="btn-v27-farewell"
             >
               <span className="text-sm">🌌</span>

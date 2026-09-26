@@ -28,6 +28,34 @@ const app = express();
 // 3D 重建接口需承载 base64 图片，默认 100kb 限制会直接 413
 app.use(express.json({ limit: "15mb" }));
 
+// [BUG-FIX] 最后一道防线：任何逃逸的 Promise rejection 只记录日志，不再让整个后端进程退出。
+// Express 4 不捕获 async 处理器抛出的异常，一个畸形请求即可造成 unhandledRejection 使 Node 进程退出。
+process.on("unhandledRejection", (reason) => {
+  console.error("[server] unhandledRejection（已拦截，进程继续运行）:", reason);
+});
+
+// [BUG-FIX] 统一包装 API 处理器：把 async 异常交给 Express 错误中间件返回 500，而不是打崩进程。
+type RouteFn = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => unknown | Promise<unknown>;
+const handleAsync =
+  (fn: RouteFn) =>
+  (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+const api = {
+  // 用 app["post"] 下标写法：避免被「app.post → api.post」的全局替换波及而写成 api.post，
+  // 否则会变成 api.post 调用自身造成无限递归（栈溢出）。
+  post: (path: string, fn: RouteFn) => app["post"](path, handleAsync(fn)),
+};
+
+/** [BUG-FIX] 把不可信输入收敛为字符串，避免非字符串 body 触发 TypeError */
+function asString(v: unknown, fallback: string): string {
+  return typeof v === "string" ? v : fallback;
+}
+
 const PORT = Number(process.env.PORT) || 3000;
 
 // Initialize Gemini client lazily to avoid crashing on startup if the key is empty
@@ -64,15 +92,19 @@ export function setGeminiApiKey(key: string): void {
 }
 
 // REST API for Generating AI Pet Whispers
-app.post("/api/whisper", async (req, res) => {
-  const {
-    ownerName = "主人",
-    petName = "小星尘",
-    petType = "小狗",
-    activeLevel = 1,
-    recentEvents = [],
-    isVip = false,
-  } = req.body;
+api.post("/api/whisper", async (req, res) => {
+  // [BUG-FIX] 收敛不可信输入类型：原实现直接用 req.body.* 解构默认值，
+  // 传入数字/对象时 recentEvents.join / petType.includes 会抛 TypeError，
+  // 在 Express 4 下成为未捕获 rejection 直接打崩进程。
+  const body = req.body ?? {};
+  const ownerName = asString(body.ownerName, "主人");
+  const petName = asString(body.petName, "小星尘");
+  const petType = asString(body.petType, "小狗");
+  const activeLevel = typeof body.activeLevel === "number" ? body.activeLevel : 1;
+  const recentEvents: string[] = Array.isArray(body.recentEvents)
+    ? body.recentEvents.filter((t: unknown): t is string => typeof t === "string")
+    : [];
+  const isVip = body.isVip === true;
 
   const client = getGeminiClient();
 
@@ -188,17 +220,17 @@ ${socialMode === "matched" ? `- 我家宠物性格标签 (personalityTags): ${pe
 });
 
 // REST API for Real-Time AI Chat with the Pet
-app.post("/api/chat", async (req, res) => {
-  const {
-    message,
-    chatHistory = [],
-    ownerName = "星之守护者",
-    petName = "天乐",
-    petType = "猫",
-    breed = "英短乳白",
-    lore = "",
-    personality = "温柔精灵",
-  } = req.body;
+api.post("/api/chat", async (req, res) => {
+  // [BUG-FIX] 同上：所有字段先做类型收敛，message 非字符串时 message.trim() 会直接抛错打崩进程。
+  const body = req.body ?? {};
+  const message = typeof body.message === "string" ? body.message : "";
+  const chatHistory: any[] = Array.isArray(body.chatHistory) ? body.chatHistory : [];
+  const ownerName = asString(body.ownerName, "星之守护者");
+  const petName = asString(body.petName, "天乐");
+  const petType = asString(body.petType, "猫");
+  const breed = asString(body.breed, "英短乳白");
+  const lore = asString(body.lore, "");
+  const personality = asString(body.personality, "温柔精灵");
 
   if (!message || message.trim() === "") {
     return res.status(400).json({ success: false, error: "消息内容不能为空" });
@@ -365,13 +397,13 @@ function generateOffline3DConfig(petName: string, petType: string, primaryColor:
 }
 
 // REST API for Photo-to-3D Reconstruction Sandbox
-app.post("/api/reconstruct-3d", async (req, res) => {
-  const {
-    petName = "流星喵",
-    petType = "猫",
-    primaryColor = "#ff6b6b",
-    base64Image = "", // image/png or image/jpeg base64 data
-  } = req.body;
+api.post("/api/reconstruct-3d", async (req, res) => {
+  // [BUG-FIX] 类型收敛：base64Image 非字符串时 .trim()/.includes() 会抛 TypeError 打崩进程
+  const body = req.body ?? {};
+  const petName = asString(body.petName, "流星喵");
+  const petType = asString(body.petType, "猫");
+  const primaryColor = asString(body.primaryColor, "#ff6b6b");
+  const base64Image = asString(body.base64Image, ""); // image/png or image/jpeg base64 data
 
   const client = getGeminiClient();
 
@@ -503,15 +535,19 @@ app.get("/api/config/status", (_req, res) => {
 });
 
 /** 设置 Gemini key；key 为空字符串表示关闭在线 AI */
-app.post("/api/config/gemini-key", (req, res) => {
-  const { key = "" } = req.body ?? {};
-  setGeminiApiKey(String(key));
+api.post("/api/config/gemini-key", (req, res) => {
+  const key = asString((req.body ?? {}).key, "");
+  setGeminiApiKey(key);
   res.json({ success: true, ...currentAiState() });
 });
 
 // REST API for Generating AI Growth Stories
-app.post("/api/growth-story", async (req, res) => {
-  const { petName = "小星尘", breed = "可爱宝宝", petType = "猫" } = req.body;
+api.post("/api/growth-story", async (req, res) => {
+  // [BUG-FIX] 类型收敛，避免非字符串字段进入 prompt 模板导致异常
+  const body = req.body ?? {};
+  const petName = asString(body.petName, "小星尘");
+  const breed = asString(body.breed, "可爱宝宝");
+  const petType = asString(body.petType, "猫");
   const client = getGeminiClient();
 
   if (!client) {
@@ -551,9 +587,10 @@ app.post("/api/growth-story", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Gemini growth-story error:", error);
-    return res.json({
+    // [BUG-FIX] 不再把内部错误信息原样透传客户端（与 whisper/chat 端点的策略保持一致）
+    return res.status(500).json({
       success: false,
-      error: error.message
+      error: "成长故事生成服务暂时不可用"
     });
   }
 });
@@ -572,19 +609,29 @@ export interface StarPuffServerOptions {
 }
 
 export async function startStarPuffServer(opts: StarPuffServerOptions = {}): Promise<void> {
-  const { port = PORT, host = "0.0.0.0", appDir, onListening } = opts;
+  // [BUG-FIX] 默认只监听回环地址：原默认 0.0.0.0 会把后端（含微交易接口）暴露到整个局域网。
+  const { port = PORT, host = "127.0.0.1", appDir, onListening } = opts;
+
+  const isLoopbackHost = host === "127.0.0.1" || host === "localhost" || host === "::1";
+  // [BUG-FIX] mock 模式只允许在「非生产 + 回环监听」下自动启用。
+  // 原实现只要没设 NODE_ENV=production 且缺 API Key 就静默 mock（Finalize 永远返回 Succeeded），
+  // 配合 0.0.0.0 监听等于把「零元购」开放给局域网。现在对外监听时强制关闭 mock，宁可报错也不假发货。
+  const mockMode =
+    process.env.NODE_ENV === "production"
+      ? false
+      : process.env.STEAM_MOCK_MODE === "true" ||
+        (isLoopbackHost && !process.env.STEAM_WEB_API_KEY);
 
   // 微交易配置跟随运行时注入（模块加载时的 env 快照可能已过时）
   updateConfig({
     webApiKey: process.env.STEAM_WEB_API_KEY || "",
     appId: Number(process.env.STEAM_APP_ID) || 480,
     sandbox: process.env.STEAM_SANDBOX === "true",
-    // 生产环境严禁 mock，防止"假发货/假扣款"资损
-    mockMode:
-      process.env.NODE_ENV === "production"
-        ? false
-        : process.env.STEAM_MOCK_MODE === "true" || !process.env.STEAM_WEB_API_KEY,
+    mockMode,
   });
+  if (mockMode) {
+    console.warn("[microtransaction-api] ⚠️ 当前处于 mock 支付模式：不会真实扣款，仅限本地开发调试。");
+  }
 
   if (process.env.NODE_ENV !== "production") {
     // vite 只在开发态需要；动态 import 避免生产打包时引入这个巨型依赖
@@ -602,6 +649,15 @@ export async function startStarPuffServer(opts: StarPuffServerOptions = {}): Pro
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // [BUG-FIX] 错误兜底中间件：handleAsync 捕获的 async 异常最终汇聚到这里，
+  // 返回 500 而不是让进程崩溃（必须注册在所有路由之后）。
+  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error("[server] 未捕获的路由错误:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: "服务器内部错误" });
+    }
+  });
 
   const server = app.listen(port, host, () => {
     const address = server.address();

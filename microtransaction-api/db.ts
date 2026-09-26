@@ -119,7 +119,14 @@ export function revertGrantTransaction(grant: any) {
     const user = getUser(g.steamId);
     if (!user) return;
     if (g.payload.kind === "stardust_coins") {
-      user.coins = Math.max(0, (user.coins || 0) - g.payload.amount);
+      // [BUG-FIX] 不再把回收后的余额 clamp 到 0：用户「买币 → 全部花掉 → 退款」时，
+      // clamp 会把差额静默吞掉，等于零成本消费、退款欺诈无成本。
+      // 这里保留负余额作为风控信号并记录告警，交由人工/后续风控处理。
+      const nextCoins = (user.coins || 0) - g.payload.amount;
+      if (nextCoins < 0) {
+        console.warn(`[revert] 用户 ${g.steamId} 回收后余额为负（${nextCoins}），可能存在退款欺诈`);
+      }
+      user.coins = nextCoins;
       upsertUser(user.steamId, user.coins, user.membershipExpires);
     } else if (g.payload.kind === "membership") {
       if (user.membershipExpires) {

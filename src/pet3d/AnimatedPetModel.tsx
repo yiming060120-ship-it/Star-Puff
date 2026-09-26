@@ -45,10 +45,12 @@ export function AnimatedPetModel({
   const isSleepingRef = useRef(isSleeping);
   const moodRef = useRef(mood);
   const gestureRef = useRef(gesture);
+  const renderModeRef = useRef(renderMode);
   energyRef.current = energy;
   isSleepingRef.current = isSleeping;
   moodRef.current = mood;
   gestureRef.current = gesture;
+  renderModeRef.current = renderMode;
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
     clone.traverse((obj) => {
@@ -195,7 +197,13 @@ export function AnimatedPetModel({
     group.scale.setScalar(gestureScale * (1 + breathe * 2));
 
     // ---- 2. 状态联动：透明度 ----
-    const targetOpacity = liveSleeping ? 0.5 : 1.0;
+    // [BUG-FIX] 渲染风格 xray/rig/voxel 本身就靠 opacity 实现，原实现每帧把 opacity
+    // 强行拉回 1.0，几帧内就冲掉了 renderMode 的设置，导致这些风格实质失效。
+    // 现在把「风格透明度」并入目标值统一计算。
+    const mode = renderModeRef.current;
+    const modeOpacity = mode === "xray" ? 0.45 : mode === "rig" || mode === "voxel" ? 0.7 : null;
+    const baseOpacity = liveSleeping ? 0.5 : 1.0;
+    const targetOpacity = modeOpacity === null ? baseOpacity : Math.min(modeOpacity, baseOpacity);
     for (const m of materials) {
       const mat = m as THREE.MeshStandardMaterial;
       if (mat && mat.transparent !== undefined) {
@@ -209,11 +217,13 @@ export function AnimatedPetModel({
 
     // ---- 3. 低能量/沉睡变暗 ----
     const darken = lowEnergy * 0.6 + (liveSleeping ? 0.4 : 0);
+    // [BUG-FIX] xray 模式自带 0.6 的 emissiveIntensity，原实现每帧覆盖成 0.15 使其失效
+    const baseEmissive = mode === "xray" ? 0.6 : 0.15;
     for (const m of materials) {
       const mat = m as THREE.MeshStandardMaterial;
       if (mat && mat.color && mat.emissiveIntensity !== undefined) {
         // 用 emissive 强度模拟发光衰减（不直接改 color，避免影响原纹理色）
-        mat.emissiveIntensity = Math.max(0, 0.15 - darken * 0.15);
+        mat.emissiveIntensity = Math.max(0, baseEmissive - darken * 0.15);
       }
     }
 

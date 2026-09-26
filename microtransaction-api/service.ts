@@ -19,6 +19,8 @@ import type {
 } from "./types";
 
 import products from "./products.json" with { type: "json" };
+import crypto from "crypto";
+import { hasOrder, registerOrder, markOrderFinalized } from "./orders";
 
 // ---- 配置 ----
 
@@ -70,13 +72,29 @@ export function getConfig(): Readonly<SteamApiConfig> {
 // ---- Steam Web API 底层调用 ----
 
 const STEAM_API_BASE = "https://partner.steam-api.com";
+/** [BUG-FIX] Steam 调用超时（毫秒）：原实现无超时，连接挂起时请求永不返回，
+ *  定时对账任务会不断堆积悬挂请求（内存泄漏 + 接口不可用）。 */
+const STEAM_API_TIMEOUT_MS = 15_000;
+
+/** 单个毫秒时间片内的随机空间（2^20 ≈ 104 万，保证 64 位内可长期使用） */
+const ORDER_RAND_SPACE = 1_048_576n;
+/** 单笔订单允许的最大数量，避免超大值撑爆金额/库存 */
+const MAX_ORDER_QUANTITY = 100;
 
 /** 生成 64 位唯一订单号（Steam 要求由服务端分配） */
 export function generateOrderId(): string {
-  // 使用毫秒时间戳 + 随机数拼成 64 位内的唯一 ID
+  // [BUG-FIX] 原实现仅用 Math.random()*1e6，同一毫秒内两笔订单有 1/10^6 概率碰撞。
+  // orderId 是发放幂等键，一旦碰撞，第二笔真实付款会被判为「已发放」而拿不到货。
+  // 改用加密随机数扩大随机空间，并与订单注册表比对，保证进程内绝对唯一。
   const timestamp = BigInt(Date.now());
-  const rand = BigInt(Math.floor(Math.random() * 1_000_000));
-  return (timestamp * 1_000_000n + rand).toString();
+  let seq = BigInt(crypto.randomInt(0, Number(ORDER_RAND_SPACE)));
+  for (let i = 0; i < 200; i++) {
+    const id = (timestamp * ORDER_RAND_SPACE + seq).toString();
+    if (!hasOrder(id)) return id;
+    seq = (seq + 1n) % ORDER_RAND_SPACE;
+  }
+  // 理论上不可达（同一毫秒内产生 200 笔订单）；兜底也保持纯数字
+  return (timestamp * ORDER_RAND_SPACE + seq).toString();
 }
 
 async function callSteamApi<T>(
@@ -110,11 +128,14 @@ async function callSteamApi<T>(
     options.body = params.toString();
   }
 
-  const response = await fetch(url, options);
+  const response = await fetch(url, { ...options, signal: AbortSignal.timeout(STEAM_API_TIMEOUT_MS) });
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(`Steam API HTTP error (${response.status}): ${text}`);
+    // [BUG-FIX] 不把 Steam 响应体拼进异常消息：它会经 error.message 一路透传到前端 JSON，
+    // 可能泄露内部请求细节。详细内容只写服务端日志。
+    console.error(`[steam] HTTP ${response.status} 响应体:`, text);
+    throw new Error(`Steam API HTTP error (${response.status})`);
   }
 
   const json = JSON.parse(text);
@@ -195,13 +216,21 @@ export async function initPurchase(
     return { success: false, error: `商品 ID ${req.itemId} 不存在` };
   }
 
-  const quantity = req.quantity > 0 ? req.quantity : 1;
+  // [BUG-FIX] 数量必须为正整数且有上限：原实现只判 >0，
+  // quantity=0.5 会产生分数美分/分数件数，quantity=1e12 无上限。
+  const rawQuantity = Number(req.quantity);
+  const quantity =
+    Number.isInteger(rawQuantity) && rawQuantity > 0
+      ? Math.min(rawQuantity, MAX_ORDER_QUANTITY)
+      : 1;
   const orderId = generateOrderId();
   // 金额单位：分；多数量时 amount 为总价
   const totalAmount = product.priceInCents * quantity;
 
   if (config.mockMode) {
     console.log(`[MOCK] InitPurchase: ${product.name} x${quantity} → ${orderId}`);
+    // [BUG-FIX] 登记订单，供 /grant 校验订单真实性（防止伪造 orderId 凭空领取）
+    registerOrder({ orderId, steamId: req.steamId, itemId: req.itemId, quantity, createdAt: Date.now() });
     return {
       success: true,
       data: {
@@ -244,6 +273,9 @@ export async function initPurchase(
       usersession: "client",
     });
 
+    // [BUG-FIX] Steam 侧下单成功后才登记，供 /grant 校验订单真实性
+    registerOrder({ orderId, steamId: req.steamId, itemId: req.itemId, quantity, createdAt: Date.now() });
+
     return {
       success: true,
       data: {
@@ -267,6 +299,10 @@ export async function finalizePurchase(
 ): Promise<ApiResponse<{ status: string }>> {
   if (config.mockMode) {
     console.log(`[MOCK] FinalizePurchase: order ${req.orderId} completed`);
+    // [BUG-FIX] 标记订单已支付，只有 Finalized 的订单才允许发放权益
+    if (!markOrderFinalized(req.orderId)) {
+      console.warn(`[MOCK] FinalizePurchase: 订单 ${req.orderId} 不在注册表中（可能已过期或伪造）`);
+    }
     return { success: true, data: { status: "Succeeded" } };
   }
 
@@ -279,6 +315,10 @@ export async function finalizePurchase(
       orderid: req.orderId,
       appid: req.appId,
     });
+    // [BUG-FIX] 标记订单已支付，只有 Finalized 的订单才允许发放权益
+    if (!markOrderFinalized(req.orderId)) {
+      console.warn(`[finalize] 订单 ${req.orderId} 不在注册表中（可能服务重启或订单已过期）`);
+    }
     return { success: true, data: { status: "Succeeded" } };
   } catch (error: any) {
     return { success: false, error: error.message };

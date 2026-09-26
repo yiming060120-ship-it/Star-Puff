@@ -127,11 +127,12 @@ export default function PetMemoryTimeline({ petConfig, onUpdateTimeline, onUpdat
   };
 
   const handleDeleteLog = (id: string) => {
-    setTimelineList(prev => {
-      const nextList = prev.filter(l => l.id !== id);
-      onUpdateTimeline(nextList);
-      return nextList;
-    });
+    // [BUG-FIX] 副作用（onUpdateTimeline 持久化回调）必须移出 setState updater：
+    // StrictMode 下 updater 双调用会让持久化执行两次
+    //（同文件新增/编辑分支已按此模式修过，删除这条当时漏改）。
+    const nextList = timelineList.filter(l => l.id !== id);
+    setTimelineList(nextList);
+    onUpdateTimeline(nextList);
     triggerToast("🗑️ 对应的星辰记忆已解除关联。");
     playSound("beep");
   };

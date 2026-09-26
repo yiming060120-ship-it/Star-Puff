@@ -15,6 +15,9 @@ import { NetworkError, ApiError, toAppError } from "../core/errors";
  */
 export const API_BASE = "";
 
+/** [BUG-FIX] 请求超时（毫秒）：原实现无超时，后端悬挂时购买流程会永久停留在 finalizing 且无法取消 */
+const REQUEST_TIMEOUT_MS = 20_000;
+
 /**
  * 统一请求底层：封装 fetch，把网络错误 / HTTP 错误 / JSON 解析失败
  * 收敛为「带 success 字段的结构化结果」，绝不向上层抛出未捕获异常。
@@ -32,6 +35,8 @@ async function request<T>(
       method: options?.method ?? "GET",
       headers: options?.body !== undefined ? { "Content-Type": "application/json" } : undefined,
       body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
+      // [BUG-FIX] 加超时，避免后端悬挂时前端请求永久 pending
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
     const e = toAppError(err, "NETWORK_ERROR");

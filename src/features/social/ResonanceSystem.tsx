@@ -185,7 +185,7 @@ export default function ResonanceSystem({ activePet, onUpdateCoins, triggerToast
                   }`}
                 >
                   <Heart className="w-3.5 h-3.5 fill-pink-400" />
-                  {cuddleSuccess ? "已心灵贴贴联谊 (币+15)" : "模拟双宠大世界贴贴贴 (星辰币+15)"}
+                  {cuddleSuccess ? "已心灵贴贴联谊 (币+5)" : "模拟双宠大世界贴贴贴 (星辰币+5)"}
                 </button>
               </div>
             </div>

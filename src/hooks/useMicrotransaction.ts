@@ -48,9 +48,12 @@ export function applyGrantToUser(currentUser: StarPuffUser, payload: GrantPayloa
 
   if (payload.kind === "membership") {
     const isYear = payload.membershipLevel === "vip_year";
-    const outfitsUnlocked = isYear && !currentUser.outfitsUnlocked.includes("cape_aurora")
-      ? [...currentUser.outfitsUnlocked, "cape_aurora"]
-      : currentUser.outfitsUnlocked;
+    // [BUG-FIX] 防御损坏存档：outfitsUnlocked 缺失时原实现直接 .includes 会抛 TypeError，
+    // 导致「钱已扣但发奖崩溃」。
+    const unlocked = Array.isArray(currentUser.outfitsUnlocked) ? currentUser.outfitsUnlocked : [];
+    const outfitsUnlocked = isYear && !unlocked.includes("cape_aurora")
+      ? [...unlocked, "cape_aurora"]
+      : unlocked;
 
     return {
       ...currentUser,
@@ -104,7 +107,14 @@ export function useMicrotransaction(
           mtxLogger.error("check", `查询交易状态失败：${status.error}`, { orderId, status });
           return { status: "error", orderId, error: status.error || "查询交易状态失败" };
         }
-        mtxLogger.success("check", `交易状态：${status.data?.status}`, { orderId, ...status.data });
+        // [BUG-FIX] 原实现把交易状态只写进日志、不做任何判断就 Finalize，该步骤形同虚设。
+        // 明确失败的状态必须中止购买，避免在未授权的情况下继续走扣款/发放流程。
+        const txStatus = String(status.data?.status ?? "");
+        mtxLogger.success("check", `交易状态：${txStatus}`, { orderId, ...status.data });
+        if (txStatus === "Failed" || txStatus === "Refunded" || txStatus === "Chargedback") {
+          mtxLogger.error("check", `交易状态异常（${txStatus}），中止购买`, { orderId, txStatus });
+          return { status: "error", orderId, error: "交易未获授权或已失败，请重试" };
+        }
 
         // 4. 完成扣款（真实环境需等待 Steam 叠加层授权回调后调用 finalize）
         mtxLogger.info("finalize", `完成扣款：orderId=${orderId}`);
