@@ -12,13 +12,17 @@
 | 你想…… | 去看 |
 |---|---|
 | 把项目跑起来 | [快速开始](#-快速开始) |
+| 浏览全部文档 | **`docs/README.md`（文档索引）** |
 | 了解目录为什么这么分 | [目录结构](#-目录结构) + `docs/decisions/ADR-0001` |
 | 了解七大星云场景的玩法设计 | `docs/design/Scene_Features_Design.md` |
 | 理解核心数据结构（宠物/用户/场景契约） | `src/types.ts` |
 | 作为 AI / 新成员接手本项目 | **`docs/AI_HANDOFF.md`（必读）** |
+| 查看最近一次安全与竞态修复记录 | `docs/decisions/ADR-0004-security-hardening-and-race-fixes.md` |
+| 运维微交易模块（密钥/数据库/对账） | `docs/HANDOVER_MICROTRANSACTIONS.md` |
 | 提交代码前确认规范 | `CODE_OF_CONDUCT.md` |
 | 报告安全问题 | `SECURITY.md` |
 | 查看历史源码合集快照 | `docs/archive/StarPuff_Source_Code.md` |
+| 排查一次历史构建/运行失败 | `docs/archive/logs/`（含日志说明） |
 
 ---
 
